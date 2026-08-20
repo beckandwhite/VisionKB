@@ -75,7 +75,7 @@ def build():
             mtime_iso       TEXT NOT NULL,
             mtime_epoch     REAL NOT NULL,
             caption         TEXT,
-            quality_score   INTEGER CHECK(quality_score BETWEEN 1 AND 5)
+            quality_score   INTEGER CHECK(quality_score BETWEEN 0 AND 5)
          );
 
         CREATE TABLE tags (
