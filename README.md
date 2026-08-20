@@ -61,8 +61,8 @@ screenshot_annotation/
 ├── kb/
 │   ├── config.py          # intended shared config (see Gotcha below)
 │   └── build_kb.py        # Stage: ingest → SQLite FTS5 + exports
-├── _annotations.jsonl     # output: one JSON record per image
-├── _tracker.json          # resumable checkpoint (progress)
+├── _annotations.jsonl      # output: one JSON record per image
+├── _tracker.json           # per-file registry + run summary (progress ledger)
 ├── telemetry.log          # per-file latency / status log
 ├── kb/data/wiki.db        # output: SQLite DB (FTS5 + embeddings)
 └── exports/               # output: wiki.ndjson, tags_index.json, thumbnails/
@@ -81,18 +81,38 @@ Images themselves live in iCloud:
 ### 1. Extract annotations (vision + embeddings)
 
 ```bash
-# default folder is the iCloud Screenshots dir; test on 5 first
+# default folder is the iCloud Screenshots dir; classify the next 5 unprocessed
 python3 classify_images.py --count 5
 
 # scan a different folder with --screenshot-dir
 python3 classify_images.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/' --count 5
 
-# resume / run the rest (reads _tracker.json checkpoint)
-python3 classify_images.py             # --count 0 = all remaining
+# classify all remaining unprocessed files (no limit)
+python3 classify_images.py              # --count 0 = everything not yet done
 ```
 
-- Resumable: progress is stored in `_tracker.json` every 25 files.
-- Append to `_annotations.jsonl`; re-runs continue where you left off.
+`_tracker.json` is a **self-maintaining registry**, not a bare index. Each run:
+
+1. **Reconciles** the source folder into the tracker — every file is stored (keyed
+   by absolute path) with its `filename` and `mtime_iso`; files new since the last
+   run are **appended** automatically.
+2. **Marks progress** with a `processed_at` timestamp the moment each file is done,
+   so an interrupted or crashed run leaves an accurate ledger.
+3. **Classifies the next N unprocessed files** (`--count N`, newest mtime first;
+   `--count 0` = all remaining). `--count` is the per-run limit, not "the first N
+   images ever".
+
+- **Re-runs skip what's done.** A re-run with no new files prints *Nothing to do*
+  and does no vision work. Add a file (or run with more of them present) and only the
+  new/unprocessed ones are picked up.
+- **Existing annotations are auto-seeded.** On the first run after this change,
+  files already present in `_annotations.jsonl` are marked processed (`status:
+  "backfilled"`) so they are not reclassified.
+- **Note on edited files:** a file already in the registry keeps its `processed_at`
+  even if its mtime changes, so an in-place edit is **not** reprocessed by design
+  (keyed by path, not by content/mtime). Delete its registry entry or its
+  `_annotations.jsonl` line to force a re-process.
+- Checkpointed atomically (`tmp` + `os.replace`) every 25 files and at end of run.
 - `--screenshot-dir` sets the source folder (default: iCloud Screenshots above);
   outputs (`_tracker.json`, `_annotations.jsonl`, `telemetry.log`) are always written
   next to the script, not into the scanned folder.
@@ -129,11 +149,12 @@ see implementation.md, Stage 5.)
 ## Gotchas (read these first)
 
 - **`classify_images.py` defaults to the iCloud folder**
-  (`~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`); pass
-  `--screenshot-dir` to scan elsewhere. Outputs (`_tracker.json`,
-  `_annotations.jsonl`, `telemetry.log`) are written next to the script, not into
-  the scanned folder. The existing `_annotations.jsonl` / `_tracker.json` are
-  leftovers from an earlier run.
+   (`~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`); pass
+   `--screenshot-dir` to scan elsewhere. Outputs (`_tracker.json`,
+   `_annotations.jsonl`, `telemetry.log`) are written next to the script, not into
+   the scanned folder. The existing `_annotations.jsonl` is real history (5 records);
+   its old flat-index `_tracker.json` is auto-migrated — the registry is rebuilt from
+   the folder + those annotations on the first run.
 - **`kb/config.py` is not yet wired in.** Neither script imports it — model names
   and paths are hardcoded inside each script instead. Treat config.py as the
   *intended* source of truth and reconcile the two before a big run.
@@ -150,10 +171,48 @@ see implementation.md, Stage 5.)
 
 | File | Purpose |
 |---|---|
-| `_annotations.jsonl` | one JSON record per image (append, resumable) |
-| `_tracker.json` | checkpoint: last processed index / totals |
+| `_annotations.jsonl` | one JSON record per image (append, never rewritten) |
+| `_tracker.json` | per-file registry (filename + `mtime_iso` + `processed_at`) and run summary — the progress ledger |
 | `telemetry.log` | per-file latency + status (append-only) |
 | `kb/data/wiki.db` | SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
 | `exports/wiki.ndjson` | flat dump of all records |
 | `exports/tags_index.json` | tag frequencies + co-occurrence edges |
 | `exports/thumbnails/` | 320px JPEG thumbnails (optional) |
+
+---
+
+## Tracker format (`_tracker.json`)
+
+A per-file registry plus a per-run summary. Each entry is keyed by the file's
+absolute path; `processed_at == null` means *unprocessed*.
+
+```json
+{
+  "files": {
+    "/abs/path/Screenshot 2026-08-13 at 20.10.40.png": {
+      "filename":      "Screenshot 2026-08-13 at 20.10.40.png",
+      "mtime_iso":     "2026-08-13T18:10:54.850418+00:00",
+      "processed_at":  "2026-08-16T09:28:00.000000+00:00",
+      "quality_score": 5,
+      "status":        "ok"
+    }
+  },
+  "runs": {
+    "last_run_at":        "2026-08-20T13:10:21+00:00",
+    "last_count_param":   10,
+    "total_files":        2027,
+    "processed":          5,
+    "unprocessed":        2022,
+    "new_this_run":       0,
+    "processed_this_run": 0,
+    "errors_this_run":    0,
+    "status":             "nothing-to-process"
+  }
+}
+```
+
+- `status` per file: `pending` (not yet done), `ok` / `fail` (just classified),
+  `backfilled` (auto-seeded from an existing `_annotations.jsonl` line).
+- `runs.status`: `completed`, `nothing-to-process`.
+- Old flat-index checkpoints (`last_processed_index`, …) are detected and ignored;
+  the registry is rebuilt from the folder + existing annotations on first run.

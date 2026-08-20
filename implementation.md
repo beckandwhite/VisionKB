@@ -63,7 +63,13 @@ Use existing `classify_images.py` logic, but:
 - Run over **uniques only**, in **mtime order**.
 - Vision prompt → `{caption, OCR_text[], entities[], tags[], quality 1–5}`.
 - Keep `embedding_vector` (768-dim, nomic).
-- Keep checkpointing (`_tracker.json` every N) + `telemetry.log`.
+- Keep checkpointing (`_tracker.json` every N) + `telemetry.log`. The tracker is a
+   **per-file registry** (`{filepath: {filename, mtime_iso, processed_at, quality_score,
+    status}}` + a `runs` summary): each run reconciles the folder (appends new files),
+   marks each file `processed_at` when done, then classifies the next `--count`
+   unprocessed files (newest mtime first). Re-runs skip done files; existing
+   `_annotations.jsonl` entries are auto-seeded as `backfilled` so they aren't
+   reclassified.
 - Optionally: run cheap **pre-screen** (Stage-2 embedding + a fast model) and only
   invoke the 30B model on cluster *representatives*; other images get the cheaper model.
 - Output: `_annotations.jsonl` (append, deterministic mtime order → safe re-run).

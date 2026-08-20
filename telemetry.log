@@ -3,3 +3,10 @@
 {"timestamp": "2026-08-13T20:59:22.032010+00:00", "filename": "Screenshot 2026-08-12 at 21.40.37.png", "vision_latency_s": 133.415, "tags_count": 7, "embedding_dims": 768, "status": "ok"}
 {"timestamp": "2026-08-13T21:00:50.796960+00:00", "filename": "Screenshot 2026-08-12 at 21.36.50.png", "vision_latency_s": 88.763, "tags_count": 3, "embedding_dims": 768, "status": "ok"}
 {"timestamp": "2026-08-13T21:02:21.229635+00:00", "filename": "Screenshot 2026-08-12 at 21.32.41.png", "vision_latency_s": 90.431, "tags_count": 4, "embedding_dims": 768, "status": "ok"}
+{"timestamp": "2026-08-20T16:07:10.800920+00:00", "filename": "Screenshot 2026-08-19 at 16.33.42.png", "vision_latency_s": 663.124, "tags_count": 0, "embedding_dims": 768, "status": "fail"}
+{"timestamp": "2026-08-20T16:12:13.541073+00:00", "filename": "Screenshot 2026-08-19 at 16.17.48.png.tmpresize.jpg", "vision_latency_s": 88.331, "tags_count": 3, "embedding_dims": 768, "status": "ok"}
+{"timestamp": "2026-08-20T16:13:07.653884+00:00", "filename": "Screenshot 2026-08-19 at 16.17.48.png", "vision_latency_s": 54.108, "tags_count": 3, "embedding_dims": 768, "status": "ok"}
+{"timestamp": "2026-08-20T16:15:19.481524+00:00", "filename": "Screenshot 2026-08-19 at 10.24.03.png", "vision_latency_s": 131.821, "tags_count": 11, "embedding_dims": 768, "status": "ok"}
+{"timestamp": "2026-08-20T16:17:39.805194+00:00", "filename": "Screenshot 2026-08-19 at 10.12.30.png", "vision_latency_s": 140.313, "tags_count": 7, "embedding_dims": 768, "status": "ok"}
+{"timestamp": "2026-08-20T16:19:40.469818+00:00", "filename": "Screenshot 2026-08-19 at 10.11.04.png", "vision_latency_s": 120.658, "tags_count": 8, "embedding_dims": 768, "status": "ok"}
+{"timestamp": "2026-08-20T16:22:18.557203+00:00", "filename": "Screenshot 2026-08-19 at 10.11.00.png", "vision_latency_s": 158.08, "tags_count": 7, "embedding_dims": 768, "status": "ok"}
