@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screenshot KB — WebUI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-title">Screenshot KB</span>
+      <span class="brand-sub">webui</span>
+      <span id="live-dot" class="live-dot" title="auto-refresh on"></span>
+    </div>
+    <div class="topbar-right">
+      <label class="poll-toggle">
+        <input type="checkbox" id="poll-enabled" checked>
+        <span>auto</span>
+      </label>
+      <span id="last-updated" class="muted">—</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section id="dashboard" class="section">
+      <h1 class="section-title">Backlog</h1>
+      <div id="funnel" class="funnel"></div>
+
+      <div class="eta-row">
+        <div class="eta-block">
+          <span class="eta-label">Time-equivalent backlog</span>
+          <span id="eta-human" class="eta-value">—</span>
+          <span id="eta-detail" class="eta-detail muted"></span>
+        </div>
+        <div class="status-chips" id="status-chips"></div>
+      </div>
+
+      <div class="sparkline-wrap">
+        <span class="sparkline-label">vision latency / run</span>
+        <svg id="sparkline" class="sparkline" viewBox="0 0 600 100"
+             preserveAspectRatio="none"></svg>
+      </div>
+    </section>
+
+    <section id="timeline-section" class="section">
+      <div class="section-header">
+        <h1 class="section-title">Timeline</h1>
+        <div class="filters">
+          <input type="text" id="filter-q" class="filter-input"
+                 placeholder="search caption / tag / ocr / entity">
+          <select id="filter-status" class="filter-input">
+            <option value="all">status: all</option>
+            <option value="ok">ok</option>
+            <option value="fail">fail</option>
+            <option value="none">none</option>
+          </select>
+          <select id="filter-tag" class="filter-input">
+            <option value="">tag: all</option>
+          </select>
+          <button id="clear-filters" class="btn muted">clear</button>
+        </div>
+      </div>
+
+      <div id="timeline-status" class="timeline-status muted">loading…</div>
+      <div id="timeline" class="timeline"></div>
+      <div id="load-more-wrap" class="load-more-wrap">
+        <button id="load-more" class="btn">load more</button>
+      </div>
+    </section>
+
+    <section id="tags-section" class="section">
+      <h1 class="section-title">Tags</h1>
+      <div id="tags-meta" class="tags-meta muted"></div>
+      <div id="top-tags" class="top-tags"></div>
+      <div id="edges" class="edges"></div>
+    </section>
+  </main>
+
+   <div id="record-panel" class="record-panel">
+     <div class="record-panel-inner">
+       <button id="record-close" class="btn record-close">×</button>
+       <div id="record-body" class="record-body"></div>
+     </div>
+   </div>
+
+   <script src="app.js"></script>
+</body>
+</html>

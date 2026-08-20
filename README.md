@@ -141,8 +141,37 @@ for cap, in c.execute("SELECT caption FROM screenshots_fts "
 PY
 ```
 
-(Embedding/semantic search and the clustered **LLM-wiki** layer are planned —
-see implementation.md, Stage 5.)
+ (Embedding/semantic search and the clustered **LLM-wiki** layer are planned —
+ see implementation.md, Stage 5.)
+
+ ### 4. WebUI (timeline + backlog dashboard)
+
+ A dependency-free single-page viewer over the pipeline artifacts (stdlib
+ `http.server` + vanilla JS; no build). Read-only — it never writes or touches
+ the pipeline scripts; every source file is re-read per request, so a live
+ `classify_images.py` run shows up without a restart.
+
+ ```bash
+ python3 app/server.py                 # http://127.0.0.1:8000
+ python3 app/server.py --port 8000 --open   # pick a port + open in browser
+ ```
+
+ Three sections, top → bottom:
+ - **Backlog** — funnel of pipeline stages as % of the tracker total
+   (`_tracker.json` `total_files` ≈ 2027): *Scanned → Vision attempts →
+   Vision ok → Annotated → Wiki-ingested*, plus a time-equivalent backlog
+   (`avg latency × remaining` → ETA + projected finish), status chips
+   (`ok / fail / pending`), and a per-run latency sparkline.
+ - **Timeline** — rows joined from `_annotations.jsonl` + `telemetry.log` +
+   `wiki.ndjson` (filename key), newest first; filters by tag / status /
+   free-text search; click a row to expand full OCR / entities / tags and an
+   "open original" link.
+ - **Tags** — `top_tags` bars + `edges` co-occurrence list from
+   `exports/tags_index.json`; clicking a tag filters the timeline.
+
+ Thumbnails render live once `exports/thumbnails/` is populated
+ (`python3 kb/build_kb.py` without `--no-thumbs`); until then rows show a
+ placeholder. See [WebUI-1.0-plan.md](WebUI-1.0-plan.md) for the design.
 
 ---
 
