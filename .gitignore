@@ -5,3 +5,5 @@ __pycache__/
 # generated pipeline outputs (regenerate with python3 kb/build_kb.py)
 exports/
 kb/data/
+_annotations.jsonl
+telemetry.log

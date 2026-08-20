@@ -18,7 +18,9 @@ screenshots ──► classify_images.py ──► _annotations.jsonl ──► 
 ```
 
 Each image becomes one JSON record: `tags[]`, `OCR_text[]`, `entities[]`,
-`caption`, `quality_score (1-5)`, and a 768-dim embedding. The ingestion step
+ `caption`, `quality_score (1-5)` (the vision model's confidence that the
+ screenshot is crisp and readable — 5 = clearly readable, 1 = blurry/unusable),
+ and a 768-dim embedding. The ingestion step
 builds an FTS5 full-text index, tag co-occurrence graph, and monthly histogram.
 
 ---
