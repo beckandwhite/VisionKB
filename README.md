@@ -95,7 +95,7 @@ progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gon
 # classify and ingest the next 5 unprocessed files in PRD-iCloud-Screenshots
 python3 pipeline.py --count 5
 
-# use the environment's configured limit (QA=10)
+# use the environment's configured limit (QA=100)
 python3 pipeline.py -env QA
 
 # scan a different folder with --screenshot-dir

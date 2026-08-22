@@ -5,7 +5,7 @@
     "embed_model": "nomic-embed-text:latest",
     "source_dir": "~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/",
     "temp_dir": "/tmp",
-    "processed_limit": 10,
+    "processed_limit": 100,
     "max_dim": 2560,
     "save_every": 25
 }

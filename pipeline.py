@@ -108,7 +108,8 @@ def process_pending(config, files, all_images, new_count, count_limit, deadline,
             filename = os.path.basename(image_path)
             files.setdefault(key, tracker.new_entry(filename, None))
             tracker.mark_start(files, key)
-            print("[%d/%d] %s" % (index, len(pending), filename), flush=True)
+            print("[%d/%d of %d] %s" %
+                (index, len(pending), len(all_images), filename), flush=True)
 
             image_started = time.monotonic()
             record, ok, error = classifier.classify_one(image_path, prompt)
@@ -195,16 +196,24 @@ def run(args):
         payload = tracker.load_registry(config["tracker_path"])
         files = payload["files"]
         source_dir = args.screenshot_dir or config["source_dir"]
+        count_limit = config["processed_limit"] if args.count is None else args.count
         images = classifier.list_images(source_dir)
         new_count, _unprocessed = tracker.reconcile(
             source_dir, set(config["supported_images"]), files)
         tracker.seed_from_annotations(config["annotations_path"], files)
 
+        # Persist the complete discovered list before starting processing.
+        tracker.save_tracker(
+            config["tracker_path"],
+            {"files": files, "runs": tracker.build_summary(
+                files, count_limit, len(images), new_this_run=new_count,
+                status="reconciled")},
+        )
+
         if args.rebuild_kb:
             rebuild_kb(config, files, args.force, args.no_thumbs)
             return 0
 
-        count_limit = config["processed_limit"] if args.count is None else args.count
         deadline = resolve_deadline(args.until)
         conn = sqlite3.connect(str(config["db_path"]))
         try:

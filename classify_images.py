@@ -390,6 +390,14 @@ def main(count_limit, screenshot_dir, env=config_loader.DEFAULT_ENV):
         print(f"Seeded {seeded} already-annotated file(s) as processed "
               f"(skipped reclassification).", file=sys.stderr)
 
+    # Persist the complete discovered list before starting classification.
+    tracker.save_tracker(
+        tracker_path,
+        {"files": files, "runs": tracker.build_summary(
+            files, count_limit, total_images, new_this_run=new_count,
+            status="reconciled")},
+    )
+
     # Select the next N unprocessed files, newest mtime first. all_images is
     # mtime-descending from list_images(); filtering preserves that order. A
     # file is unprocessed until it has a finished_at (or a backfilled processed_at).
@@ -432,7 +440,7 @@ def main(count_limit, screenshot_dir, env=config_loader.DEFAULT_ENV):
             # skipped it for some reason.
             files.setdefault(key, tracker.new_entry(bname, None))
 
-            print(f"[{i + 1}/{len(batch)}] {bname}", flush=True)
+            print(f"[{i + 1}/{len(batch)} of {total_images}] {bname}", flush=True)
 
             # Stamp the start; everything below is guarded (classify_one) so an
             # unexpected failure is captured as an error, not a crash.
