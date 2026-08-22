@@ -51,21 +51,16 @@ async function renderBacklog() {
     const l2 = $("#backlog-line2");
     if (!l1 || !l2) return;
 
-    l1.textContent = data.remaining + " left to be processed" +
-         (data.total ? " - " + data.processed + " of " + data.total + " done" : "");
+    l1.textContent = data.processed + "/" + data.total;
 
     let msg;
     if (data.remaining === 0) {
         msg = "all caught up";
-    } else if (!data.has_speed) {
+     } else if (!data.has_speed) {
         msg = "no speed data yet";
-    } else {
-        msg = "~" + data.eta_human + " left - last " + data.speed_window +
-             " - avg " + data.avg_latency_s + "s/img";
-        if (data.projected_finish_iso) {
-            msg += " - " + fmtTime(data.projected_finish_iso) + "Z";
-        }
-    }
+     } else {
+        msg = "≈ " + data.eta_human + " left";
+     }
     l2.textContent = msg;
 }
 
@@ -153,10 +148,10 @@ function renderRow(row) {
             esc(row.ocr_text.join("\n")) +
             (row.ocr_truncated ? " ⋯" : "") +
             "</div>" +
-          '<div class="tl-meta">' +
-            "latency " + lat +
-            (row.entities.length ? " · " + row.entities.length + " entities" : "") +
-          "</div>" +
+            '<div class="tl-meta">' +
+              "took " + lat +
+              (row.entities.length ? " · " + row.entities.length + " entities" : "") +
+            "</div>" +
         "</div>";
 
     el.querySelector(".tl-main").addEventListener("click",

@@ -524,11 +524,11 @@ def main(count_limit, screenshot_dir):
             processed_count += 1
             if err:
                 error_count += 1
-                print(f"   {status} | {err} (lat={elapsed}s)", flush=True)
+                print(f"      {status} | {err} (took {elapsed}s)", flush=True)
             else:
                 print(f"   {status} | tags={len(record['tags'])} "
                       f"ocr={len(record['OCR_text'])} "
-                      f"emb={len(record['embedding_vector'])} (lat={elapsed}s)",
+                       f"emb={len(record['embedding_vector'])} (took {elapsed}s)",
                       flush=True)
 
             # Record the finish -- lifecycle + telemetry + any error live in the
