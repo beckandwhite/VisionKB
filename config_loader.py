@@ -60,10 +60,10 @@ def resolve_environment(env=DEFAULT_ENV):
     config["env_dir"] = env_dir
     config["tracker_path"] = env_dir / "_tracker.json"
     config["annotations_path"] = env_dir / "_annotations.jsonl"
-    config["data_dir"] = env_dir / "data"
-    config["db_path"] = env_dir / "data" / "wiki.db"
-    config["exports_dir"] = env_dir / "exports"
-    config["thumbnails_dir"] = env_dir / "exports" / "thumbnails"
+    config["data_dir"] = env_dir
+    config["db_path"] = env_dir / "wiki.db"
+    config["exports_dir"] = env_dir
+    config["thumbnails_dir"] = env_dir / "thumbnails"
     config["source_dir"] = os.path.expanduser(str(config["source_dir"]))
     config["temp_dir"] = os.path.expanduser(str(config["temp_dir"]))
     return env, config

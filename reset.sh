@@ -76,8 +76,10 @@ ENV_DIR=".workspace/$ENV_NAME"
 # ------------------------------------------------------------------ targets
 # Always-on (cheap / regenerable in seconds via kb/build_kb.py):
 ALWAYS=""
-[ -d "$ENV_DIR/exports" ] && ALWAYS="$ALWAYS $ENV_DIR/exports"
-[ -d "$ENV_DIR/data" ]    && ALWAYS="$ALWAYS $ENV_DIR/data"
+[ -e "$ENV_DIR/wiki.db" ]       && ALWAYS="$ALWAYS $ENV_DIR/wiki.db"
+[ -e "$ENV_DIR/wiki.ndjson" ]   && ALWAYS="$ALWAYS $ENV_DIR/wiki.ndjson"
+[ -e "$ENV_DIR/tags_index.json" ] && ALWAYS="$ALWAYS $ENV_DIR/tags_index.json"
+[ -d "$ENV_DIR/thumbnails" ]    && ALWAYS="$ALWAYS $ENV_DIR/thumbnails"
 [ -d "kb/__pycache__" ] && ALWAYS="$ALWAYS kb/__pycache__"
 [ -d "__pycache__" ]   && ALWAYS="$ALWAYS __pycache__"
 

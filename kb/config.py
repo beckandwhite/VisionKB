@@ -15,9 +15,9 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent  # project root
 SCREENSHOT_ROOT = BASE_DIR / "screenshots"          # ~~/Mobile Documents/.../Screenshots
-DATA_DIR = BASE_DIR / "data"                       # raw assets (symlinked or copied screenshots)
-ANNOTATIONS_DIR = DATA_DIR                       # _annotations.jsonl and _tracker live inside data/
-DB_PATH = DATA_DIR / "wiki.db"                   # SQLite with FTS5 + embedding blob
+DATA_DIR = BASE_DIR / "data"                       # legacy raw assets location
+ANNOTATIONS_DIR = DATA_DIR                         # legacy annotations location
+DB_PATH = BASE_DIR / ".workspace" / "DEV" / "wiki.db"  # legacy default; runtime uses config_loader
 NGRAM_PATH = ANNOTATIONS_DIR / "note_ngrams.json"  # precomputed notes -> n-gram map
 
 # ---------------------------------------------------------------------------

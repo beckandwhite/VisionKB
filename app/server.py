@@ -16,7 +16,7 @@ Endpoints:
     GET /api/timeline             -> merged rows (annotations x tracker x wiki),
                                      newest first, capped with has_more
     GET /api/record?filename=     -> full untruncated record for one row
-    GET /api/tags                 -> passthrough of exports/tags_index.json
+    GET /api/tags                 -> passthrough of the environment's tags_index.json
     GET /api/telemetry            -> reconstructed telemetry rows (from the tracker)
     GET /thumb/<file>             -> 320px thumbnail; ?original=1 -> full-res original
 
@@ -102,7 +102,7 @@ def load_annotations():
 
 
 def load_wiki():
-    """Return {filename: record} from exports/wiki.ndjson."""
+    """Return {filename: record} from the environment's wiki.ndjson."""
     by_name = {}
     try:
         with open(WIKI_PATH, encoding="utf-8") as fh:
@@ -164,7 +164,7 @@ def _truncate_ocr(ocr_text):
 
 
 def _thumb_path_for(filename):
-    """Absolute path to exports/thumbnails/<stem>.jpg, or None if absent."""
+    """Absolute path to thumbnails/<stem>.jpg, or None if absent."""
     if not filename:
         return None
     stem = os.path.splitext(filename)[0]

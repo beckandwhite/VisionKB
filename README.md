@@ -13,7 +13,7 @@ into clustered topic pages + a timeline.
 ## What it does
 
 ```
-screenshots ──► pipeline.py ──► .workspace/<env>/_annotations.jsonl + wiki.db + exports/
+screenshots ──► pipeline.py ──► .workspace/<env>/_annotations.jsonl + wiki.db + exports
  (images)       (classify → ingest → index, one image at a time)
 ```
 
@@ -62,7 +62,7 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
  ├── tracker.py             shared tracker module (registry + telemetry + KB stamps)
  ├── pipeline.py             # single entry point: classify + ingest + exports
  ├── config_loader.py        # environment configuration and artifact paths
- ├── .workspace/<env>/        # config + isolated annotations/tracker/data/exports
+ ├── .workspace/<env>/        # config + isolated annotations/tracker/KB artifacts
  └── kb/                      # ingestion code
 ```
 
@@ -147,8 +147,9 @@ python3 pipeline.py -env DEV --rebuild-kb --no-thumbs
 python3 pipeline.py -env DEV --rebuild-kb --force
 ```
 
-Produces `.workspace/<env>/data/wiki.db`, `.workspace/<env>/exports/wiki.ndjson`,
-and `.workspace/<env>/exports/tags_index.json`.
+Produces `.workspace/<env>/wiki.db`, `.workspace/<env>/wiki.ndjson`,
+and `.workspace/<env>/tags_index.json`; thumbnails are stored in
+`.workspace/<env>/thumbnails/`.
 
 `pipeline.py` is incremental: completed files are skipped on later runs. A
 second writer for the same environment exits cleanly while another run holds
@@ -176,7 +177,7 @@ requires about 50 hours of model time before failures or duplicates.
 ```bash
 python3 - <<'PY'
 import sqlite3
-c = sqlite3.connect("kb/data/wiki.db")
+c = sqlite3.connect(".workspace/PRD-iCloud-Screenshots/wiki.db")
 for cap, in c.execute("SELECT caption FROM screenshots_fts "
                       "WHERE screenshots_fts MATCH 'terminal OR coding' LIMIT 10"):
     print(cap[:100])
@@ -218,9 +219,9 @@ python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
    free-text search; click a row to expand full OCR / entities / tags and an
    "open original" link.
  - **Tags** — `top_tags` bars + `edges` co-occurrence list from
-   `exports/tags_index.json`; clicking a tag filters the timeline.
+  `tags_index.json`; clicking a tag filters the timeline.
 
- Thumbnails render live once `exports/thumbnails/` is populated
+ Thumbnails render live once `thumbnails/` is populated
 (`python3 pipeline.py` without `--no-thumbs`); until then rows show a
  placeholder. See [WebUI-1.0-plan.md](WebUI-1.0-plan.md) for the design.
 
@@ -255,10 +256,10 @@ python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
 | `_tracker.json` | per-file registry (filename + `mtime_iso` + `processed_at`) and run summary — the progress ledger |
 | `tracker.py` | shared tracker module used by classify_images.py, build_kb.py, app/server.py |
 | `telemetry.log` | (retired) telemetry now lives in `_tracker.json` |
-| `kb/data/wiki.db` | SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
-| `exports/wiki.ndjson` | flat dump of all records |
-| `exports/tags_index.json` | tag frequencies + co-occurrence edges |
-| `exports/thumbnails/` | 320px JPEG thumbnails (optional) |
+| `.workspace/<env>/wiki.db` | Environment-specific SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
+| `.workspace/<env>/wiki.ndjson` | flat dump of all records |
+| `.workspace/<env>/tags_index.json` | tag frequencies + co-occurrence edges |
+| `.workspace/<env>/thumbnails/` | 320px JPEG thumbnails (optional) |
 
 ---
 

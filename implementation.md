@@ -85,8 +85,9 @@ monthly histogram). **It currently does not run.** Fix before trusting:
   - `clusters (id, label, size, embedding_blob)`
   - `wiki_pages (id, slug, title, markdown, source_sids[], created_at)`
   - `timeline_digests (date_key, markdown, sids[])`
-- **Verify:** `python3 kb/build_kb.py --no-thumbs` builds `kb/data/wiki.db`
-  + `exports/wiki.ndjson` + `exports/tags_index.json` with no error.
+- **Verify:** `python3 kb/build_kb.py --no-thumbs` builds
+  `.workspace/<env>/wiki.db` + `.workspace/<env>/wiki.ndjson` +
+  `.workspace/<env>/tags_index.json` with no error.
 
 ### Stage 5 — Synthesis → the LLM wiki (the meaningful output)
 This is what actually becomes a knowledgebase, not a metadata dump.
@@ -94,8 +95,8 @@ This is what actually becomes a knowledgebase, not a metadata dump.
   produce one **wiki page** (markdown):
   `# Title`, 2–4 sentence summary, key facts/bullets, `Timeline: YYYY-MM → YYYY-MM`,
   `Source images: [sids]`, `Tags:`.
-- **Global index** `exports/wiki/index.md`: list of topic pages + counts.
-- **Timeline** `exports/wiki/timeline.md`: day/week/month digests from `mtime`
+- **Global index** `.workspace/<env>/wiki/index.md`: list of topic pages + counts.
+- **Timeline** `.workspace/<env>/wiki/timeline.md`: day/week/month digests from `mtime`
   (reuse `monthly_histogram`), each pointing to the source sids.
 - **Search layer** (already the `app/`/`queries/` intent): FTS5 for keyword,
   embedding cosine for semantic. Expose at least a **CLI query**; a small web
@@ -107,9 +108,10 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 ---
 
 ## 3. Storage / artifacts
-- `kb/data/wiki.db` — source of truth, SQLite FTS5 + `embedding_vector` blob.
-- `exports/` — `wiki/` markdown pages+index+timeline, `wiki.ndjson`,
-  `tags_index.json` (co-occurrence graph), `thumbnails/` (optional).
+- `.workspace/<env>/wiki.db` — environment-specific source of truth, SQLite
+  FTS5 + `embedding_vector` blob.
+- `.workspace/<env>/` — `wiki/` markdown pages+index+timeline, `wiki.ndjson`,
+  `tags_index.json` (co-occurrence graph), and `thumbnails/` (optional).
 - `data/manifest.jsonl` — dedup record.
 - All paths come from `kb/config.py`; do not hardcode in stage scripts.
 

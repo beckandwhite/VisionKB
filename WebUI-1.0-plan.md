@@ -23,9 +23,9 @@ pipeline: a **backlog dashboard**, a **timeline**, and a **tags panel**.
 | `_tracker.json` | stale/flat (`total_images:2027`) | total denominator |
 | `_tracker.json` | files + runs | progress + ETA + latency sparkline (was telemetry.log) |
 | `_annotations.jsonl` | 12–13 full records | timeline detail (OCR/entities/tags) |
-| `exports/wiki.ndjson` | 5 records (stale) | lightweight timeline rows / wiki stage |
-| `exports/tags_index.json` | top_tags + edges | tags panel |
-| `exports/thumbnails/` | empty | image thumbs (placeholder now) |
+| `.workspace/<env>/wiki.ndjson` | 5 records (stale) | lightweight timeline rows / wiki stage |
+| `.workspace/<env>/tags_index.json` | top_tags + edges | tags panel |
+| `.workspace/<env>/thumbnails/` | empty | image thumbs (placeholder now) |
 
 Note: `_tracker.json` (the shared tracker) is now the single source of truth for
 progress + telemetry. The WebUI reconstructs per-file telemetry rows from it via
@@ -40,7 +40,7 @@ different latencies.
 | Vision attempts | tracker `files` with `finished_at` (= processed rows) | 12 |
 | Vision ok | tracker rows with `status=ok` | 11 |
 | Annotated | `_annotations.jsonl` line count | 13 |
-| Wiki-ingested | `exports/wiki.ndjson` line count | 5 |
+| Wiki-ingested | `.workspace/<env>/wiki.ndjson` line count | 5 |
 
 Status chips: `ok · fail · pending = TOTAL − max ok`.
 
@@ -62,7 +62,7 @@ Status chips: `ok · fail · pending = TOTAL − max ok`.
    - `GET /api/record?filename=` → full untruncated record.
    - `GET /api/tags` → passthrough `top_tags` + `edges`.
    - `GET /api/telemetry` → raw telemetry rows (sparkline detail).
-   - `GET /thumb/<filename>` → serve from `exports/thumbnails/` or 404 (placeholder).
+  - `GET /thumb/<filename>` → serve from `.workspace/<env>/thumbnails/` or 404 (placeholder).
 - CLI: `python3 app/server.py [--port 8000]`.
 
 ## Frontend — `app/index.html` + `app/app.js` + `app/style.css`

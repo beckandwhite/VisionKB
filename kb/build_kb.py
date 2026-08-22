@@ -6,10 +6,10 @@ This stage is INCREMENTAL: re-running re-does only new/changed work and
 leaves everything else alone -- no DB drop, no thumbnail regeneration.
 
 Creates / refreshes:
-  kb/data/wiki.db                 SQLite FTS5 + embeddings (new/changed only)
-  exports/wiki.ndjson             flat NDJSON dump of all annotations
-  exports/tags_index.json         tag frequency + co-occurrence graph
-  exports/thumbnails/<stem>.jpg   320px thumbs (generated only if missing)
+.workspace/<env>/wiki.db          SQLite FTS5 + embeddings (new/changed only)
+    .workspace/<env>/wiki.ndjson    flat NDJSON dump of all annotations
+    .workspace/<env>/tags_index.json tag frequency + co-occurrence graph
+    .workspace/<env>/thumbnails/<stem>.jpg  320px thumbs (generated only if missing)
 
 Progress is recorded into the shared tracker (_tracker.json): each ingested
 file gets ingested_at; each thumb gets thumb_at / thumb_status, so the
