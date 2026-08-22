@@ -25,6 +25,26 @@ from datetime import datetime, timezone
 
 
 # ---------------------------------------------------------------------------
+# Temp-artifact guard
+# ---------------------------------------------------------------------------
+
+# Names that mark a file as pipeline debris (intermediate/converted images the
+# classifier once wrote next to its source), not a real source image. Scanners
+# skip these so leaked intermediates can never re-enter the backlog.
+TEMP_MARKERS = {".tmpresize", ".tmp.", ".part", ".icloud"}
+
+
+def is_temp_artifact(name):
+    """Return True if `name` looks like a pipeline temp/debris file.
+
+    Guards the source-folder scanners (list_images / reconcile) against ingesting
+    intermediate images the vision step once left in the input folder.
+    """
+    lower = name.lower()
+    return any(marker in lower for marker in TEMP_MARKERS)
+
+
+# ---------------------------------------------------------------------------
 # Entry schema
 # ---------------------------------------------------------------------------
 
@@ -232,6 +252,8 @@ def reconcile(directory, img_exts, files):
             continue
         name_lower = entry.name.lower()
         if name_lower.startswith("."):
+            continue
+        if is_temp_artifact(entry.name):
             continue
         if "." in name_lower:
             ext = name_lower.rsplit(".", 1)[-1]

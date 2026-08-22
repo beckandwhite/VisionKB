@@ -33,7 +33,9 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -188,77 +190,93 @@ def ollama_post_json(endpoint, payload, timeout_val=120):
 
 
 def ollama_vision(image_path, prompt_text):
-    """Run /api/generate with image. Returns text or None on failure."""
-    path = image_path
+    """Run /api/generate with image. Returns text or None on failure.
 
-    # HEIC -> JPEG via sips
-    if image_path.lower().endswith(".heic"):
-        tmp = image_path + ".tmp.jpeg"
-        try:
+    All intermediate/converted images (HEIC->JPEG, oversized resize) are written
+    to the system temp dir -- never next to the source -- and removed in a
+    finally block so the success path also cleans up.
+    """
+    path = image_path
+    tmp_files = []
+
+    def make_tmp():
+        p = os.path.join(tempfile.gettempdir(),
+                          "snap_" + uuid.uuid4().hex + ".jpg")
+        tmp_files.append(p)
+        return p
+
+    if path is None:
+        return None
+
+    try:
+         # HEIC -> JPEG via sips (stderr suppressed; on failure keep original)
+        if image_path.lower().endswith(".heic"):
+            tmp = make_tmp()
             ret = subprocess.run(
-                ["/usr/bin/sips", "-s", "format", "jpeg", "-o", tmp, path],
+                 ["/usr/bin/sips", "-s", "format", "jpeg", "-o", tmp, path],
                 capture_output=True, timeout=30,
-            )
+             )
             if ret.returncode == 0 and os.path.isfile(tmp):
                 path = tmp
-        except Exception:
-            return None
 
-    # Resize oversized images to avoid OOM
-    try:
-        w_out = subprocess.check_output(
-            ["/usr/bin/sips", "-g", "pixelWidth", "-g", "pixelHeight", path]
-        ).decode()
-        dims = {}
-        for line in w_out.splitlines():
-            parts = line.rstrip().split(":")
-            if len(parts) >= 2:
-                key = parts[-2].strip().lower()
-                val = int(parts[-1].strip())
-                dims[key] = val
-        w = dims.get("pixelwidth", 0)
-        h = dims.get("pixelheight", 0)
-        mx = max(w, h)
-        if mx > MAX_DIM:
-            factor = MAX_DIM / mx
-            nw = int(round(w * factor))
-            nh = int(round(h * factor))
-            resized = path + ".tmpresize.jpg"
-            subprocess.check_call(
-                ["/usr/bin/sips", "-Z", str(nw), str(nh), path, "--out", resized],
-                timeout=30,
-            )
-            path = resized
-    except Exception:
-        pass
-
-    # Try up to 3 times (call + 2 retries)
-    last_exc = None
-    for attempt in range(3):
+         # Resize oversized images to avoid OOM (stderr suppressed)
         try:
-            b64 = base64.b64encode(open(path, "rb").read()).decode("ascii")
-            payload = {
-                "model": VISION_MODEL,
-                "prompt": prompt_text,
-                "stream": False,
-                "images": [b64],
-            }
-            resp_data = ollama_post_json("/api/generate", payload, timeout_val=180)
-            result = resp_data.get("response", "")
-            if result:
-                return result.strip()
-        except Exception as exc:
-            last_exc = exc
-            if attempt < 2:
-                time.sleep(1.0 * (attempt + 1))
+            w_out = subprocess.check_output(
+                 ["/usr/bin/sips", "-g", "pixelWidth", "-g", "pixelHeight", path],
+                stderr=subprocess.DEVNULL,
+             ).decode()
+            dims = {}
+            for line in w_out.splitlines():
+                parts = line.rstrip().split(":")
+                if len(parts) >= 2:
+                    key = parts[-2].strip().lower()
+                    val = int(parts[-1].strip())
+                    dims[key] = val
+            w = dims.get("pixelwidth", 0)
+            h = dims.get("pixelheight", 0)
+            mx = max(w, h)
+            if mx > MAX_DIM:
+                factor = MAX_DIM / mx
+                nw = int(round(w * factor))
+                nh = int(round(h * factor))
+                resized = make_tmp()
+                ret = subprocess.run(
+                     ["/usr/bin/sips", "-Z", str(nw), str(nh),
+                     path, "--out", resized],
+                    capture_output=True, timeout=30,
+                 )
+                if ret.returncode == 0 and os.path.isfile(resized):
+                    path = resized
+        except Exception:
+            pass
 
-    # Clean up temp files
-    try:
-        for suff in [".tmp.jpeg", ".tmpresize.jpg"]:
-            if image_path + suff == path or path.endswith(suff):
-                os.unlink(path)
-    except OSError:
-        pass
+         # Try up to 3 times (call + 2 retries)
+        last_exc = None
+        for attempt in range(3):
+            try:
+                b64 = base64.b64encode(open(path, "rb").read()).decode("ascii")
+                payload = {
+                    "model": VISION_MODEL,
+                    "prompt": prompt_text,
+                    "stream": False,
+                    "images": [b64],
+                }
+                resp_data = ollama_post_json(
+                    "/api/generate", payload, timeout_val=180)
+                result = resp_data.get("response", "")
+                if result:
+                    return result.strip()
+            except Exception as exc:
+                last_exc = exc
+                if attempt < 2:
+                    time.sleep(1.0 * (attempt + 1))
+    finally:
+         # Clean up every intermediate, including on the success return path.
+        for f in tmp_files:
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
 
     return None
 
@@ -302,7 +320,9 @@ def list_images(directory):
         name_lower = entry.name.lower()
         if name_lower.startswith("."):
             continue
-        # Extract extension without leading dot
+        if tracker.is_temp_artifact(entry.name):
+            continue
+         # Extract extension without leading dot
         if "." in name_lower:
             ext = name_lower.rsplit(".", 1)[-1]
             if ext in IMAGE_EXTS:
