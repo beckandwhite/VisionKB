@@ -67,8 +67,19 @@
 
   <section id="backlog" class="section backlog">
     <h1 class="section-title">Backlog</h1>
-    <div id="backlog-line1" class="backlog-line primary">—</div>
-    <div id="backlog-line2" class="backlog-line muted">—</div>
+    <div class="backlog-summary">
+      <div>
+        <div id="backlog-line1" class="backlog-line primary">—</div>
+        <div id="backlog-line2" class="backlog-line muted">—</div>
+      </div>
+      <div class="backlog-chart-wrap">
+        <div class="backlog-chart-heading">
+          <span>processing time</span>
+          <span id="backlog-chart-meta" class="muted">last 20</span>
+        </div>
+        <div id="backlog-chart" class="backlog-chart" aria-label="Processing time for the last 20 processed pictures"></div>
+      </div>
+    </div>
   </section>
 </main>
 

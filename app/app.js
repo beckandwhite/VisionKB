@@ -46,7 +46,10 @@ async function api(path, params) {
 
 // ----- backlog status (page footer) --------------------------------------
 async function renderBacklog() {
-    const data = await api("/api/overview");
+    const [data, telemetry] = await Promise.all([
+        api("/api/overview"),
+        api("/api/telemetry"),
+    ]);
     const environment = $("#data-environment");
     const l1 = $("#backlog-line1");
     const l2 = $("#backlog-line2");
@@ -66,6 +69,37 @@ async function renderBacklog() {
         msg = "≈ " + data.eta_human + " left";
      }
     l2.textContent = msg;
+    renderProcessingChart(telemetry);
+}
+
+function renderProcessingChart(rows) {
+    const host = $("#backlog-chart");
+    const meta = $("#backlog-chart-meta");
+    if (!host || !meta) return;
+
+    const recent = (Array.isArray(rows) ? rows : [])
+        .filter((row) => Number.isFinite(Number(row.vision_latency_s)))
+        .slice(-20);
+    host.innerHTML = "";
+    meta.textContent = recent.length ? recent.length + " processed" : "no data yet";
+
+    if (!recent.length) {
+        host.innerHTML = '<span class="muted backlog-chart-empty">no processing times yet</span>';
+        return;
+    }
+
+    const max = Math.max(...recent.map((row) => Number(row.vision_latency_s)), 1);
+    for (const row of recent) {
+        const seconds = Number(row.vision_latency_s);
+        const bar = document.createElement("div");
+        bar.className = "backlog-bar";
+        bar.style.height = Math.max((seconds / max) * 100, 3) + "%";
+        bar.title = (row.filename || "processed picture") + "\n" +
+            "Processed: " + (row.timestamp ? fmtTime(row.timestamp) : "—") + "\n" +
+            "Duration: " + seconds.toFixed(2) + "s";
+        bar.setAttribute("aria-label", bar.title);
+        host.appendChild(bar);
+    }
 }
 
 // ----- search (main surface) ------------------------------------------------------
