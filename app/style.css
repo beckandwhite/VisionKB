@@ -355,3 +355,42 @@ html, body {
    background: var(--bg); border: 1px solid var(--border);
    border-radius: 4px; padding: 6px; display: inline-block;
 }
+
+/* Full-res original lightbox (thumbnail click-through to ?original=1) */
+.tl-thumb-link {
+   display: block;
+   text-decoration: none;
+   cursor: zoom-in;
+   line-height: 0;
+}
+.tl-thumb-link:hover img { outline: 2px solid var(--accent); }
+.original-box {
+   position: fixed; inset: 0;
+   z-index: 50;
+   background: rgba(0,0,0,0.85);
+   display: none;
+   align-items: center;
+   justify-content: center;
+   padding: 24px;
+   cursor: zoom-out;
+}
+.original-img {
+   max-width: 100%; max-height: 100%;
+   object-fit: contain;
+   background: #000;
+   border: 1px solid var(--border);
+   border-radius: 4px;
+}
+.original-msg {
+   position: absolute; top: 16px; left: 16px;
+   color: var(--muted); font-size: 11px;
+}
+.original-close {
+   position: absolute; top: 12px; right: 12px;
+   z-index: 51;
+   background: var(--bg-elev); color: var(--fg);
+   border: 1px solid var(--border);
+   font-size: 16px; line-height: 1;
+   padding: 6px 10px; border-radius: 4px;
+   cursor: pointer;
+}

@@ -184,10 +184,12 @@ function renderRow(row) {
     const el = document.createElement("div");
     el.className = "tl-row";
 
-    const thumbUrl = "/thumb/" + encodeURIComponent(row.filename);
+    const thumbUrl    = "/thumb/" + encodeURIComponent(row.filename);
+    const originalUrl = thumbUrl + "?original=1";
+    const openAttr = ' class="tl-thumb-link" data-original="' + originalUrl + '"';
     const thumb = row.has_thumb
-        ? '<img class="tl-thumb" src="' + thumbUrl + '" alt="" loading="lazy">'
-        : '<div class="tl-thumb">no thumbnail</div>';
+           ? '<a' + openAttr + '><img class="tl-thumb" src="' + thumbUrl + '" alt="" loading="lazy"></a>'
+           : '<div class="tl-thumb">no thumbnail</div>';
 
     const statusDot =
         ' <span class="tl-status-dot ' + row.status +
@@ -401,11 +403,46 @@ function wireControls() {
     });
 
     $("#load-more").addEventListener("click", () => loadTimeline(false));
-    $("#record-close").addEventListener("click", () => openPanel(false));
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") openPanel(false);
-    });
-}
+     $("#record-close").addEventListener("click", () => openPanel(false));
+      $("#original-close").addEventListener("click", () => closeOriginal());
+
+
+      // Thumbnail -> full-res original lightbox.
+      $("#timeline").addEventListener("click", (e) => {
+           const link = e.target.closest(".tl-thumb-link");
+           if (link && link.dataset.original) {
+               e.stopPropagation();
+               openOriginal(link.dataset.original);
+           }
+      });
+
+     document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            openPanel(false);
+            closeOriginal();
+        }
+     });
+ }
+
+ // ----- full-res original lightbox ----------------------------------------
+ async function openOriginal(originalUrl) {
+     const box = $("#original-box");
+     const img = $("#original-img");
+     box.style.display = "flex";
+     img.style.display = "none";
+     $("#original-msg").textContent = "loading original…";
+     $("#original-msg").style.display = "block";
+     img.onload = () => {
+         img.style.display = "block";
+         $("#original-msg").style.display = "none";
+      };
+     img.src = originalUrl + "&t=" + Date.now();
+ }
+
+ function closeOriginal() {
+     const box = $("#original-box");
+     if (box) box.style.display = "none";
+ }
 
 // ----- boot -----------------------------------------------------------------
 async function main() {

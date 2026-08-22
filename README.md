@@ -58,16 +58,16 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 ## Layout
 
 ```
-screenshot_annotation/
-├── classify_images.py     # Stage: vision + embedding → _annotations.jsonl
-├── kb/
-│   ├── config.py          # intended shared config (see Gotcha below)
-│   └── build_kb.py        # Stage: ingest → SQLite FTS5 + exports
-├── _annotations.jsonl      # output: one JSON record per image
-├── _tracker.json           # per-file registry + run summary (progress ledger)
-├── telemetry.log          # per-file latency / status log
-├── kb/data/wiki.db        # output: SQLite DB (FTS5 + embeddings)
-└── exports/               # output: wiki.ndjson, tags_index.json, thumbnails/
+ screenshot_annotation/
+ ├── tracker.py             shared tracker module (registry + telemetry + KB stamps)
+ ├── classify_images.py      # Stage: vision + embedding → _annotations.jsonl
+ ├── kb/
+ │    ├── config.py          # intended shared config (see Gotcha below)
+ │    └── build_kb.py        # Stage: incremental ingest → SQLite FTS5 + exports + thumbs
+ ├── _annotations.jsonl       # output: one JSON record per image
+ ├── _tracker.json            # per-file registry + run summary (the single ledger/log)
+ ├── kb/data/wiki.db         # output: SQLite DB (FTS5 + embeddings), incremental
+ └── exports/                # output: wiki.ndjson, tags_index.json, thumbnails/
 ```
 
 Images themselves live in iCloud:
@@ -75,6 +75,11 @@ Images themselves live in iCloud:
 
 `classify_images.py` defaults to that folder; point it elsewhere with
 `--screenshot-dir` (see "How to use" below).
+
+`_tracker.json` is the **single source of truth for progress + telemetry**: it
+holds the per-file registry, a `runs` summary, each file's analysis lifecycle
+(`started_at` / `finished_at` / latency / `status` / `error`), and KB-layer
+progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gone.
 
 ---
 
@@ -110,18 +115,22 @@ python3 classify_images.py              # --count 0 = everything not yet done
 - **Existing annotations are auto-seeded.** On the first run after this change,
   files already present in `_annotations.jsonl` are marked processed (`status:
   "backfilled"`) so they are not reclassified.
-- **Note on edited files:** a file already in the registry keeps its `processed_at`
-  even if its mtime changes, so an in-place edit is **not** reprocessed by design
-  (keyed by path, not by content/mtime). Delete its registry entry or its
-  `_annotations.jsonl` line to force a re-process.
-- Checkpointed atomically (`tmp` + `os.replace`) every 25 files and at end of run.
-- `--screenshot-dir` sets the source folder (default: iCloud Screenshots above);
-  outputs (`_tracker.json`, `_annotations.jsonl`, `telemetry.log`) are always written
-  next to the script, not into the scanned folder.
-- HEIC files are auto-converted via `sips`; oversized images are downscaled.
-- Watch `telemetry.log` for per-image latency and `status` (ok/fail).
+ - **Note on edited files:** a file already in the registry keeps its
+   `finished_at` even if its mtime changes, so an in-place edit is **not**
+   reprocessed by `classify_images.py` (keyed by path, not by content/mtime).
+   `build_kb.py`, though, detects an mtime change and re-ingests that row.
+   Delete a registry entry (and its `_annotations.jsonl` line) to force a full
+   re-process.
+ - Checkpointed atomically (`tmp` + `os.replace`) every 25 files and at end of run.
+ - `--screenshot-dir` sets the source folder (default: iCloud Screenshots above);
+   the outputs (`_tracker.json`, `_annotations.jsonl`) are always written next to
+   the script, not into the scanned folder.
+ - HEIC files are auto-converted via `sips`; oversized images are downscaled.
+ - Latency + `status` (ok/fail/error) live in the tracker now (per-file
+   `vision_latency_s` + `started_at` / `finished_at`); the old `telemetry.log`
+   is retired.
 
-### 2. Build the knowledgebase (ingest → SQLite)
+### 2. Build the knowledgebase (incremental ingest → SQLite)
 
 ```bash
 python3 kb/build_kb.py --no-thumbs    # skip thumbnails for speed
@@ -130,6 +139,15 @@ python3 kb/build_kb.py                # also generate 320px thumbnails via sips
 ```
 
 Produces `kb/data/wiki.db`, `exports/wiki.ndjson`, `exports/tags_index.json`.
+
+`build_kb.py` is **incremental**: re-running it does only the new/changed
+work. It opens the existing `kb/data/wiki.db`, upserts only records whose
+`filepath` is new or whose `mtime_iso` is newer than what was already
+ingested, and generates a thumbnail only when the file isn't already
+recorded (or its source isn't on disk). Per-run progress —
+`ingested_this_run`, `thumbnails_this_run`, and the `ingested_at` /
+`thumb_at` stamps per file — lives in `_tracker.json`. Pass `--force` to
+rebuild from scratch; `--no-thumbs` skips thumbnail work.
 
 ### 3. Query (FTS5 full-text)
 
@@ -163,8 +181,8 @@ PY
    (`_tracker.json` `total_files` ≈ 2027): *Scanned → Vision attempts →
    Vision ok → Annotated → Wiki-ingested*, plus a time-equivalent backlog
    (`avg latency × remaining` → ETA + projected finish), status chips
-   (`ok / fail / pending`), and a per-run latency sparkline.
- - **Timeline** — rows joined from `_annotations.jsonl` + `telemetry.log` +
+   (`ok / fail / error / pending`, plus `ingested` + `thumbnails` from the builder), and a per-run latency sparkline.
+ - **Timeline** — rows joined from `_annotations.jsonl` + the tracker (telemetry + error) +
    `wiki.ndjson` (filename key), newest first; filters by tag / status /
    free-text search; click a row to expand full OCR / entities / tags and an
    "open original" link.
@@ -182,7 +200,7 @@ PY
 - **`classify_images.py` defaults to the iCloud folder**
    (`~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`); pass
    `--screenshot-dir` to scan elsewhere. Outputs (`_tracker.json`,
-   `_annotations.jsonl`, `telemetry.log`) are written next to the script, not into
+   `_annotations.jsonl`) are written next to the script, not into
    the scanned folder. The existing `_annotations.jsonl` is real history (5 records);
    its old flat-index `_tracker.json` is auto-migrated — the registry is rebuilt from
    the folder + those annotations on the first run.
@@ -204,7 +222,8 @@ PY
 |---|---|
 | `_annotations.jsonl` | one JSON record per image (append, never rewritten) |
 | `_tracker.json` | per-file registry (filename + `mtime_iso` + `processed_at`) and run summary — the progress ledger |
-| `telemetry.log` | per-file latency + status (append-only) |
+| `tracker.py` | shared tracker module used by classify_images.py, build_kb.py, app/server.py |
+| `telemetry.log` | (retired) telemetry now lives in `_tracker.json` |
 | `kb/data/wiki.db` | SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
 | `exports/wiki.ndjson` | flat dump of all records |
 | `exports/tags_index.json` | tag frequencies + co-occurrence edges |

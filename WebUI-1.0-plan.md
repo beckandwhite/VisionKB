@@ -9,7 +9,7 @@ pipeline: a **backlog dashboard**, a **timeline**, and a **tags panel**.
 - **Progress model:** a **funnel of pipeline stages**, each shown as a % of the
   total (`TOTAL = _tracker.json` total_images, 2027). Stages read live from their
   source files.
-- **ETA / time-equivalent backlog:** `avg_latency` over **ok** telemetry runs
+- **ETA / time-equivalent backlog:** `avg_latency` over **ok** tracker rows
   (`vision_latency_s`) × `(TOTAL − max ok count)` → hours + projected finish; a
   latency sparkline shows per-run latency (incl. the 663 s outlier).
 - **Layout:** one scrolling page, top→bottom: Backlog → Timeline → Tags.
@@ -21,23 +21,24 @@ pipeline: a **backlog dashboard**, a **timeline**, and a **tags panel**.
 | File | State | Feed |
 |---|---|---|
 | `_tracker.json` | stale/flat (`total_images:2027`) | total denominator |
-| `telemetry.log` | 12 lines (11 ok / 1 fail) | progress + ETA + latency sparkline |
+| `_tracker.json` | files + runs | progress + ETA + latency sparkline (was telemetry.log) |
 | `_annotations.jsonl` | 12–13 full records | timeline detail (OCR/entities/tags) |
 | `exports/wiki.ndjson` | 5 records (stale) | lightweight timeline rows / wiki stage |
 | `exports/tags_index.json` | top_tags + edges | tags panel |
 | `exports/thumbnails/` | empty | image thumbs (placeholder now) |
 
-Note: `telemetry.log` is the most authoritative "what actually happened" and is
-ahead of both `_tracker.json` and `wiki.ndjson`. Progress is computed per-stage
-from each source; the funnel narrows because stages are cumulative pipeline outputs
-at different latencies.
+Note: `_tracker.json` (the shared tracker) is now the single source of truth for
+progress + telemetry. The WebUI reconstructs per-file telemetry rows from it via
+`tracker.telemetry_from_tracker(files)`. Progress is computed per-stage from each
+source; the funnel narrows because stages are cumulative pipeline outputs at
+different latencies.
 
 ## Funnel stages (denominator TOTAL, default 2027)
 | Stage | Source (read fresh per request) | Now |
 |---|---|---|
 | Scanned | `_tracker.json` runs.total_files (fallback flat total_images) | 2027 |
-| Vision attempts | `telemetry.log` line count | 12 |
-| Vision ok | telemetry status=ok | 11 |
+| Vision attempts | tracker `files` with `finished_at` (= processed rows) | 12 |
+| Vision ok | tracker rows with `status=ok` | 11 |
 | Annotated | `_annotations.jsonl` line count | 13 |
 | Wiki-ingested | `exports/wiki.ndjson` line count | 5 |
 
@@ -55,7 +56,7 @@ Status chips: `ok · fail · pending = TOTAL − max ok`.
      remaining, eta_seconds, eta_human, projected_finish_iso, sparkline:[],
      status_counts:{ok,fail,pending}, total}`
    - `GET /api/timeline` → merged rows newest-first (join `filename` across
-     annotations ↔ telemetry ↔ wiki.ndjson), capped with `has_more`. Each row:
+     annotations ↔ tracker (telemetry) ↔ wiki.ndjson), capped with `has_more`. Each row:
      `{filename, mtime_iso, status(ok/fail/none), quality, caption, tags[],
      ocr_text[](truncated), entities[], telem_latency_s, has_thumb, original_path}`.
    - `GET /api/record?filename=` → full untruncated record.

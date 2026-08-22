@@ -3,23 +3,28 @@
 Screenshot classifier using Ollama vision model + embeddings.
 
 Outputs:
-     _annotations.jsonl    (one JSON line per image; appended, never rewritten)
-     _tracker.json         (per-file registry + run summary, the progress ledger;
-                             saved atomically every SAVE_EVERY files)
-     telemetry.log         (append-only performance metrics)
+      _annotations.jsonl      (one JSON line per image; appended, never rewritten)
+     _tracker.json            (per-file registry + run summary -- the single
+                               progress ledger AND telemetry log; saved atomically
+                               every SAVE_EVERY files). Each processed file records
+                               its analysis lifecycle (started_at / finished_at /
+                               vision_latency_s / tags_count / embedding_dims /
+                               status) plus any error, so the tracker is the
+                               backlog queue + log.
 
 The tracker is a self-maintaining registry, not a bare index. Each run:
-  1. reconciles the source folder into the tracker (filename + mtime per file,
-     keyed by absolute path), appending any files that are new since the last run;
-  2. marks every already-processed file with a processed_at timestamp (progress);
-  3. classifies the next `--count` UNPROCESSED files (newest mtime first).
+    1. reconciles the source folder into the tracker (filename + mtime per file,
+       keyed by absolute path), appending any files that are new since the last run;
+    2. marks every already-processed file with a finished_at timestamp (progress);
+    3. classifies the next `--count` UNPROCESSED files (newest mtime first),
+       stamping each one's start, finish and -- on any failure -- the error.
 Files already annotated in _annotations.jsonl are auto-marked processed on first
 reconcile so they are not reclassified.
 
 Usage:
-    python3 classify_images.py --count 50                        # classify next 50 unprocessed
-    python3 classify_images.py --screenshot-dir '/path/folder'   # scan a custom folder
-    python3 classify_images.py                                   # all remaining, default iCloud folder
+    python3 classify_images.py --count 50                           # classify next 50 unprocessed
+    python3 classify_images.py --screenshot-dir '/path/folder'      # scan a custom folder
+    python3 classify_images.py                                       # all remaining, default iCloud folder
 """
 
 import argparse
@@ -33,6 +38,10 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
+if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tracker
+
 
 # ============================================================================
 # Constants
@@ -40,11 +49,11 @@ from datetime import datetime, timezone
 
 OLLAMA_BASE = "http://127.0.0.1:11434"
 VISION_MODEL = "muse-glimmer:30b-mlx"
-EMBED_MODEL  = "nomic-embed-text:latest"
-IMAGE_EXTS   = {"png", "jpg", "jpeg", "heic"}
+EMBED_MODEL   = "nomic-embed-text:latest"
+IMAGE_EXTS    = {"png", "jpg", "jpeg", "heic"}
 
-SAVE_EVERY   = 25           # save checkpoint every N processed files
-MAX_DIM      = 2560          # resize images longer than this for OOM safety
+SAVE_EVERY    = 25             # save checkpoint every N processed files
+MAX_DIM       = 2560           # resize images longer than this for OOM safety
 
 
 # ============================================================================
@@ -266,7 +275,7 @@ def ollama_embed(text_str):
             {"model": EMBED_MODEL, "input": cleaned},
             timeout_val=120,
         )
-        # nomic-embed-text returns {embeddings:[[float...]]}  -- nested array
+        # nomic-embed-text returns {embeddings:[[float...]]}   -- nested array
         embeds_list = resp_data.get("embeddings", [])
         if len(embeds_list) > 0 and isinstance(embeds_list[0], list):
             vec = embeds_list[0]
@@ -299,111 +308,10 @@ def list_images(directory):
             if ext in IMAGE_EXTS:
                 files.append(entry.path)
         elif name_lower.endswith((".png", ".jpg", ".jpeg", ".heic")):
-           # Edge case: no extension char (unlikely but defensive)
+            # Edge case: no extension char (unlikely but defensive)
             pass
     files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
     return files
-
-
-# ============================================================================
-# Tracker registry (self-maintaining file list + progress ledger)
-# ============================================================================
-
-def file_key(path):
-    """Stable identity for a source file: its absolute path."""
-    return os.path.abspath(path)
-
-
-def load_tracker(tracker_path):
-    """Load the files map from _tracker.json. Returns {} on missing/old schema.
-
-    Old flat index checkpoints (last_processed_index / index) are ignored; the
-    registry is rebuilt from the folder + existing annotations on first run.
-    """
-    if not os.path.exists(tracker_path):
-        return {}
-    try:
-        with open(tracker_path, encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (json.JSONDecodeError, ValueError, TypeError):
-        return {}
-    if isinstance(data, dict) and isinstance(data.get("files"), dict):
-        return data["files"]
-    return {}
-
-
-def reconcile(directory, files):
-    """Upsert every image in `directory` into the `files` map.
-
-    Appends new files (status pending, processed_at null); refreshes mtime_iso on
-    already-known files. Returns (new_count, unprocessed_count).
-    """
-    new_count = 0
-    for path in list_images(directory):
-        key = file_key(path)
-        rec = files.get(key)
-        if rec is None:
-            mt = os.path.getmtime(path)
-            files[key] = {
-                "filename":      os.path.basename(path),
-                "mtime_iso":      datetime.fromtimestamp(mt, tz=timezone.utc).isoformat(),
-                "processed_at":   None,
-                "quality_score":  None,
-                "status":         "pending",
-            }
-            new_count += 1
-        else:
-            rec["mtime_iso"] = datetime.fromtimestamp(
-                os.path.getmtime(path), tz=timezone.utc).isoformat()
-    unprocessed = sum(1 for r in files.values() if r.get("processed_at") is None)
-    return new_count, unprocessed
-
-
-def seed_from_annotations(annot_path, files):
-    """Mark files already present in _annotations.jsonl as processed.
-
-    Idempotent: only fills processed_at for entries still pending. Returns the
-    number of files newly seeded (already-annotated ⇒ skip reclassification).
-    """
-    if not os.path.exists(annot_path):
-        return 0
-    now = datetime.now(tz=timezone.utc).isoformat()
-    seeded = 0
-    with open(annot_path, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            key = file_key(rec.get("filepath", rec.get("filename", "")))
-            entry = files.get(key)
-            if entry is None or entry.get("processed_at") is not None:
-                continue
-            entry["processed_at"]    = now
-            entry["quality_score"]   = rec.get("quality_score")
-            entry["status"]          = "backfilled"
-            seeded += 1
-    return seeded
-
-
-def mark_processed(files, key, quality_val, ok):
-    """Stamp a file as just-processed in the registry."""
-    entry = files.setdefault(key, {})
-    entry["processed_at"]  = datetime.now(tz=timezone.utc).isoformat()
-    entry["quality_score"] = quality_val
-    entry["status"]        = "ok" if ok else "fail"
-
-
-def save_tracker(tracker_path, files, runs_summary):
-    """Atomically write the registry + run summary (write .tmp, then os.replace)."""
-    payload = {"files": files, "runs": runs_summary}
-    tmp = tracker_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2)
-    os.replace(tmp, tracker_path)
 
 
 # ============================================================================
@@ -430,7 +338,7 @@ def prompt_text():
         "You are a screenshot analysis assistant. Analyze the provided image "
         "carefully and output your response strictly in valid JSON with these keys:\n"
         "\n- tags: an array of scene-tags from THIS EXACT list below. Pick all that apply (at least 1 if anything matches):\n"
-        + "   " + tags_line + "\n\n"
+        + "     " + tags_line + "\n\n"
         "- OCR_text: literal text visible in the image as an array of strings.\n"
         "- entities: notable named entities visible on screen as an array of strings.\n"
         "- caption: a one-sentence plain-English description of the screenshot.\n"
@@ -439,29 +347,94 @@ def prompt_text():
     )
 
 
+def classify_one(img_path, prompt_str):
+    """Run vision + embedding for one image. Returns (record, ok, error).
+
+    Never raises: any failure in the vision/embedding path is captured in `error`
+    so the caller can record it in the tracker and continue. `ok` is False when no
+    tags came back (even without a hard error -- a "fail" result).
+    """
+    bname = os.path.basename(img_path)
+    mtime_iso = datetime.fromtimestamp(
+        os.path.getmtime(img_path), tz=timezone.utc
+    ).isoformat()
+
+    tags_arr     = []
+    ocr_arr      = []
+    entities_arr = []
+    caption_str  = ""
+    quality_val  = 0
+    emb_vec      = []
+    parse_error  = None
+    vision_error = None
+
+    try:
+        vis_text = ollama_vision(img_path, prompt_str)
+        if vis_text is None:
+            vision_error = "vision: no result after retries"
+        else:
+            try:
+                parsed = json.loads(clean_markdown(vis_text))
+                ta = parsed.get("tags", [])
+                if isinstance(ta, list):
+                    tags_arr = [str(x) for x in ta]
+                oa = parsed.get("OCR_text", [])
+                if isinstance(oa, list):
+                    ocr_arr = [str(x) for x in oa]
+                ea = parsed.get("entities", [])
+                if isinstance(ea, list):
+                    entities_arr = [str(x) for x in ea]
+                caption_str = str(parsed.get("caption", ""))
+                quality_val = int(parsed.get("quality_score", 0))
+            except (json.JSONDecodeError, ValueError) as exc:
+                parse_error = f"parse-error: {exc}"
+
+        # Embedding: always call the model (degrades to zeros on failure)
+        embed_source = caption_str or "\n".join(tags_arr) or bname
+        emb_vec = ollama_embed(embed_source)
+    except Exception as exc:
+        vision_error = f"{type(exc).__name__}: {exc}"
+
+    ok = bool(tags_arr)
+    err = parse_error or vision_error
+    record = {
+        "filename":        bname,
+        "filepath":        os.path.abspath(img_path),
+        "mtime_iso":       mtime_iso,
+        "tags":            tags_arr,
+        "OCR_text":        ocr_arr,
+        "entities":        entities_arr,
+        "caption":         caption_str,
+        "quality_score":   quality_val,
+        "embedding_vector": emb_vec,
+    }
+    return record, ok, err
+
+
 # ============================================================================
 # Build and process
 # ============================================================================
+
 def main(count_limit, screenshot_dir):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     tracker_path = os.path.join(script_dir, "_tracker.json")
-    annot_path    = os.path.join(script_dir, "_annotations.jsonl")
-    log_path      = os.path.join(script_dir, "telemetry.log")
+    annot_path   = os.path.join(script_dir, "_annotations.jsonl")
 
     # Load the existing registry (empty if absent / old flat-index schema).
-    files = load_tracker(tracker_path)
+    payload = tracker.load_registry(tracker_path)
+    files = payload["files"]
     migrated = len(files) == 0 and os.path.exists(tracker_path)
 
     # Refresh the folder list into the registry: append files new since the
     # last run and refresh mtime on known files. This is the "keep the list
-    # current" step; progress is tracked via each file's processed_at.
+    # current" step; progress is tracked via each file's finished_at.
     screenshot_dir = os.path.expanduser(screenshot_dir)
     all_images = list_images(screenshot_dir)
     total_images = len(all_images)
-    new_count, unprocessed = reconcile(screenshot_dir, files)
+    new_count, unprocessed = tracker.reconcile(screenshot_dir, IMAGE_EXTS, files)
 
     # Auto-mark already-annotated files as processed so they are not reclassified.
-    seeded = seed_from_annotations(annot_path, files)
+    seeded = tracker.seed_from_annotations(annot_path, files)
     if migrated:
         print(f"_tracker.json was an old index checkpoint; "
               f"rebuilding registry from folder + {len(files)} annotated files.",
@@ -474,34 +447,32 @@ def main(count_limit, screenshot_dir):
               f"(skipped reclassification).", file=sys.stderr)
 
     # Select the next N unprocessed files, newest mtime first. all_images is
-    # mtime-descending from list_images(); filtering preserves that order.
+    # mtime-descending from list_images(); filtering preserves that order. A
+    # file is unprocessed until it has a finished_at (or a backfilled processed_at).
+    def done(entry):
+        return entry.get("finished_at") is not None \
+            or entry.get("processed_at") is not None
     pending = [p for p in all_images
-               if files.get(file_key(p), {}).get("processed_at") is None]
+               if not done(files.get(tracker.file_key(p), {}))]
     if count_limit > 0:
         batch = pending[:count_limit]
     else:
         batch = list(pending)
 
-    # Write the refreshed registry even when there is nothing to do, so the
-    # file list stays current across runs.
-    def run_summary(processed_count, error_count, secs, status):
-        unproc = sum(1 for r in files.values() if r.get("processed_at") is None)
-        return {
-            "last_run_at":        datetime.now(tz=timezone.utc).isoformat(),
-            "last_count_param":   count_limit,
-            "total_files":        total_images,
-            "processed":          len(files) - unproc,
-            "unprocessed":        unproc,
-            "new_this_run":       new_count,
-            "processed_this_run": processed_count,
-            "errors_this_run":    error_count,
-            "status":             status,
-        }
+    # Per-run summary block; enriched with a status tally by the tracker.
+    def run_summary(processed_count, error_count, status):
+        return tracker.build_summary(
+            files, count_limit, total_images,
+            new_this_run=new_count,
+            processed_this_run=processed_count,
+            errors_this_run=error_count,
+            status=status,
+        )
 
     if not batch:
         print("Nothing to do: all files already processed.", file=sys.stderr)
-        save_tracker(tracker_path, files,
-                     run_summary(0, 0, 0.0, "nothing-to-process"))
+        tracker.save_tracker(tracker_path,
+            {"files": files, "runs": run_summary(0, 0, "nothing-to-process")})
         return
 
     prompt_str = prompt_text()
@@ -511,116 +482,72 @@ def main(count_limit, screenshot_dir):
 
     with open(annot_path, "a", encoding="utf-8") as ann_fh:
         for i, img_path in enumerate(batch):
-            t0 = time.monotonic()
-            key    = file_key(img_path)
+            key   = tracker.file_key(img_path)
             bname = os.path.basename(img_path)
-            mtime_iso = datetime.fromtimestamp(
-                os.path.getmtime(img_path), tz=timezone.utc
-            ).isoformat()
             # Make sure the scanned path is in the registry even if reconcile
             # skipped it for some reason.
-            files.setdefault(key, {
-                "filename":      bname,
-                "mtime_iso":     mtime_iso,
-                "processed_at":  None,
-                "quality_score": None,
-                "status":        "pending",
-            })
+            files.setdefault(key, tracker.new_entry(bname, None))
 
             print(f"[{i + 1}/{len(batch)}] {bname}", flush=True)
 
-            # Vision classification
-            vis_text = ollama_vision(img_path, prompt_str)
+            # Stamp the start; everything below is guarded (classify_one) so an
+            # unexpected failure is captured as an error, not a crash.
+            t0 = time.monotonic()
+            tracker.mark_start(files, key)
 
-            tags_arr       = []
-            ocr_arr        = []
-            entities_arr   = []
-            caption_str    = ""
-            quality_val    = 0
+            record, ok, err = classify_one(img_path, prompt_str)
+            elapsed = round(time.monotonic() - t0, 3)
+            status = "error" if err else ("ok" if ok else "fail")
 
-            if vis_text:
-                try:
-                    parsed = json.loads(clean_markdown(vis_text))
-                    ta = parsed.get("tags", [])
-                    if isinstance(ta, list):
-                        tags_arr = [str(x) for x in ta]
-                    oa = parsed.get("OCR_text", [])
-                    if isinstance(oa, list):
-                        ocr_arr = [str(x) for x in oa]
-                    ea = parsed.get("entities", [])
-                    if isinstance(ea, list):
-                        entities_arr = [str(x) for x in ea]
-                    caption_str    = str(parsed.get("caption", ""))
-                    quality_val    = int(parsed.get("quality_score", 0))
-                except (json.JSONDecodeError, ValueError):
-                    error_count += 1
-                    print(f"   parse-error", flush=True)
-
-            # Embedding: always call the model
-            embed_source = caption_str or "\n".join(tags_arr) or bname
-            emb_vec = ollama_embed(embed_source)
-
-            entry = {
-                "filename":       bname,
-                "filepath":       os.path.abspath(img_path),
-                "mtime_iso":      mtime_iso,
-                "tags":           tags_arr,
-                "OCR_text":       ocr_arr,
-                "entities":       entities_arr,
-                "caption":        caption_str,
-                "quality_score":  quality_val,
-                "embedding_vector": emb_vec,
-            }
-
-            ann_fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            ann_fh.write(json.dumps(record, ensure_ascii=False) + "\n")
             ann_fh.flush()
             processed_count += 1
+            if err:
+                error_count += 1
+                print(f"   {status} | {err} (lat={elapsed}s)", flush=True)
+            else:
+                print(f"   {status} | tags={len(record['tags'])} "
+                      f"ocr={len(record['OCR_text'])} "
+                      f"emb={len(record['embedding_vector'])} (lat={elapsed}s)",
+                      flush=True)
 
-            elapsed = round(time.monotonic() - t0, 3)
-            ok = bool(tags_arr)
-            status = "ok" if ok else "fail"
-            print(f"    {status} | tags={len(tags_arr)} ocr={len(ocr_arr)} "
-                  f"emb={len(emb_vec)}", flush=True)
+            # Record the finish -- lifecycle + telemetry + any error live in the
+            # tracker (the single log), not a separate telemetry.log file.
+            tracker.mark_finish(
+                files, key,
+                vision_latency_s=elapsed,
+                tags_count=len(record["tags"]),
+                embedding_dims=len(record["embedding_vector"]),
+                quality_score=record["quality_score"],
+                ok=ok,
+                error=err,
+                finished_at=datetime.now(tz=timezone.utc).isoformat(),
+            )
 
-            # Telemetry per-file log
-            ts_now = datetime.now(tz=timezone.utc).isoformat()
-            telem_line = json.dumps({
-                "timestamp":      ts_now,
-                "filename":       bname,
-                "vision_latency_s": elapsed,
-                "tags_count":     len(tags_arr),
-                "embedding_dims": len(emb_vec),
-                "status":         status,
-            }) + "\n"
-            with open(log_path, "a", encoding="utf-8") as lf:
-                lf.write(telem_line)
-
-            # Mark processed + checkpoint (resumable on crash / interrupt).
-            # processed_at is written the moment a file is done, so an interrupt
-            # leaves a clean, accurate registry.
-            mark_processed(files, key, quality_val, ok)
             total_done = i + 1
             if total_done % SAVE_EVERY == 0 or i == len(batch) - 1:
-                save_tracker(tracker_path, files,
-                             run_summary(processed_count, error_count,
-                                         round(time.monotonic() - global_t0, 3),
-                                         "completed"))
+                # Mark processed + checkpoint (resumable on crash / interrupt).
+                # finished_at is written the moment a file is done, so an
+                # interrupt leaves a clean, accurate registry.
+                tracker.save_tracker(tracker_path,
+                    {"files": files, "runs": run_summary(
+                        processed_count, error_count, "completed")})
                 # Brief pause after checkpoint so Ollama can cool down
                 if i < len(batch) - 1:
                     time.sleep(0.3)
 
     overall_s = round(time.monotonic() - global_t0, 3)
-    print(f"\nDone. {processed_count}/{len(batch)} in {overall_s}s.",
-          file=sys.stderr)
+    print(f"\nDone. {processed_count}/{len(batch)} in {overall_s}s. "
+          f"({error_count} error)", file=sys.stderr)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--count", type=int, default=0,
-                    help="Limit to N images (for testing)")
+                   help="Limit to N images (for testing)")
     p.add_argument("--screenshot-dir",
-                    default=os.path.expanduser(
-                        "~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/"),
-                    help="Folder to scan for screenshots "
-                         "(default: iCloud Screenshots)")
+                   default=os.path.expanduser(
+                       "~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/"),
+                   help="Folder to scan for screenshots "
+                        "(default: iCloud Screenshots)")
     args = p.parse_args()
     main(args.count, args.screenshot_dir)

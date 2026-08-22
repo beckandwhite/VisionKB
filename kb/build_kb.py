@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
 """
-build_kb.py -- Ingest _annotations.jsonl into SQLite knowledgebase DB.
+kb/build_kb.py -- Ingest _annotations.jsonl into the SQLite knowledgebase.
 
-Creates:
-  exports/wiki.ndjson            -- Flattened NDJSON dump of all annotations
-  exports/tags_index.json        -- Tag frequency + co-occurrence graph adjacency list
+This stage is INCREMENTAL: re-running re-does only new/changed work and
+leaves everything else alone -- no DB drop, no thumbnail regeneration.
+
+Creates / refreshes:
+  kb/data/wiki.db                 SQLite FTS5 + embeddings (new/changed only)
+  exports/wiki.ndjson             flat NDJSON dump of all annotations
+  exports/tags_index.json         tag frequency + co-occurrence graph
+  exports/thumbnails/<stem>.jpg   320px thumbs (generated only if missing)
+
+Progress is recorded into the shared tracker (_tracker.json): each ingested
+file gets ingested_at; each thumb gets thumb_at / thumb_status, so the
+tracker is the single backlog + log across the whole pipeline.
 
 Usage:
-    python3 kb/build_kb.py               Build everything from _annotations.jsonl
-    python3 kb/build_kb.py --no-thumbs   Skip thumbnail generation for speed
+  python3 kb/build_kb.py                ingest + thumbnails (incremental)
+  python3 kb/build_kb.py --no-thumbs    ingest only, skip thumbnails
+  python3 kb/build_kb.py --force        rebuild DB + thumbnails from scratch
 """
 
-import argparse
 import json
 import os
 import sqlite3
@@ -22,242 +31,217 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-IMG_EXTS = {".png", ".jpg", ".jpeg", ".heic"}
-SCRIPT_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = SCRIPT_DIR / "kb" / "data" / "wiki.db"
-ANNOT_PATH = SCRIPT_DIR / "_annotations.jsonl"
-OUTPUT_DIR = SCRIPT_DIR / "exports"
+if str(Path(__file__).resolve().parent.parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import tracker
+
+IMG_EXTS      = {".png", ".jpg", ".jpeg", ".heic"}
+SCRIPT_DIR    = Path(__file__).resolve().parent.parent
+DB_PATH       = SCRIPT_DIR / "kb" / "data" / "wiki.db"
+ANNOT_PATH    = SCRIPT_DIR / "_annotations.jsonl"
+TRACKER_PATH  = SCRIPT_DIR / "_tracker.json"
+OUTPUT_DIR    = SCRIPT_DIR / "exports"
 
 
 def eprint(*args):
     print(*args, flush=True, file=sys.stderr)
 
 
-def iso_to_epoch(iso_str: str) -> float:
+def iso_to_epoch(iso_str):
     try:
         return datetime.fromisoformat(iso_str).timestamp()
     except Exception:
         return 0.0
 
 
-def build():
-    """Main entry point: ingest _annotations.jsonl into SQLite + exports."""
-    eprint(f"Loading annotations from {ANNOT_PATH}...")
+def abs_key(rec):
+    """Tracker key: absolute source path (filename fallback)."""
+    src = rec.get("filepath") or rec.get("filename", "")
+    return tracker.file_key(src)
 
+
+def load_recs():
+    """Parse _annotations.jsonl into {tracker_key: record}, dedup by key."""
+    by_key = {}
     if not ANNOT_PATH.exists():
         eprint("ERROR: no _annotations.jsonl found. Run classify_images.py first.")
         sys.exit(1)
-
-    recs = []
     for line in open(ANNOT_PATH, encoding="utf-8"):
         line = line.strip()
         if not line:
             continue
         try:
-            recs.append(json.loads(line))
+            rec = json.loads(line)
         except json.JSONDecodeError:
-            pass
+            continue
+        by_key[abs_key(rec)] = rec
+    return by_key
 
-    eprint(f"   {len(recs)} records loaded.")
 
-    eprint("Creating database...")
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if DB_PATH.exists():
-        os.remove(DB_PATH)
-    conn = sqlite3.connect(str(DB_PATH))
-    cur = conn.cursor()
-
+def create_schema(conn):
+    """Create all tables if absent (incremental -- no DROP of base tables)."""
     conn.executescript("""
-        CREATE TABLE screenshots (
-            id              INTEGER PRIMARY KEY,
-            filename        TEXT NOT NULL,
-            filepath        TEXT NOT NULL,
-            mtime_iso       TEXT NOT NULL,
-            mtime_epoch     REAL NOT NULL,
-            caption         TEXT,
-            quality_score   INTEGER CHECK(quality_score BETWEEN 0 AND 5)
-         );
-
-        CREATE TABLE tags (
-            screenshot_id   INTEGER REFERENCES screenshots(id),
-            tag             TEXT NOT NULL,
-            UNIQUE(screenshot_id, tag)
-         );
-
-        CREATE TABLE ocr_lines (
-            screenshot_id   INTEGER REFERENCES screenshots(id),
-            line_text       TEXT NOT NULL,
-            line_number     INTEGER
-         );
-
-        CREATE TABLE entities (
-            screenshot_id   INTEGER REFERENCES screenshots(id),
-            entity_name     TEXT NOT NULL
-         );
-
-        CREATE TABLE embeddings (
-            screenshot_id   INTEGER UNIQUE REFERENCES screenshots(id),
-            vector_blob     BLOB NOT NULL
-         );
-
-        DROP TABLE IF EXISTS screenshots_fts;
-        CREATE VIRTUAL TABLE screenshots_fts USING fts5(
-            caption, ocr, tag_list
+        CREATE TABLE IF NOT EXISTS screenshots (
+            id             INTEGER PRIMARY KEY,
+            filename       TEXT NOT NULL,
+            filepath       TEXT NOT NULL,
+            mtime_iso      TEXT NOT NULL,
+            mtime_epoch    REAL NOT NULL,
+            caption        TEXT,
+            quality_score  INTEGER CHECK(quality_score BETWEEN 0 AND 5)
           );
-
-        DROP TABLE IF EXISTS tag_stats;
-        CREATE TABLE tag_stats (
-            tag             TEXT PRIMARY KEY,
-            total_count     INTEGER NOT NULL
-         );
-
-        DROP TABLE IF EXISTS monthly_histogram;
-        CREATE TABLE monthly_histogram (
-            month           TEXT NOT NULL UNIQUE,
+        CREATE TABLE IF NOT EXISTS tags (
+            screenshot_id  INTEGER REFERENCES screenshots(id),
+            tag            TEXT NOT NULL,
+            UNIQUE(screenshot_id, tag)
+          );
+        CREATE TABLE IF NOT EXISTS ocr_lines (
+            screenshot_id  INTEGER REFERENCES screenshots(id),
+            line_text      TEXT NOT NULL,
+            line_number    INTEGER
+          );
+        CREATE TABLE IF NOT EXISTS entities (
+            screenshot_id  INTEGER REFERENCES screenshots(id),
+            entity_name    TEXT NOT NULL
+          );
+        CREATE TABLE IF NOT EXISTS embeddings (
+            screenshot_id  INTEGER UNIQUE REFERENCES screenshots(id),
+            vector_blob    BLOB NOT NULL
+          );
+        CREATE VIRTUAL TABLE IF NOT EXISTS screenshots_fts
+            USING fts5(caption, ocr, tag_list);
+        CREATE TABLE IF NOT EXISTS tag_stats (
+            tag            TEXT PRIMARY KEY,
+            total_count    INTEGER NOT NULL
+          );
+        CREATE TABLE IF NOT EXISTS monthly_histogram (
+            month            TEXT NOT NULL UNIQUE,
             screenshot_count INTEGER NOT NULL
-         );
-
-        CREATE INDEX idx_screenshots_mtime ON screenshots(mtime_epoch ASC);
-        CREATE INDEX idx_tags_tag ON tags(tag);
-        CREATE INDEX idx_ocr_sid ON ocr_lines(screenshot_id);
-        CREATE INDEX idx_emb_sid ON embeddings(screenshot_id);
+          );
+        CREATE INDEX IF NOT EXISTS idx_screenshots_mtime ON screenshots(mtime_epoch ASC);
+        CREATE INDEX IF NOT EXISTS idx_tags_tag          ON tags(tag);
+        CREATE INDEX IF NOT EXISTS idx_ocr_sid           ON ocr_lines(screenshot_id);
+        CREATE INDEX IF NOT EXISTS idx_emb_sid           ON embeddings(screenshot_id);
     """)
 
-    eprint(f"Importing {len(recs)} screenshots...")
 
-    s_rows       = []   # All screenshot entries: (id, filename, filepath, mtime_iso, mtime_epoch, caption, quality)
+def existing_screens(conn, force):
+    """Return {filepath: (id, mtime_iso)} already ingested; empty when force."""
+    if force:
+        return {}
+    out = {}
+    for sid, fp, mtime_iso in conn.execute("SELECT id, filepath, mtime_iso FROM screenshots"):
+        out[fp] = (sid, mtime_iso)
+    return out
 
-    sid_tags     = {}
-    sid_ocr      = {}
-    sid_ent      = {}
 
-    for i, rec in enumerate(recs):
-        fname = rec.get("filename", f"unknown-{i}")
-        filepath = rec.get("filepath", "") or ""
-        
-        mtime_iso_raw = rec.get("mtime_iso")
-        if isinstance(mtime_iso_raw, str) and len(mtime_iso_raw) > 0:
-            mtime_iso = mtime_iso_raw
-        else:
-            mtime_iso = "1970-01-01T00:00:00+00:00"
-
-        mtime_epoch = iso_to_epoch(mtime_iso)
-        caption_str = (rec.get("caption") or "").strip()
-        quality_val = int(rec.get("quality_score") or 0)
-
-        s_rows.append((i, fname, filepath, mtime_iso, mtime_epoch, caption_str, quality_val))
-        sid_tags[i]       = [str(t) for t in (rec.get("tags") or []) if str(t).strip()]
-        sid_ocr[i]        = [(str(t.strip()), j) for j, t in enumerate(rec.get("OCR_text") or []) if str(t).strip()]
-        sid_ent[i]        = [str(e).strip() for e in (rec.get("entities") or []) if str(e).strip()]
-
-    cur.executemany(
-        "INSERT INTO screenshots VALUES (?,?,?,?,?,?,?)",
-        s_rows
-    )
-
-    for sid, tags_list in sid_tags.items():
-        for tag in tags_list:
-            cur.execute("INSERT OR IGNORE INTO tags VALUES (?,?)", (sid, tag))
-
-    for sid, ocr_list in sid_ocr.items():
-        for text, lineno in ocr_list:
-            cur.execute("INSERT OR IGNORE INTO ocr_lines VALUES (?,?,?)", (sid, text, lineno))
-
-    for sid, ent_list in sid_ent.items():
-        for entity in ent_list:
-            cur.execute("INSERT OR IGNORE INTO entities VALUES (?,?)", (sid, entity))
-
-    conn.commit()
-
-    eprint("Processing embeddings...")
-    emb_rows = []
-    for i, rec in enumerate(recs):
-        emb_vec = rec.get("embedding_vector")
-        if emb_vec and isinstance(emb_vec, list) and len(emb_vec):
-            vec_bytes = struct.pack(f"{len(emb_vec)}f", *emb_vec)
-            emb_rows.append((i, vec_bytes))
-    cur.executemany("INSERT INTO embeddings VALUES (?,?)", emb_rows)
-    conn.commit()
-
-    eprint("Building FTS5 index...")
-    fts_rows = []
-    tag_counter = {}
-    for sid in range(len(s_rows)):
-        rec = recs[sid]
-        cap = (rec.get("caption") or "").strip()
-        tags_list = set(sid_tags.get(sid, []))
-        tags_str = ",".join(sorted(tags_list))
-        ocr_str = " ".join(o[0] for o in sid_ocr.get(sid, []))
-        if not (cap or ocr_str or tags_str):
-            continue
-        fts_rows.append((sid, cap, ocr_str, tags_str))
-        for t in tags_list:
-            tag_counter[t] = tag_counter.get(t, 0) + 1
-
-    cur.execute("DELETE FROM screenshots_fts")
-    cur.executemany(
-        "INSERT INTO screenshots_fts(rowid, caption, ocr, tag_list) VALUES (?,?,?,?)",
-        fts_rows,
-    )
-    conn.commit()
-
-    eprint("Tag stats...")
-
-     # Tag stats
-    conn.execute("DELETE FROM tag_stats")
-    for tag, count in tag_counter.items():
-        conn.execute(
-             "INSERT INTO tag_stats VALUES (?,?)", 
-              (tag, count))
-    conn.commit()
-
-      # Monthly histogram
-    month_counts = {}
-    for row in s_rows:
-        mtime_iso = row[3]
+def delete_screenshot(conn, sid):
+    """Remove a screenshot and all child rows (for a re-ingest)."""
+    conn.execute("DELETE FROM tags       WHERE screenshot_id = ?", (sid,))
+    conn.execute("DELETE FROM ocr_lines  WHERE screenshot_id = ?", (sid,))
+    conn.execute("DELETE FROM entities   WHERE screenshot_id = ?", (sid,))
+    conn.execute("DELETE FROM embeddings WHERE screenshot_id = ?", (sid,))
+    if sid is not None:
         try:
-            ym = str(mtime_iso)[:7]
-            month_counts[ym] = month_counts.get(ym, 0) + 1
-        except (IndexError, TypeError):
-            continue
-    eprint(f"Monthly histogram: {len(month_counts)} months")
+            conn.execute("DELETE FROM screenshots_fts WHERE rowid = ?", (sid,))
+        except sqlite3.OperationalError:
+            pass
+    conn.execute("DELETE FROM screenshots WHERE id = ?", (sid,))
+
+
+def ingest_one(conn, rec, existing):
+    """Insert/update one record. Returns (sid, changed:bool).
+
+    A record is changed if its filepath is new, or its source mtime differs
+    from the stored mtime_iso (an in-place edit). Unchanged records are a no-op.
+    """
+    fname        = rec.get("filename", "unknown")
+    filepath     = rec.get("filepath", "") or ""
+    raw          = rec.get("mtime_iso")
+    mtime_iso    = raw if (isinstance(raw, str) and raw) else "1970-01-01T00:00:00+00:00"
+    mtime_epoch = iso_to_epoch(mtime_iso)
+    caption_str = (rec.get("caption") or "").strip()
+    quality_val = int(rec.get("quality_score") or 0)
+
+    prior = existing.get(filepath)
+    if prior is not None and prior[1] == mtime_iso:
+        return prior[0], False
+
+    if prior is not None:
+        delete_screenshot(conn, prior[0])
+
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO screenshots "
+        "(filename, filepath, mtime_iso, mtime_epoch, caption, quality_score) "
+        "VALUES (?,?,?,?,?,?)",
+        (fname, filepath, mtime_iso, mtime_epoch, caption_str, quality_val))
+    sid = cur.lastrowid
+
+    for tag in [str(t) for t in (rec.get("tags") or []) if str(t).strip()]:
+        cur.execute("INSERT OR IGNORE INTO tags VALUES (?,?)", (sid, tag))
+    for j, txt in enumerate(rec.get("OCR_text") or []):
+        s = str(txt).strip()
+        if s:
+            cur.execute("INSERT OR IGNORE INTO ocr_lines VALUES (?,?,?)", (sid, s, j))
+    for ent in [str(e).strip() for e in (rec.get("entities") or []) if str(e).strip()]:
+        cur.execute("INSERT OR IGNORE INTO entities VALUES (?,?)", (sid, ent))
+
+    emb_vec = rec.get("embedding_vector")
+    if emb_vec and isinstance(emb_vec, list) and len(emb_vec):
+        vec_bytes = struct.pack(f"{len(emb_vec)}f", *emb_vec)
+        cur.execute("INSERT OR REPLACE INTO embeddings VALUES (?,?)", (sid, vec_bytes))
+
+    tags_set = sorted({str(t) for t in (rec.get("tags") or []) if str(t).strip()})
+    ocr_str  = " ".join(str(t).strip() for t in (rec.get("OCR_text") or []))
+    tags_str = ",".join(tags_set)
+    if caption_str or ocr_str or tags_str:
+        cur.execute(
+            "INSERT INTO screenshots_fts(rowid, caption, ocr, tag_list) VALUES (?,?,?,?)",
+            (sid, caption_str, ocr_str, tags_str))
+    return sid, True
+
+
+def rebuild_derived(conn):
+    """Rebuild the cheap aggregate tables from the full DB (fast, O(n))."""
+    tag_counter = {}
+    conn.execute("DELETE FROM tag_stats")
+    for tag, count in conn.execute("SELECT tag, COUNT(*) FROM tags GROUP BY tag"):
+        conn.execute("INSERT INTO tag_stats VALUES (?,?)", (tag, count))
+        tag_counter[tag] = count
+
+    month_counts = {}
+    for mtime_iso in conn.execute("SELECT mtime_iso FROM screenshots ORDER BY mtime_epoch ASC"):
+        ym = str(mtime_iso)[:7]
+        month_counts[ym] = month_counts.get(ym, 0) + 1
     conn.execute("DELETE FROM monthly_histogram")
     for month, count in sorted(month_counts.items()):
-        conn.execute(
-             "INSERT INTO monthly_histogram VALUES (?,?)", 
-              (month, str(count)))
-    conn.commit()
+        conn.execute("INSERT INTO monthly_histogram VALUES (?,?)", (month, str(count)))
+    return tag_counter
 
-      # Wiki ndjson export
-    eprint(f"Building wiki.ndjson ({len(recs)} entries)...")
+
+def write_exports(conn, tag_counter):
+    """Write the flat NDJSON dump + tag co-occurrence index from the full DB."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_DIR / "wiki.ndjson", "w") as fh:
-        for row in s_rows:
-            sid = row[0]
-            mtime_iso = row[3]
-            mtime_epoch = row[4]
-            caption = row[5]
-            quality = row[6]
-            rec = recs[sid]
-            fname = rec.get("filename", f"unknown-{sid}")
-            path   = rec.get("filepath", "") or ""
-            out = json.dumps({
-                  "sid": sid,
-                  "filename": fname,
-                  "filepath": path,
-                  "mtime_iso": mtime_iso,
-                  "mtime_epoch": mtime_epoch,
-                  "caption": caption,
-                  "quality": quality,
-              })
-            fh.write(out + "\n")
 
-     # Tag co-occurrence edges export
-    eprint(f"Building tags_index.json...")
-    
+    with open(OUTPUT_DIR / "wiki.ndjson", "w", encoding="utf-8") as fh:
+        for sid, fname, path, mtime_iso, mtime_epoch, caption, quality in conn.execute(
+            "SELECT id, filename, filepath, mtime_iso, mtime_epoch, caption, "
+            "quality_score FROM screenshots ORDER BY mtime_epoch ASC"):
+            out = {
+                "sid": sid, "filename": fname, "filepath": path,
+                "mtime_iso": mtime_iso, "mtime_epoch": mtime_epoch,
+                "caption": caption, "quality": quality,
+            }
+            fh.write(json.dumps(out) + "\n")
+
+    sid_tags_by_id = {}
+    for sid, tag in conn.execute("SELECT screenshot_id, tag FROM tags ORDER BY screenshot_id"):
+        sid_tags_by_id.setdefault(sid, []).append(tag)
+
     tag_pairs = {}
-    for sid in range(len(s_rows)):
-        utags = sorted(set(sid_tags.get(sid, [])))
+    for tags_l in sid_tags_by_id.values():
+        utags = sorted(set(tags_l))
         for i in range(len(utags)):
             for j in range(i + 1, len(utags)):
                 p = (utags[i], utags[j])
@@ -265,63 +249,149 @@ def build():
 
     edges = [{"source": t1, "target": t2, "weight": c}
              for (t1, t2), c in sorted(tag_pairs.items(), key=lambda x: -x[1])[:300]]
-
-    top_tags_list = [{"tag": t, "count": c} 
+    top_tags_list = [{"tag": t, "count": c}
                      for t, c in sorted(tag_counter.items(), key=lambda x: -x[1])[:50]]
 
     tags_index_data = {
-        "total_screenshots": len(s_rows),
-        "unique_tags":       len(tag_pairs),
-        "top_tags":         top_tags_list,
-        "edges":            edges,
+        "total_screenshots": "",  # filled below
+        "unique_tags": len(tag_pairs),
+        "top_tags":      top_tags_list,
+        "edges":         edges,
     }
-
-    with open(OUTPUT_DIR / "tags_index.json", "w") as fh:
+    tags_index_data["total_screenshots"] = conn.execute("SELECT COUNT(*) FROM screenshots").fetchone()[0]
+    with open(OUTPUT_DIR / "tags_index.json", "w", encoding="utf-8") as fh:
         json.dump(tags_index_data, fh, indent=2)
+    return tags_index_data
 
-      # Thumbnail generation (if not skipping)
+
+def generate_thumbnails(recs_by_key, files, make_thumbs):
+    """Generate 320px thumbs for any annotated file that lacks one.
+
+    Tracked + incremental: an on-disk-but-unrecorded thumb is adopted (recorded
+    in the tracker but not regenerated); a file already ok with its thumb on disk
+    is a no-op; a new/missing thumb is generated via sips.
+    """
+    if not make_thumbs:
+        eprint("Skipping thumbnails (--no-thumbs).")
+        return 0
     thumb_dir = OUTPUT_DIR / "thumbnails"
-    if len(recs) > 0 and "--no-thumbs" not in sys.argv:
-        eprint("Generating thumbnails...")
-        thumb_dir.mkdir(parents=True, exist_ok=True)
+    thumb_dir.mkdir(parents=True, exist_ok=True)
 
-        def _make_thumb(rec):
-            src = rec.get("filepath", "")
-            if not src or not os.path.isfile(src):
-                return None
-            ext = os.path.splitext(rec.get("filename", ""))[1].lower()
-            dest = str(thumb_dir / (os.path.splitext(rec.get("filename", "x"))[0] + ".jpg"))
-            if os.path.isfile(dest):
-                return dest
-            try:
-                cmd = ["/usr/bin/sips", "-Z", "320"]
-                if ext == ".heic":
-                    cmd += ["-s", "format", "jpeg"]
-                cmd += [src, "--out", dest]
-                subprocess.run(cmd, capture_output=True, timeout=30)
-                return dest if os.path.isfile(dest) else None
-            except Exception:
-                return None
+    def _dest_for(rec):
+        stem = os.path.splitext(rec.get("filename", "x"))[0]
+        return str(thumb_dir / (stem + ".jpg"))
 
-        made = 0
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            for f in as_completed([pool.submit(_make_thumb, recs[i])
-                                   for i in range(len(recs))]):
-                if f.result() is not None:
-                    made += 1
-        eprint(f"Generated {made} thumbnails.")
+    def _now():
+        return datetime.now(tz=timezone.utc).isoformat()
+
+    def _make_thumb(rec):
+        key    = abs_key(rec)
+        src    = rec.get("filepath", "")
+        dest   = _dest_for(rec)
+        # Register the entry so subsequent mark_* mutate the same record.
+        files.setdefault(key, tracker.new_entry(rec.get("filename", key), rec.get("mtime_iso")))
+        # Already recorded ok on disk -> no-op.
+        if files[key].get("thumb_status") == "ok" and os.path.isfile(dest):
+            return None
+         # On disk but unrecorded -> adopt it (record ok, do not regenerate).
+        if os.path.isfile(dest):
+            tracker.mark_thumbnail(files, key, _now(), "ok")
+            return "adopted"
+        if not src or not os.path.isfile(src):
+            tracker.mark_thumbnail(files, key, None, "fail")
+            return None
+        ext = os.path.splitext(rec.get("filename", ""))[1].lower()
+        try:
+            tmp = dest + ".part"
+            cmd = ["/usr/bin/sips", "-Z", "320"]
+            if ext == ".heic":
+                cmd += ["-s", "format", "jpeg"]
+            cmd += [src, "--out", tmp]
+            subprocess.run(cmd, capture_output=True, timeout=30)
+            if os.path.isfile(tmp):
+                os.replace(tmp, dest)
+                tracker.mark_thumbnail(files, key, _now(), "ok")
+                return "generated"
+            tracker.mark_thumbnail(files, key, None, "fail")
+            return None
+        except Exception:
+            tracker.mark_thumbnail(files, key, None, "fail")
+            return None
+
+    generated = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for f in as_completed([pool.submit(_make_thumb, rec) for rec in recs_by_key.values()]):
+            r = f.result()
+            if r in ("generated", "adopted"):
+                generated += 1
+    eprint(f"Thumbnails: {generated} generated/adopted, rest skipped.")
+    return generated
+
+
+def build(force=False):
+    """Incremental ingest of _annotations.jsonl into the SQLite KB + exports."""
+    eprint(f"Loading annotations from {ANNOT_PATH}...")
+    recs_by_key = load_recs()
+    eprint(f"       {len(recs_by_key)} unique records loaded.")
+
+    payload = tracker.load_registry(TRACKER_PATH)
+    files = payload["files"]
+
+    eprint("Opening database...")
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    create_schema(conn)
+
+    existing = existing_screens(conn, force)
+    if force:
+        eprint("--force: clearing existing screenshots for a full rebuild.")
+        for sid, _ in list(existing.values()):
+            delete_screenshot(conn, sid)
+        existing = {}
+
+    eprint(f"Ingesting {len(recs_by_key)} screenshot(s) (incremental)...")
+    ingested_count = 0
+    for key, rec in recs_by_key.items():
+        _sid, changed = ingest_one(conn, rec, existing)
+        if changed:
+            ingested_count += 1
+        marker = files.get(key) or tracker.new_entry(
+            rec.get("filename", key), rec.get("mtime_iso"))
+        files[key] = marker
+        tracker.mark_ingested(files, key)
+    conn.commit()
+    eprint(f"       {ingested_count} new/changed, {len(recs_by_key) - ingested_count} unchanged.")
+
+    if ingested_count or force:
+        eprint("Rebuilding derived tables + exports...")
+        tag_counter = rebuild_derived(conn)
+        write_exports(conn, tag_counter)
+        conn.commit()
     else:
-        eprint("Skipping thumbnails (--no-thumbs or empty).")
+        eprint("Nothing changed -- skipping derived rebuild.")
+        tag_counter = {}
 
-    print("\n=== Build Complete ===")
-    top_tag = max(tag_counter, key=tag_counter.get) if tag_counter else ""
-    print(f"   Database:        {os.path.getsize(DB_PATH) / 1024:.1f} KB")
-    print(f"   Records:         {len(s_rows)} annotations ingested")
-    print(f"   Unique tags:     {len(tag_counter)}")
-    print(f"   Edges:           {len(edges)} tag co-occurrence pairs")
-    if top_tag:
-        print(f"   Top tag:         {top_tag} ({tag_counter.get(top_tag, 0)})")
+    generated = generate_thumbnails(
+        recs_by_key, files, make_thumbs="--no-thumbs" not in sys.argv)
+
+    runs = tracker.build_summary(
+        files, 0, len(recs_by_key), new_this_run=0, processed_this_run=len(recs_by_key),
+        errors_this_run=0, status="build-complete")
+    runs["last_build_at"]       = datetime.now(tz=timezone.utc).isoformat()
+    runs["ingested_this_run"]   = ingested_count
+    runs["thumbnails_this_run"] = generated
+    tracker.save_tracker(TRACKER_PATH, {"files": files, "runs": runs})
+
+    print("\n=== Build Complete (incremental) ===")
+    print(f"   Database:       {os.path.getsize(DB_PATH) / 1024:.1f} KB")
+    print(f"   Ingested now:   {ingested_count} new/changed of {len(recs_by_key)}")
+    print(f"   New thumbs:     {generated}")
+    if tag_counter:
+        top_tag = max(tag_counter, key=tag_counter.get)
+        print(f"   Top tag:        {top_tag} ({tag_counter.get(top_tag, 0)})")
+    elif ingested_count == 0 and generated == 0:
+        print("   Already up to date -- nothing to do.")
 
 
 if __name__ == "__main__":
-    build()
+    build(force="--force" in sys.argv)

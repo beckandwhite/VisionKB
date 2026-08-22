@@ -6,16 +6,19 @@ Serves a single-page viewer over the pipeline artifacts. All source files are
 re-parsed *fresh per request* so the UI tracks a live pipeline run without a
 restart. Read-only: nothing here is written, never touches the pipeline scripts.
 
+Telemetry and per-file progress now live in the shared tracker (_tracker.json);
+this server reconstructs telemetry rows from it via tracker.telemetry_from_tracker().
+
 Endpoints:
-    GET /                        -> app/index.html
-    GET /app.js / /style.css     -> static assets
-    GET /api/overview            -> funnel stages + ETA + sparkline + status counts
-    GET /api/timeline            -> merged rows (annotations x telemetry x wiki),
+    GET /                         -> app/index.html
+    GET /app.js / /style.css      -> static assets
+    GET /api/overview             -> funnel stages + ETA + sparkline + status counts
+    GET /api/timeline             -> merged rows (annotations x tracker x wiki),
                                      newest first, capped with has_more
-    GET /api/record?filename=    -> full untruncated record for one row
-    GET /api/tags                -> passthrough of exports/tags_index.json
-    GET /api/telemetry           -> raw telemetry rows
-    GET /thumb/<filename>        -> thumbnail from exports/thumbnails/ or 404
+    GET /api/record?filename=     -> full untruncated record for one row
+    GET /api/tags                 -> passthrough of exports/tags_index.json
+    GET /api/telemetry            -> reconstructed telemetry rows (from the tracker)
+    GET /thumb/<file>             -> 320px thumbnail; ?original=1 -> full-res original
 
 Usage:
     python3 app/server.py
@@ -26,16 +29,21 @@ import argparse
 import json
 import mimetypes
 import os
+import sys
 import webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
+
+if str(Path(__file__).resolve().parent.parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import tracker
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SCRIPT_DIR)
 
 TRACKER_PATH = os.path.join(ROOT, "_tracker.json")
-TELEMETRY_PATH = os.path.join(ROOT, "telemetry.log")
 ANNOT_PATH = os.path.join(ROOT, "_annotations.jsonl")
 WIKI_PATH = os.path.join(ROOT, "exports", "wiki.ndjson")
 TAGS_PATH = os.path.join(ROOT, "exports", "tags_index.json")
@@ -46,11 +54,13 @@ OCR_LINES_MAX = 8
 TIMELINE_DEFAULT_LIMIT = 150
 
 STAGE_COLORS = {
-    "Scanned":         "#5b8def",
-    "Vision attempts": "#8a7bff",
-    "Vision ok":       "#3fae6f",
-    "Annotated":       "#e0a13c",
-    "Wiki-ingested":   "#d1495b",
+     "Scanned":          "#5b8def",
+     "Vision attempts": "#8a7bff",
+     "Vision ok":        "#3fae6f",
+     "Annotated":        "#e0a13c",
+     "Wiki-ingested":    "#d1495b",
+     "Ingested (KB)":    "#7a8a9e",
+     "Thumbnails":       "#4fae9b",
 }
 
 
@@ -59,47 +69,21 @@ STAGE_COLORS = {
 # ---------------------------------------------------------------------------
 
 def load_tracker():
-    """Return (total, processed) from _tracker.json, handling both the new
-    registry schema and the old flat index schema. Missing/corrupt -> (0, 0)."""
-    try:
-        with open(TRACKER_PATH, encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, ValueError, TypeError):
-        return 0, 0
-    if not isinstance(data, dict):
-        return 0, 0
-
-    runs = data.get("runs")
-    if isinstance(runs, dict):
-        total = runs.get("total_files") or 0
-        processed = runs.get("processed")
-        if processed is None:
-            unproc = runs.get("unprocessed")
-            total = total or (unproc or 0)
-            processed = (total - unproc) if unproc is not None else 0
-        return int(total or 0), int(processed or 0)
-
-    total = int(data.get("total_images") or data.get("total") or 0)
-    processed = int(data.get("processed_so_far") or data.get("processed") or 0)
-    return total, processed
+    """Return (files, runs) from _tracker.json.
+    Missing/corrupt/old-schema -> ({}, {}). The registry is read through the
+    shared tracker module so the schema stays consistent with the writers."""
+    payload = tracker.load_registry(TRACKER_PATH)
+    return payload.get("files", {}), payload.get("runs", {})
 
 
 def load_telemetry():
-    """Return a list of telemetry records (newest last). Blank/malformed skipped."""
-    rows = []
-    try:
-        with open(TELEMETRY_PATH, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line))
-                except (ValueError, TypeError):
-                    continue
-    except OSError:
-        pass
-    return rows
+    """Reconstruct telemetry rows from the tracker (newest last).
+
+    Each processed file yields one row: {timestamp, filename, vision_latency_s,
+    tags_count, embedding_dims, status, error}. Backed by the shared tracker.
+    """
+    files, _ = load_tracker()
+    return tracker.telemetry_from_tracker(files)
 
 
 def load_annotations():
@@ -194,54 +178,68 @@ def _thumb_path_for(filename):
     return path if os.path.isfile(path) else None
 
 
+def _find_original(filename):
+    """Absolute path to the full-res original for a thumbnail filename, or None.
+
+    Used by /thumb/<file>?original=1 so a thumbnail can be clicked through to
+    its source image. Looked up via the annotation record's "filepath"."""
+    if not filename:
+        return None
+    rec = load_annotations().get(filename)
+    if rec is None:
+        return None
+    path = rec.get("filepath")
+    if path and os.path.isfile(path):
+        return path
+    return None
+
+
 def build_overview():
-    """Funnel stage counts, ETA, sparkline, and status chips."""
-    telemetry = load_telemetry()
+    """Funnel stage counts, ETA, sparkline, and status chips (from the tracker)."""
+    files, runs = load_tracker()
     annotations = load_annotations()
     wiki = load_wiki()
-    total, processed_registry = load_tracker()
+    telemetry = tracker.telemetry_from_tracker(files)
 
     ok_count = sum(1 for r in telemetry if r.get("status") == "ok")
     fail_count = sum(1 for r in telemetry if r.get("status") == "fail")
+    error_count = sum(1 for r in telemetry if r.get("status") == "error")
     attempts = len(telemetry)
 
     annotated = len(annotations)
     wiki_ingested = len(wiki)
+    ingested = runs.get("ingested", 0)
+    thumbs = runs.get("thumbnails", 0)
 
-    # Denominator = highest count across every source (the tracker total is
-    # normally the max, but this stays correct if another source grows faster).
-    total = max(total, processed_registry, attempts, ok_count, annotated,
-                wiki_ingested)
+    total = max(runs.get("total_files", 0), attempts, ok_count, fail_count,
+                annotated, wiki_ingested, ingested, thumbs)
 
     ok_latencies = [r["vision_latency_s"] for r in telemetry
-                   if r.get("status") == "ok"
-                   and isinstance(r.get("vision_latency_s"), (int, float))]
+                    if r.get("status") == "ok"
+                    and isinstance(r.get("vision_latency_s"), (int, float))]
     avg_latency = (sum(ok_latencies) / len(ok_latencies)) if ok_latencies else 0.0
 
-    # The vision step is the bottleneck: remaining = not-yet-classified images.
-    classified = max(ok_count, annotated, wiki_ingested, processed_registry)
+    classified = max(ok_count, fail_count, annotated, wiki_ingested,
+                    runs.get("processed", 0))
     remaining = max(total - classified, 0)
     eta_seconds = remaining * avg_latency
     eta_human = _human_duration(eta_seconds) if remaining else "0m"
     projected_finish = (
-        (datetime.now(tz=timezone.utc) + timedelta(seconds=eta_seconds)).isoformat()
+         (datetime.now(tz=timezone.utc) + timedelta(seconds=eta_seconds)).isoformat()
         if remaining else "")
 
     def pct(count):
         return round(count / total * 100, 3) if total else 0.0
 
     stages = [
-        {"name": "Scanned", "count": total, "pct": pct(total),
-         "color": STAGE_COLORS["Scanned"]},
-        {"name": "Vision attempts", "count": attempts, "pct": pct(attempts),
-         "color": STAGE_COLORS["Vision attempts"]},
-        {"name": "Vision ok", "count": ok_count, "pct": pct(ok_count),
-         "color": STAGE_COLORS["Vision ok"]},
-        {"name": "Annotated", "count": annotated, "pct": pct(annotated),
-         "color": STAGE_COLORS["Annotated"]},
-        {"name": "Wiki-ingested", "count": wiki_ingested, "pct": pct(wiki_ingested),
-         "color": STAGE_COLORS["Wiki-ingested"]},
-    ]
+         {"name": "Scanned", "count": total, "pct": pct(total), "color": STAGE_COLORS["Scanned"]},
+         {"name": "Vision attempts", "count": attempts, "pct": pct(attempts), "color": STAGE_COLORS["Vision attempts"]},
+         {"name": "Vision ok", "count": ok_count, "pct": pct(ok_count), "color": STAGE_COLORS["Vision ok"]},
+         {"name": "Annotated", "count": annotated, "pct": pct(annotated), "color": STAGE_COLORS["Annotated"]},
+         {"name": "Wiki-ingested", "count": wiki_ingested, "pct": pct(wiki_ingested), "color": STAGE_COLORS["Wiki-ingested"]},
+         {"name": "Ingested (KB)", "count": ingested, "pct": pct(ingested), "color": STAGE_COLORS["Ingested (KB)"]},
+         {"name": "Thumbnails", "count": thumbs, "pct": pct(thumbs), "color": STAGE_COLORS["Thumbnails"]},
+     ]
 
     pending = remaining
     sparkline = []
@@ -249,50 +247,57 @@ def build_overview():
         lat = r.get("vision_latency_s")
         if lat is not None:
             sparkline.append({
-                "latency_s": round(float(lat), 1),
-                "status": r.get("status", "?"),
-                "filename": r.get("filename", ""),
-                "timestamp": r.get("timestamp", ""),
-            })
+                 "latency_s": round(float(lat), 1),
+                 "status": r.get("status", "?"),
+                 "filename": r.get("filename", ""),
+                 "timestamp": r.get("timestamp", ""),
+                 "error": r.get("error"),
+             })
 
     return {
-        "total": total,
-        "stages": stages,
-        "avg_latency_s": round(avg_latency, 2),
-        "remaining": remaining,
-        "eta_seconds": int(eta_seconds),
-        "eta_human": eta_human,
-        "projected_finish_iso": projected_finish,
-        "sparkline": sparkline,
-        "status_counts": {
-            "ok": ok_count,
-            "fail": fail_count,
-            "pending": pending,
-        },
-    }
+         "total": total,
+         "stages": stages,
+         "avg_latency_s": round(avg_latency, 2),
+         "remaining": remaining,
+         "eta_seconds": int(eta_seconds),
+         "eta_human": eta_human,
+         "projected_finish_iso": projected_finish,
+         "sparkline": sparkline,
+         "status_counts": {
+              "ok": ok_count,
+              "fail": fail_count,
+              "error": error_count,
+              "pending": pending,
+              "ingested": ingested,
+              "thumbnails": thumbs,
+          },
+     }
 
 
 def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
-                  query=None):
-    """Merge annotations (detail) + telemetry (status/latency) + wiki (flag),
-    newest first, with optional filters and pagination."""
+                   query=None):
+    """Merge annotations (detail) + tracker telemetry + wiki (flag), newest
+    first, with optional filters and pagination."""
     annotations = load_annotations()
-    telemetry = load_telemetry()
+    files, runs = load_tracker()
     wiki = load_wiki()
 
     telem_by_name = {}
-    for r in telemetry:
-        telem_by_name.setdefault(r.get("filename"), []).append(r)
+    for r in tracker.telemetry_from_tracker(files):
+        nm = r.get("filename")
+        if nm:
+            telem_by_name.setdefault(nm, []).append(r)
 
     rows = []
     for name, rec in annotations.items():
         telem = telem_by_name.get(name)
-        telem_status = telem_latency = telem_ts = None
+        telem_status = telem_latency = telem_ts = telem_error = None
         if telem:
             last = telem[-1]
             telem_status = last.get("status")
             telem_latency = last.get("vision_latency_s")
             telem_ts = last.get("timestamp")
+            telem_error = last.get("error")
 
         tags = rec.get("tags") or []
         ocr = rec.get("OCR_text") or []
@@ -304,23 +309,24 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
 
         ocr_trunc, truncated = _truncate_ocr(ocr)
         rows.append({
-            "filename": name,
-            "mtime_iso": rec.get("mtime_iso") or "",
-            "mtime_epoch": _iso_to_epoch(rec.get("mtime_iso")),
-            "status": status,
-            "quality": quality,
-            "caption": rec.get("caption") or "",
-            "tags": tags,
-            "ocr_text": ocr_trunc,
-            "ocr_truncated": truncated,
-            "entities": rec.get("entities") or [],
-            "telem_latency_s": telem_latency,
-            "telem_status": telem_status,
-            "telem_timestamp": telem_ts,
-            "in_wiki": name in wiki,
-            "has_thumb": _thumb_path_for(name) is not None,
-            "original_path": rec.get("filepath") or "",
-        })
+             "filename": name,
+             "mtime_iso": rec.get("mtime_iso") or "",
+             "mtime_epoch": _iso_to_epoch(rec.get("mtime_iso")),
+             "status": status,
+             "quality": quality,
+             "caption": rec.get("caption") or "",
+             "tags": tags,
+             "ocr_text": ocr_trunc,
+             "ocr_truncated": truncated,
+             "entities": rec.get("entities") or [],
+             "telem_latency_s": telem_latency,
+             "telem_status": telem_status,
+             "telem_timestamp": telem_ts,
+             "telem_error": telem_error,
+             "in_wiki": name in wiki,
+             "has_thumb": _thumb_path_for(name) is not None,
+             "original_path": rec.get("filepath") or "",
+         })
 
     rows.sort(key=lambda r: r["mtime_epoch"], reverse=True)
     total_rows = len(rows)
@@ -343,21 +349,27 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
     else:
         page = rows
     return {
-        "rows": page,
-        "shown": len(page),
-        "shown_total": shown_total,
-        "total_rows": total_rows,
-        "has_more": (offset + len(page)) < shown_total,
-    }
+         "rows": page,
+         "shown": len(page),
+         "shown_total": shown_total,
+         "total_rows": total_rows,
+         "has_more": (offset + len(page)) < shown_total,
+     }
 
 
 def load_record(filename):
-    """Full untruncated record for one annotation, or None."""
+    """Full untruncated record for one annotation, plus tracker telemetry, or None."""
     rec = load_annotations().get(filename)
     if rec is None:
         return None
     rec["ocr_text"] = rec.get("OCR_text") or []
     rec["ocr_truncated"] = False
+    files, runs = load_tracker()
+    for r in tracker.telemetry_from_tracker(files):
+        if r.get("filename") == filename:
+            rec["telem_status"] = r.get("status")
+            rec["telem_latency_s"] = r.get("vision_latency_s")
+            rec["telem_error"] = r.get("error")
     return rec
 
 
@@ -440,8 +452,8 @@ class Handler(BaseHTTPRequestHandler):
             tag_filter = qs.get("tag", [None])[0]
             query = qs.get("q", [None])[0]
             self._send_json(build_timeline(limit=limit, offset=offset,
-                                          status_filter=status_filter,
-                                          tag_filter=tag_filter, query=query))
+                                      status_filter=status_filter,
+                                      tag_filter=tag_filter, query=query))
             return
 
         if path == "/api/record":
@@ -458,11 +470,19 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.startswith("/thumb/"):
             filename = unquote(path[len("/thumb/"):])
-            thumb = _thumb_path_for(filename)
-            if thumb is None:
-                self._send_json({"error": "thumb not generated"}, 404)
+            serve_original = qs.get("original", [None])[0] == "1"
+            if serve_original:
+                orig = _find_original(filename)
+                if orig is None:
+                    self._send_json({"error": "original not found"}, 404)
+                else:
+                    self._send_file(orig, mimetypes.guess_type(orig)[0])
             else:
-                self._send_file(thumb, "image/jpeg")
+                thumb = _thumb_path_for(filename)
+                if thumb is None:
+                    self._send_json({"error": "thumb not generated"}, 404)
+                else:
+                    self._send_file(thumb, "image/jpeg")
             return
 
         self._send_json({"error": "unknown route"}, 404)
@@ -480,8 +500,8 @@ def main():
     url = "http://%s:%d/" % (args.host, args.port)
     print("WebUI running at %s" % url, flush=True)
     print("Serving from %s" % ROOT, flush=True)
-    print("Sources: trackers=%s telemetry=%s annotations=%s wiki=%s tags=%s"
-          % (TRACKER_PATH, TELEMETRY_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH),
+    print("Sources: tracker=%s annotations=%s wiki=%s tags=%s thumbs=%s"
+           % (TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR),
          flush=True)
     if args.open:
         try:

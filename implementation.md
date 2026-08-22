@@ -63,13 +63,12 @@ Use existing `classify_images.py` logic, but:
 - Run over **uniques only**, in **mtime order**.
 - Vision prompt → `{caption, OCR_text[], entities[], tags[], quality 1–5}`.
 - Keep `embedding_vector` (768-dim, nomic).
-- Keep checkpointing (`_tracker.json` every N) + `telemetry.log`. The tracker is a
-   **per-file registry** (`{filepath: {filename, mtime_iso, processed_at, quality_score,
-    status}}` + a `runs` summary): each run reconciles the folder (appends new files),
-   marks each file `processed_at` when done, then classifies the next `--count`
-   unprocessed files (newest mtime first). Re-runs skip done files; existing
-   `_annotations.jsonl` entries are auto-seeded as `backfilled` so they aren't
-   reclassified.
+- Keep checkpointing `_tracker.json`. Per-file telemetry now lives alongside
+   in the shared `tracker.py` module: each entry gains `started_at`, `finished_at`,
+   `vision_latency_s`, `status` (`ok`/`fail`/`error`), `error`, plus `ingested_at`
+   and `thumb_at` from `build_kb.py`. The old `telemetry.log` is retired.
+   `build_kb.py` is incremental: it re-ingests only new/changed records (mtime newer
+   than `ingested_at`) and adopts thumbnails already on disk without re-running `sips`
 - Optionally: run cheap **pre-screen** (Stage-2 embedding + a fast model) and only
   invoke the 30B model on cluster *representatives*; other images get the cheaper model.
 - Output: `_annotations.jsonl` (append, deterministic mtime order → safe re-run).
@@ -141,8 +140,9 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 1. Fix `kb/build_kb.py` so it runs on the existing 5 annotations (fast, validates schema).
 2. Write Stage 1 (dedup) → get true unique count; **report it** before any vision run.
 3. Stage 2 embeddings+clusters on uniques → sanity-check cluster sizes.
-4. Stage 3 vision extract via `--count` ramp: 30 → 100 → full, monitoring `telemetry.log`
-   for latency + empty-tag rate.
+4. Stage 3 vision extract via `--count` ramp: 30 → 100 → full, monitoring
+   `_tracker.json` (per-file `vision_latency_s`, `status`, `error`) for latency
+    and empty-tag/error rate.
 5. Stage 4 re-ingest into SQLite (with new wiki tables).
 6. Stage 5 synthesis → markdown wiki; eyeball quality; iterate on the synthesis prompt.
 
