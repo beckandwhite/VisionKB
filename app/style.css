@@ -107,103 +107,20 @@ html, body {
 }
 .section-header .section-title { margin: 0; }
 
-/* ----------------------------------------------------------------- funnel */
-.funnel { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
-.funnel-row { display: flex; align-items: center; gap: 12px; }
-.funnel-label {
-   width: 130px;
-   flex-shrink: 0;
-   font-size: 11px;
-   color: var(--muted);
-   text-align: right;
+/* ---------------------------------------------------------- backlog footer */
+.backlog {
+    border-top: 1px solid var(--border);
+    padding-top: 4px;
 }
-.funnel-bar-track {
-   flex: 1;
-   height: 22px;
-   background: var(--bg-elev2);
-   border: 1px solid var(--border);
-   border-radius: 4px;
-   position: relative;
-   overflow: hidden;
+.backlog-line {
+    font-size: 13px;
+    line-height: 1.6;
 }
-.funnel-bar-fill {
-   height: 100%;
-   transition: width .4s ease;
-   min-width: 1px;
+.backlog-line.primary {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
 }
-.funnel-count {
-   width: 200px;
-   flex-shrink: 0;
-   font-size: 11px;
-   text-align: left;
-}
-.funnel-count .pct { color: var(--muted); margin-left: 4px; }
-
-/* ------------------------------------------------------------------- eta */
-.eta-row {
-   display: flex;
-   align-items: stretch;
-   gap: 18px;
-   flex-wrap: wrap;
-   margin-bottom: 16px;
-}
-.eta-block {
-   background: var(--bg-elev2);
-   border: 1px solid var(--border);
-   border-radius: 6px;
-   padding: 12px 16px;
-   min-width: 240px;
-}
-.eta-label { display: block; font-size: 10px; text-transform: uppercase;
-   letter-spacing: 1px; color: var(--muted); }
-.eta-value { display: block; font-size: 26px; font-weight: 700;
-   margin: 2px 0; }
-.eta-detail { display: block; font-size: 11px; }
-
-.status-chips { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
-.chip {
-   display: inline-flex;
-   align-items: center;
-   gap: 8px;
-   padding: 6px 12px;
-   border-radius: 20px;
-   border: 1px solid var(--border);
-   background: var(--bg-elev2);
-   font-size: 11px;
-   width: fit-content;
-}
-.chip .dot {
-   width: 9px; height: 9px; border-radius: 50%;
-}
-.chip.ok .dot   { background: var(--ok); }
-.chip.fail .dot { background: var(--fail); }
-.chip.pending .dot { background: var(--accent); }
-.chip .num { font-weight: 700; }
-.chip .lbl { color: var(--muted); }
-
-/* -------------------------------------------------------------- sparkline */
-.sparkline-wrap {
-   border-top: 1px solid var(--border);
-   padding-top: 12px;
-}
-.sparkline-label {
-   font-size: 10px;
-   text-transform: uppercase;
-   letter-spacing: 1px;
-   color: var(--muted);
-   display: block;
-   margin-bottom: 4px;
-}
-.sparkline {
-   width: 100%;
-   height: 100px;
-   background: var(--bg-elev2);
-   border: 1px solid var(--border);
-   border-radius: 4px;
-}
-.sparkline .line { fill: none; stroke: var(--accent); stroke-width: 1.5; }
-.sparkline .dot-ok   { fill: var(--ok); }
-.sparkline .dot-fail { fill: var(--fail); }
 
 /* --------------------------------------------------------------- filters */
 .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

@@ -12,7 +12,7 @@ this server reconstructs telemetry rows from it via tracker.telemetry_from_track
 Endpoints:
     GET /                         -> app/index.html
     GET /app.js / /style.css      -> static assets
-    GET /api/overview             -> funnel stages + ETA + sparkline + status counts
+    GET /api/overview              -> backlog status + ETA (remaining + speed window)
     GET /api/timeline             -> merged rows (annotations x tracker x wiki),
                                      newest first, capped with has_more
     GET /api/record?filename=     -> full untruncated record for one row
@@ -53,15 +53,7 @@ OCR_LINE_MAX = 100
 OCR_LINES_MAX = 8
 TIMELINE_DEFAULT_LIMIT = 150
 
-STAGE_COLORS = {
-     "Scanned":          "#5b8def",
-     "Vision attempts": "#8a7bff",
-     "Vision ok":        "#3fae6f",
-     "Annotated":        "#e0a13c",
-     "Wiki-ingested":    "#d1495b",
-     "Ingested (KB)":    "#7a8a9e",
-     "Thumbnails":       "#4fae9b",
-}
+
 
 
 # ---------------------------------------------------------------------------
@@ -195,83 +187,55 @@ def _find_original(filename):
 
 
 def build_overview():
-    """Funnel stage counts, ETA, sparkline, and status chips (from the tracker)."""
+    """Backlog status + ETA from the tracker.
+
+    Reports how many pictures are still unprocessed and the estimated time
+    left, derived from the speed of the most recently processed files.
+
+     `processed` mirrors the pipeline's own "done" predicate (classify_images):
+    a file counts as handled when it has a finished_at or processed_at stamp,
+    so the backlog reflects the vision queue regardless of KB-layer stages.
+    """
     files, runs = load_tracker()
-    annotations = load_annotations()
-    wiki = load_wiki()
     telemetry = tracker.telemetry_from_tracker(files)
 
-    ok_count = sum(1 for r in telemetry if r.get("status") == "ok")
-    fail_count = sum(1 for r in telemetry if r.get("status") == "fail")
-    error_count = sum(1 for r in telemetry if r.get("status") == "error")
-    attempts = len(telemetry)
+    total = len(files)
+    processed = sum(
+        1 for e in files.values()
+        if e.get("finished_at") or e.get("processed_at")
+    )
+    remaining = max(total - processed, 0)
 
-    annotated = len(annotations)
-    wiki_ingested = len(wiki)
-    ingested = runs.get("ingested", 0)
-    thumbs = runs.get("thumbnails", 0)
+    # Speed = mean vision_latency_s of the most recent 5 processed files.
+    # telemetry is newest-last; take trailing rows with a numeric latency.
+    window = []
+    for r in reversed(telemetry):
+        lat = r.get("vision_latency_s")
+        if isinstance(lat, (int, float)):
+            window.append(float(lat))
+        if len(window) >= 5:
+            break
+    window.reverse()
+    has_speed = bool(window)
+    avg_latency = (sum(window) / len(window)) if window else 0.0
 
-    total = max(runs.get("total_files", 0), attempts, ok_count, fail_count,
-                annotated, wiki_ingested, ingested, thumbs)
-
-    ok_latencies = [r["vision_latency_s"] for r in telemetry
-                    if r.get("status") == "ok"
-                    and isinstance(r.get("vision_latency_s"), (int, float))]
-    avg_latency = (sum(ok_latencies) / len(ok_latencies)) if ok_latencies else 0.0
-
-    classified = max(ok_count, fail_count, annotated, wiki_ingested,
-                    runs.get("processed", 0))
-    remaining = max(total - classified, 0)
     eta_seconds = remaining * avg_latency
     eta_human = _human_duration(eta_seconds) if remaining else "0m"
     projected_finish = (
-         (datetime.now(tz=timezone.utc) + timedelta(seconds=eta_seconds)).isoformat()
-        if remaining else "")
-
-    def pct(count):
-        return round(count / total * 100, 3) if total else 0.0
-
-    stages = [
-         {"name": "Scanned", "count": total, "pct": pct(total), "color": STAGE_COLORS["Scanned"]},
-         {"name": "Vision attempts", "count": attempts, "pct": pct(attempts), "color": STAGE_COLORS["Vision attempts"]},
-         {"name": "Vision ok", "count": ok_count, "pct": pct(ok_count), "color": STAGE_COLORS["Vision ok"]},
-         {"name": "Annotated", "count": annotated, "pct": pct(annotated), "color": STAGE_COLORS["Annotated"]},
-         {"name": "Wiki-ingested", "count": wiki_ingested, "pct": pct(wiki_ingested), "color": STAGE_COLORS["Wiki-ingested"]},
-         {"name": "Ingested (KB)", "count": ingested, "pct": pct(ingested), "color": STAGE_COLORS["Ingested (KB)"]},
-         {"name": "Thumbnails", "count": thumbs, "pct": pct(thumbs), "color": STAGE_COLORS["Thumbnails"]},
-     ]
-
-    pending = remaining
-    sparkline = []
-    for r in telemetry:
-        lat = r.get("vision_latency_s")
-        if lat is not None:
-            sparkline.append({
-                 "latency_s": round(float(lat), 1),
-                 "status": r.get("status", "?"),
-                 "filename": r.get("filename", ""),
-                 "timestamp": r.get("timestamp", ""),
-                 "error": r.get("error"),
-             })
+        (datetime.now(tz=timezone.utc) + timedelta(seconds=eta_seconds)).isoformat()
+        if (remaining and has_speed) else "")
 
     return {
-         "total": total,
-         "stages": stages,
-         "avg_latency_s": round(avg_latency, 2),
-         "remaining": remaining,
-         "eta_seconds": int(eta_seconds),
-         "eta_human": eta_human,
-         "projected_finish_iso": projected_finish,
-         "sparkline": sparkline,
-         "status_counts": {
-              "ok": ok_count,
-              "fail": fail_count,
-              "error": error_count,
-              "pending": pending,
-              "ingested": ingested,
-              "thumbnails": thumbs,
-          },
-     }
+        "total": total,
+        "processed": processed,
+        "remaining": remaining,
+        "avg_latency_s": round(avg_latency, 2),
+        "speed_window": len(window),
+        "has_speed": has_speed,
+        "eta_seconds": int(eta_seconds),
+        "eta_human": eta_human,
+        "projected_finish_iso": projected_finish,
+    }
 
 
 def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,

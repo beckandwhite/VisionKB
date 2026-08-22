@@ -1,8 +1,6 @@
 "use strict";
 
-// ----- pipeline-stage config (extend here to add a stage) -------------------
-// Each stage shown in the funnel. `color` falls back to STAGE_COLORS on server
-// if not set here.
+// ----- tuning ---------------------------------------------------------------
 const POLL_MS = 5000;
 const TL_PAGE = 50;
 
@@ -46,98 +44,32 @@ async function api(path, params) {
     return res.json();
 }
 
-// ----- section 1: backlog dashboard -----------------------------------------
-async function renderDashboard() {
+// ----- backlog status (page footer) --------------------------------------
+async function renderBacklog() {
     const data = await api("/api/overview");
-    renderFunnel(data.stages, data.total);
-    renderEta(data);
-    renderStatusChips(data.status_counts);
-    renderSparkline(data.sparkline);
-}
+    const l1 = $("#backlog-line1");
+    const l2 = $("#backlog-line2");
+    if (!l1 || !l2) return;
 
-function renderFunnel(stages, total) {
-    const host = $("#funnel");
-    host.innerHTML = "";
-    for (const st of stages) {
-        const row = document.createElement("div");
-        row.className = "funnel-row";
-        row.innerHTML =
-            '<div class="funnel-label">' + esc(st.name) + "</div>" +
-            '<div class="funnel-bar-track">' +
-              '<div class="funnel-bar-fill" style="width:' +
-                Math.max(st.pct, 0.3) + "%;background:" + esc(st.color) + '"></div>' +
-            "</div>" +
-            '<div class="funnel-count">' +
-              humanBytes(st.count) + " / " + humanBytes(total) +
-              ' <span class="pct">(' + st.pct + "%)</span>" +
-            "</div>";
-        host.appendChild(row);
-    }
-}
+    l1.textContent = data.remaining + " left to be processed" +
+         (data.total ? " - " + data.processed + " of " + data.total + " done" : "");
 
-function renderEta(data) {
-    $("#eta-human").textContent = data.eta_human || "—";
-    const detail = [];
-    if (data.remaining > 0) {
-        detail.push(data.remaining + " remaining");
-        detail.push("avg " + data.avg_latency_s + "s/img");
+    let msg;
+    if (data.remaining === 0) {
+        msg = "all caught up";
+    } else if (!data.has_speed) {
+        msg = "no speed data yet";
     } else {
-        detail.push("all caught up");
+        msg = "~" + data.eta_human + " left - last " + data.speed_window +
+             " - avg " + data.avg_latency_s + "s/img";
+        if (data.projected_finish_iso) {
+            msg += " - " + fmtTime(data.projected_finish_iso) + "Z";
+        }
     }
-    if (data.projected_finish_iso) {
-        detail.push("→ " + fmtTime(data.projected_finish_iso) + "Z");
-    }
-    $("#eta-detail").textContent = detail.join("  ·  ");
+    l2.textContent = msg;
 }
 
-function renderStatusChips(counts) {
-    const host = $("#status-chips");
-    host.innerHTML = "";
-    const defs = [
-        ["ok", "ok"],
-        ["fail", "fail"],
-        ["pending", "pending"],
-    ];
-    for (const [key, label] of defs) {
-        const chip = document.createElement("div");
-        chip.className = "chip " + key;
-        chip.innerHTML =
-            '<span class="dot"></span>' +
-            '<span class="num">' + humanBytes(counts[key] || 0) + "</span>" +
-            '<span class="lbl">' + esc(label) + "</span>";
-        host.appendChild(chip);
-    }
-}
-
-function renderSparkline(points) {
-    const svg = $("#sparkline");
-    if (!points.length) {
-        svg.innerHTML = "";
-        return;
-    }
-    const W = 600, H = 100, pad = 6;
-    const lat = points.map((p) => p.latency_s);
-    const maxV = Math.max.apply(null, lat) || 1;
-    const step = points.length > 1 ? (W - pad * 2) / (points.length - 1) : 0;
-    const y = (v) => H - pad - (v / maxV) * (H - pad * 2);
-    const x = (i) => pad + step * i;
-
-    let d = "";
-    points.forEach((p, i) => {
-        d += (i === 0 ? "M" : "L") + x(i).toFixed(1) + " " +
-             y(p.latency_s).toFixed(1) + " ";
-    });
-    const dots = points.map((p, i) => {
-        const cls = p.status === "ok" ? "dot-ok" : p.status === "fail" ? "dot-fail" : "dot-ok";
-        return '<circle class="' + cls + '" cx="' + x(i).toFixed(1) + '" cy="' +
-              y(p.latency_s).toFixed(1) + '" r="3">' +
-              '<title>' + esc(p.filename) + " · " + p.latency_s + "s · " +
-              esc(p.status) + "</title></circle>";
-    }).join("");
-    svg.innerHTML = '<path class="line" d="' + d + '"></path>' + dots;
-}
-
-// ----- section 2: timeline --------------------------------------------------
+// ----- search (main surface) ------------------------------------------------------
 function currentFilters() {
     return {
         q: $("#filter-q").value.trim(),
@@ -376,7 +308,7 @@ function setPoll(on) {
 
 async function refreshAll() {
     await Promise.all([
-        renderDashboard().catch((e) => {}),
+        renderBacklog().catch((e) => {}),
         renderTags().catch((e) => {}),
         loadTimeline(state.offset === 0).catch((e) => {}),
     ]);
