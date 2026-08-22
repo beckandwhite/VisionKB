@@ -34,13 +34,15 @@ from pathlib import Path
 if str(Path(__file__).resolve().parent.parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import tracker
+import config_loader
 
 IMG_EXTS      = {".png", ".jpg", ".jpeg", ".heic"}
-SCRIPT_DIR    = Path(__file__).resolve().parent.parent
-DB_PATH       = SCRIPT_DIR / "kb" / "data" / "wiki.db"
-ANNOT_PATH    = SCRIPT_DIR / "_annotations.jsonl"
-TRACKER_PATH  = SCRIPT_DIR / "_tracker.json"
-OUTPUT_DIR    = SCRIPT_DIR / "exports"
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
+_, _CONFIG = config_loader.resolve_environment()
+DB_PATH = _CONFIG["db_path"]
+ANNOT_PATH = _CONFIG["annotations_path"]
+TRACKER_PATH = _CONFIG["tracker_path"]
+OUTPUT_DIR = _CONFIG["exports_dir"]
 
 
 def eprint(*args):
@@ -328,8 +330,14 @@ def generate_thumbnails(recs_by_key, files, make_thumbs):
     return generated
 
 
-def build(force=False):
+def build(force=False, env="DEV"):
     """Incremental ingest of _annotations.jsonl into the SQLite KB + exports."""
+    global DB_PATH, ANNOT_PATH, TRACKER_PATH, OUTPUT_DIR
+    _, config = config_loader.resolve_environment(env)
+    DB_PATH = config["db_path"]
+    ANNOT_PATH = config["annotations_path"]
+    TRACKER_PATH = config["tracker_path"]
+    OUTPUT_DIR = config["exports_dir"]
     eprint(f"Loading annotations from {ANNOT_PATH}...")
     recs_by_key = load_recs()
     eprint(f"       {len(recs_by_key)} unique records loaded.")
@@ -394,4 +402,10 @@ def build(force=False):
 
 
 if __name__ == "__main__":
-    build(force="--force" in sys.argv)
+    env = "DEV"
+    if "-env" in sys.argv:
+        env_index = sys.argv.index("-env")
+        if env_index + 1 >= len(sys.argv):
+            raise SystemExit("-env requires an environment name")
+        env = sys.argv[env_index + 1]
+    build(force="--force" in sys.argv, env=env)

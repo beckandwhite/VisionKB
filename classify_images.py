@@ -43,6 +43,7 @@ from datetime import datetime, timezone
 if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tracker
+import config_loader
 
 
 # ============================================================================
@@ -50,117 +51,28 @@ import tracker
 # ============================================================================
 
 OLLAMA_BASE = "http://127.0.0.1:11434"
-VISION_MODEL = "muse-glimmer:30b-mlx"
-EMBED_MODEL   = "nomic-embed-text:latest"
-IMAGE_EXTS    = {"png", "jpg", "jpeg", "heic"}
+VISION_MODEL = config_loader.CURRENT_CONFIG["vision_model"]
+EMBED_MODEL = config_loader.CURRENT_CONFIG["embed_model"]
+IMAGE_EXTS = {"png", "jpg", "jpeg", "heic"}
+SAVE_EVERY = config_loader.CURRENT_CONFIG["save_every"]
+MAX_DIM = config_loader.CURRENT_CONFIG["max_dim"]
+TEMP_DIR = config_loader.CURRENT_CONFIG["temp_dir"]
 
-SAVE_EVERY    = 25             # save checkpoint every N processed files
-MAX_DIM       = 2560           # resize images longer than this for OOM safety
+
+TAG_LIST = []
 
 
-# ============================================================================
-# Scene tag taxonomy (injected into the vision prompt)
-# ============================================================================
+def tag_list_for_config(config):
+    """Return the tag taxonomy supplied by the active environment config."""
+    tags = config.get("TAG_LIST", [])
+    if isinstance(tags, str):
+        tags = tags.split()
+    if not isinstance(tags, list):
+        raise ValueError("Environment config 'tags' must be a list or string")
+    return sorted({str(tag).strip() for tag in tags if str(tag).strip()})
 
-SCENE_TAGS_TEXT = r"""art-gallery museum-exhibit art-studio painting-in-progress sculpture-display
-business-meeting conference-call webinar boardroom pitch-presentation
-breakroom-kitchen pantry fridge-magnetotes microwave-use counter-setup
-charity-event fundraiser donation-drive volunteer-work community-outreach
-classroom lecture-hall whiteboard-session student-desk exam-room
-coding-dev debugging ide-screen git-repo terminal-shell api-development
-commuting-transit subway-rider bus-window train-station airport-terminal
-conference-booth expo-show trade-show speaker-stage attendee-networking
-cooking-chef food-prep recipe-following kitchen-counter plating-presentation
-coworking-space open-office hot-desk remote-setup shared-desk
-customer-support help-desk ticket-dashboard chat-interface phone-support
-dashboard-analytics kpi-metrics chart-graph report-card performance-monitor
-data-analysis spreadsheet csv-viewer sql-query data-visualization
-dining-restaurant cafe-cafe bar-pub food-court fine-dining
-emergency-room clinic-waiting hospital-corridor medical-equipment triage-desk
-exercise-gym yoga-studio running-trail weight-lifting cycling-path
-factory-manufacturing assembly-line quality-inspection warehouse-logistics
-family-gathering holiday-celebration birthday-party reunion-event family-photo
-farm-agriculture field-harvest barn-farm livestock-pen garden-plot
-fitness-tracking smartwatch-screen activity-app health-dashboard workout-plan
-game-playing board-game video-game card-game puzzle-solver
-game-streaming live-stream-setup game-overlay chat-panel twitch-interface
-gift-wrapping party-supplies invitation-card favor-bag ceremony-decor
-graphic-design photoshop-editor illustrator-artwork brand-guidelines
-grocery-shopping aisle-select produce-section checkout-counter cart-loading
-gymnastics-sports track-field swimming-pool court-tennis gym-floor
-haircut-styling salon-chair mirror-reflection product-application
-home-office desk-setup monitor-array bookshelf plant-decor
-hospitality-hotel front-desk lobby-lounge room-service pool-area
-hunting-outdoors wildlife-camera hunter-stand fishing-dock bird-watching
-incident-response war-room status-wall pager-alert post-mortem-meeting
-internet-browsing search-engine news-site social-media-feed forum-thread
-jewelry-shopping jewelry-display ring-selection watch-collection gemstone-loupe
-kitchen-cooking stove-top oven-use sink-washing fridge-organizing
-laboratory-science microscope-view lab-bench test-tube-rack experiment-notebook
-laundry-room washing-machine dryer-loading ironing-board folding-table
-learning-mobile online-course tutorial-video quiz-screen reading-app
-living-room-lounge couch-seating tv-screen coffee-table fireplace
-logistics-warehouse forklift-operation pallet-stack shipping-label inventory-count
-makeup-beauty mirror-application cosmetics-display skincare-routine brush-use
-meeting-room conference-table video-call-screen whiteboard-notes projector-slide
-music-concert live-band dj-booth speaker-stack crowd-photo
-museum-exhibit gallery-walk art-piece-closeup exhibit-curator-info artifact-display
-news-press press-briefing red-carpet interview-room photographer-shooting
-notes-study highlighter-notes flashcard-fan textbook-open index-card-stack
-office-work cubicle-desk monitor-multi-monitor filing-cabinet printer-use
-ordering-online e-commerce-cart checkout-page product-listing wishlist-page
-outdoor-adventure hiking-trail campsite-tent kayak-lake rock-climbing-wall
-parks-recreation playground-slide picnic-table fountain-spray bench-reading
-parenting-family baby-monitor toy-sort stroller-walk diaper-change
-personal-finance budget-sheet expense-track portfolio-view tax-document
-pet-care dog-park vet-clinic pet-food-bag grooming-saloon
-photo-editing camera-raw lightroom-panel cropping-tool color-grading
-poetry-literary notebook-writing published-poem open-mic-stage book-page-closeup
-product-design wireframe-sketch mockup-review user-journey-map design-system-doc
-product-launch demo-stage investor-present press-release-handout early-access
-project-management kanban-board sprint-timeline jira-dashboard gantt-chart
-public-speaking podium-mic audience-seating projector-screen teleprompter-read
-quality-assurance test-case-list bug-report regression-suite uat-session
-radio-broadcast mic-boom-shots console-panel studio-glass live-indicator
-reading-leisure novel-handheld kindle-reader library-shelf magazine-open
-research-research literature-review citation-manager hypothesis-note data-collection
-retail-store shelf-display checkout-lane fitting-room display-window
-restaurant-kitchen chef-line expo-pass dining-floor bar-area
-safety-training ppe-gear safety-sign first-aid-kit drill-exercise
-salon-spa treatment-table massage-chair sauna-room product-shelf
-sales-pipeline crm-dashboard deal-funnel forecast-chart client-list
-scenic-nature mountain-view ocean-waves forest-path sunset-sky
-security-watch cctv-monitor access-control-panel badge-reader incident-log
-server-room rack-server cable-management climate-control ups-system
-shopping-mall storefront-window mall-atrium food-hall-table escalator-descent
-skill-building workshop-table certification-badge online-module practice-exercise
-soccer-sports goal-post sideline-bench scoreboard field-markings
-sound-studio mixing-console mic-cable vocal-booth audio-waveform
-sports-bar bar-counter-view tv-multi-screen team-merch-display game-day-board
-stadium-event crowd-cheering field-level-view score-tower locker-room
-startup-office nap-zone ping-pong-table standup-area demo-fridge
-street-market vendor-booth street-food-cart artisan-stall bazaar-crowd
-study-group study-desk group-discussion peer-review library-carrel
-supermarket-store grocery-aisle deli-counter bakery-shelf checkout-queue
-swimming-pool pool-edge-view lifeguard-chair diving-board lap-lane
-tabletop-game board-piece-closeup card-hand-fan dice-roll-action miniatures-table
-talent-hiring interview-room resume-reader coding-exam candidate-presentation
-tax-prep w2-form deduction-checklist irs-guide calculator-pad
-teaching-education chalkboard-lesson student-paper-review lecture-slide lab-demo
-telehealth-video doctor-screen-view symptom-checklist prescription-print
-tent-camping campfire-setup tent-interior hammock-rest trail-map-read
-testing-lab spectrometer-view gel-electrophoresis hoods-fume microtome-cut
-tracking-logging activity-feed timestamp-entry log-panel audit-trail
-transport-vehicle cockpit-dashboard dashcam-view steering-wheel-closeup gear-shift
-travel-airport baggage-claim boarding-gate security-line terminal-window
-university-campus quad-pave-bench lecture-hall-seating campus-map-kiosk library-steps
-vacation-beach shoreline-walk cabana-lounge surfboard-rest sun-shade-tent
-vegan-organic food-display-counter farmers-market-stall produce-rack-planter
-virtual-reality vr-headset-view controller-grip immersive-scene-shot lab-boundary-marker
-webinar-training presentation-slide-share participant-grid chat-panel-live poll-question-box
-workshop-maker soldering-iron-view 3d-printer-bed lathe-wheel-spin wood-bench-saw"""
 
-TAG_LIST = sorted(t.strip() for t in SCENE_TAGS_TEXT.split() if t.strip())
+TAG_LIST = tag_list_for_config(config_loader.CURRENT_CONFIG)
 
 
 def get_tags_message():
@@ -200,7 +112,7 @@ def ollama_vision(image_path, prompt_text):
     tmp_files = []
 
     def make_tmp():
-        p = os.path.join(tempfile.gettempdir(),
+        p = os.path.join(TEMP_DIR,
                           "snap_" + uuid.uuid4().hex + ".jpg")
         tmp_files.append(p)
         return p
@@ -435,10 +347,19 @@ def classify_one(img_path, prompt_str):
 # Build and process
 # ============================================================================
 
-def main(count_limit, screenshot_dir):
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    tracker_path = os.path.join(script_dir, "_tracker.json")
-    annot_path   = os.path.join(script_dir, "_annotations.jsonl")
+def main(count_limit, screenshot_dir, env="DEV"):
+    global VISION_MODEL, EMBED_MODEL, SAVE_EVERY, MAX_DIM, TEMP_DIR, TAG_LIST
+    _, config = config_loader.resolve_environment(env)
+    VISION_MODEL = config["vision_model"]
+    EMBED_MODEL = config["embed_model"]
+    SAVE_EVERY = int(config["save_every"])
+    MAX_DIM = int(config["max_dim"])
+    TEMP_DIR = config["temp_dir"]
+    TAG_LIST = tag_list_for_config(config)
+    if count_limit is None:
+        count_limit = int(config["processed_limit"])
+    tracker_path = str(config["tracker_path"])
+    annot_path = str(config["annotations_path"])
 
     # Load the existing registry (empty if absent / old flat-index schema).
     payload = tracker.load_registry(tracker_path)
@@ -448,7 +369,7 @@ def main(count_limit, screenshot_dir):
     # Refresh the folder list into the registry: append files new since the
     # last run and refresh mtime on known files. This is the "keep the list
     # current" step; progress is tracked via each file's finished_at.
-    screenshot_dir = os.path.expanduser(screenshot_dir)
+    screenshot_dir = os.path.expanduser(screenshot_dir or config["source_dir"])
     all_images = list_images(screenshot_dir)
     total_images = len(all_images)
     new_count, unprocessed = tracker.reconcile(screenshot_dir, IMAGE_EXTS, files)
@@ -562,12 +483,13 @@ def main(count_limit, screenshot_dir):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--count", type=int, default=0,
+    p.add_argument("-env", default="DEV",
+                   choices=config_loader.available_environments(),
+                   help="Environment workspace to use (default: DEV)")
+    p.add_argument("--count", type=int, default=None,
                    help="Limit to N images (for testing)")
-    p.add_argument("--screenshot-dir",
-                   default=os.path.expanduser(
-                       "~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/"),
+    p.add_argument("--screenshot-dir", default=None,
                    help="Folder to scan for screenshots "
                         "(default: iCloud Screenshots)")
     args = p.parse_args()
-    main(args.count, args.screenshot_dir)
+    main(args.count, args.screenshot_dir, args.env)

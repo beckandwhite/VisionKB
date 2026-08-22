@@ -1,10 +1,1 @@
-.DS_Store
-__pycache__/
-*.pyc
-
-# generated pipeline outputs (regenerate with python3 kb/build_kb.py)
-exports/
-kb/data/
-_annotations.jsonl
-telemetry.log
-_tracker.json
+""

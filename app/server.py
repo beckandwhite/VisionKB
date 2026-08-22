@@ -39,15 +39,17 @@ from urllib.parse import urlparse, parse_qs, unquote
 if str(Path(__file__).resolve().parent.parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import tracker
+import config_loader
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(SCRIPT_DIR)
 
-TRACKER_PATH = os.path.join(ROOT, "_tracker.json")
-ANNOT_PATH = os.path.join(ROOT, "_annotations.jsonl")
-WIKI_PATH = os.path.join(ROOT, "exports", "wiki.ndjson")
-TAGS_PATH = os.path.join(ROOT, "exports", "tags_index.json")
-THUMB_DIR = os.path.join(ROOT, "exports", "thumbnails")
+CURRENT_ENV, _CONFIG = config_loader.resolve_environment()
+TRACKER_PATH = str(_CONFIG["tracker_path"])
+ANNOT_PATH = str(_CONFIG["annotations_path"])
+WIKI_PATH = str(_CONFIG["exports_dir"] / "wiki.ndjson")
+TAGS_PATH = str(_CONFIG["exports_dir"] / "tags_index.json")
+THUMB_DIR = str(_CONFIG["thumbnails_dir"])
 
 OCR_LINE_MAX = 100
 OCR_LINES_MAX = 8
@@ -453,12 +455,21 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global CURRENT_ENV, TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR
     parser = argparse.ArgumentParser(description="Screenshot KB WebUI server")
+    parser.add_argument("-env", default="DEV",
+                        choices=config_loader.available_environments())
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--open", action="store_true",
                         help="open the UI in the default browser")
     args = parser.parse_args()
+    CURRENT_ENV, config = config_loader.resolve_environment(args.env)
+    TRACKER_PATH = str(config["tracker_path"])
+    ANNOT_PATH = str(config["annotations_path"])
+    WIKI_PATH = str(config["exports_dir"] / "wiki.ndjson")
+    TAGS_PATH = str(config["exports_dir"] / "tags_index.json")
+    THUMB_DIR = str(config["thumbnails_dir"])
 
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     url = "http://%s:%d/" % (args.host, args.port)

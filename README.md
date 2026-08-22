@@ -13,7 +13,7 @@ into clustered topic pages + a timeline.
 ## What it does
 
 ```
-screenshots ──► classify_images.py ──► _annotations.jsonl ──► kb/build_kb.py ──► wiki.db (SQLite FTS5)
+screenshots ──► classify_images.py ──► .workspace/<env>/_annotations.jsonl ──► kb/build_kb.py ──► wiki.db (SQLite FTS5)
  (images)        (vision + embed)       (per-image JSON)        (ingest + index)   + exports/*.json/ndjson
 ```
 
@@ -64,19 +64,25 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
  ├── kb/
  │    ├── config.py          # intended shared config (see Gotcha below)
  │    └── build_kb.py        # Stage: incremental ingest → SQLite FTS5 + exports + thumbs
- ├── _annotations.jsonl       # output: one JSON record per image
- ├── _tracker.json            # per-file registry + run summary (the single ledger/log)
- ├── kb/data/wiki.db         # output: SQLite DB (FTS5 + embeddings), incremental
- └── exports/                # output: wiki.ndjson, tags_index.json, thumbnails/
+ ├── .workspace/<env>/        # config + isolated annotations/tracker/data/exports
+ └── kb/                      # ingestion code
 ```
 
-Images themselves live in iCloud:
+Images themselves live in the configured source folder. Select an environment
+with `-env` (default `DEV`):
+
+```bash
+python3 classify_images.py -env QA
+python3 classify_images.py -env PRD-iCloud-Screenshots
+```
+
+Images themselves commonly live in iCloud:
 `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`
 
-`classify_images.py` defaults to that folder; point it elsewhere with
+`classify_images.py` defaults to the active environment's `source_dir`; point it elsewhere with
 `--screenshot-dir` (see "How to use" below).
 
-`_tracker.json` is the **single source of truth for progress + telemetry**: it
+The environment's `_tracker.json` is the **single source of truth for progress + telemetry**: it
 holds the per-file registry, a `runs` summary, each file's analysis lifecycle
 (`started_at` / `finished_at` / latency / `status` / `error`), and KB-layer
 progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gone.
@@ -88,8 +94,11 @@ progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gon
 ### 1. Extract annotations (vision + embeddings)
 
 ```bash
-# default folder is the iCloud Screenshots dir; classify the next 5 unprocessed
+# classify the next 5 unprocessed files in DEV
 python3 classify_images.py --count 5
+
+# use the environment's configured limit (QA=10)
+python3 classify_images.py -env QA
 
 # scan a different folder with --screenshot-dir
 python3 classify_images.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/' --count 5
@@ -98,7 +107,7 @@ python3 classify_images.py --screenshot-dir '~/Library/Mobile Documents/com~appl
 python3 classify_images.py              # --count 0 = everything not yet done
 ```
 
-`_tracker.json` is a **self-maintaining registry**, not a bare index. Each run:
+`.workspace/<env>/_tracker.json` is a **self-maintaining registry**, not a bare index. Each run:
 
 1. **Reconciles** the source folder into the tracker — every file is stored (keyed
    by absolute path) with its `filename` and `mtime_iso`; files new since the last
@@ -122,9 +131,8 @@ python3 classify_images.py              # --count 0 = everything not yet done
    Delete a registry entry (and its `_annotations.jsonl` line) to force a full
    re-process.
  - Checkpointed atomically (`tmp` + `os.replace`) every 25 files and at end of run.
- - `--screenshot-dir` sets the source folder (default: iCloud Screenshots above);
-   the outputs (`_tracker.json`, `_annotations.jsonl`) are always written next to
-   the script, not into the scanned folder.
+ - `--screenshot-dir` overrides the active environment's configured source folder;
+   generated outputs stay inside `.workspace/<env>/`, not in the scanned folder.
  - HEIC files are auto-converted via `sips`; oversized images are downscaled.
  - Latency + `status` (ok/fail/error) live in the tracker now (per-file
    `vision_latency_s` + `started_at` / `finished_at`); the old `telemetry.log`
@@ -138,7 +146,8 @@ python3 kb/build_kb.py --no-thumbs    # skip thumbnails for speed
 python3 kb/build_kb.py                # also generate 320px thumbnails via sips
 ```
 
-Produces `kb/data/wiki.db`, `exports/wiki.ndjson`, `exports/tags_index.json`.
+Produces `.workspace/<env>/data/wiki.db`, `.workspace/<env>/exports/wiki.ndjson`,
+and `.workspace/<env>/exports/tags_index.json`.
 
 `build_kb.py` is **incremental**: re-running it does only the new/changed
 work. It opens the existing `kb/data/wiki.db`, upserts only records whose

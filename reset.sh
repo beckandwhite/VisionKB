@@ -21,6 +21,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+ENV_NAME="DEV"
+for arg in "$@"; do
+    case "$arg" in
+        -env)
+            ENV_ARG_PENDING=1
+            ;;
+        DEV|QA|PRD-iCloud-Screenshots|PRD-OneDrive-Pictures)
+            if [[ "${ENV_ARG_PENDING:-0}" -eq 1 ]]; then ENV_NAME="$arg"; ENV_ARG_PENDING=0; fi
+            ;;
+    esac
+done
+ENV_DIR=".workspace/$ENV_NAME"
+
 DELETING=0             # default: dry-run, remove nothing
 FULL=0                 # also remove raw classifier output
 ASSUME_YES=0           # --yes skips the confirmation prompt
@@ -28,13 +41,17 @@ ASSUME_YES=0           # --yes skips the confirmation prompt
 # ------------------------------------------------------------------ parsing
 for arg in "$@"; do
     case "$arg" in
+        -env)
+            ;;
+        DEV|QA|PRD-iCloud-Screenshots|PRD-OneDrive-Pictures)
+            ;;
         --dry-run|-n)   DELETING=0 ;;
         --apply)        DELETING=1 ;;
         --yes|-y)       DELETING=1; ASSUME_YES=1 ;;
         --full)         FULL=1 ;;
         -h|--help|help)
             cat <<EOF
-usage: $(basename "$0") [--apply] [--yes|-y] [--full] [--dry-run|-n] [-h]
+usage: $(basename "$0") [-env ENV] [--apply] [--yes|-y] [--full] [--dry-run|-n] [-h]
 
     (default)         dry-run: list what would be deleted, remove nothing
     --apply           actually delete the KB layer, after a confirmation prompt
@@ -46,10 +63,10 @@ usage: $(basename "$0") [--apply] [--yes|-y] [--full] [--dry-run|-n] [-h]
     -h, --help        print this help and exit
 
 Targets:
-   KB layer (always, cheap; rebuild with python3 kb/build_kb.py):
-      exports/   kb/data/   __pycache__/
+    KB layer (always, cheap; rebuild with python3 kb/build_kb.py -env ENV):
+        $ENV_DIR/exports/   $ENV_DIR/data/   __pycache__/
    RAW output (only with --full; rebuild with python3 classify_images.py):
-      _annotations.jsonl   telemetry.log   _tracker.json
+    $ENV_DIR/_annotations.jsonl   $ENV_DIR/_tracker.json
 EOF
             exit 0 ;;
         *)
@@ -62,16 +79,15 @@ done
 # ------------------------------------------------------------------ targets
 # Always-on (cheap / regenerable in seconds via kb/build_kb.py):
 ALWAYS=""
-[ -d "exports" ]       && ALWAYS="$ALWAYS exports"
-[ -d "kb/data" ]       && ALWAYS="$ALWAYS kb/data"
+[ -d "$ENV_DIR/exports" ] && ALWAYS="$ALWAYS $ENV_DIR/exports"
+[ -d "$ENV_DIR/data" ]    && ALWAYS="$ALWAYS $ENV_DIR/data"
 [ -d "kb/__pycache__" ] && ALWAYS="$ALWAYS kb/__pycache__"
 [ -d "__pycache__" ]   && ALWAYS="$ALWAYS __pycache__"
 
 # Optional --full (expensive: needs the vision model to regenerate):
 RAW=""
-[ -f "_annotations.jsonl" ] && RAW="$RAW _annotations.jsonl"
-[ -f "telemetry.log" ]      && RAW="$RAW telemetry.log"
-[ -f "_tracker.json" ]       && RAW="$RAW _tracker.json"
+[ -f "$ENV_DIR/_annotations.jsonl" ] && RAW="$RAW $ENV_DIR/_annotations.jsonl"
+[ -f "$ENV_DIR/_tracker.json" ] && RAW="$RAW $ENV_DIR/_tracker.json"
 
 # ------------------------------------------------------------------ safety net
 # A reset only makes sense if we really are in the project root.
@@ -93,6 +109,7 @@ mode="DRY-RUN (no files will be removed)"
 [ "$DELETING" -eq 1 ] && mode="DELETING"
 printf '=== %s reset — %s ===\n' "$(basename "$0")" "$mode"
 printf 'Project root: %s\n\n' "$SCRIPT_DIR"
+printf 'Environment: %s\n\n' "$ENV_NAME"
 
 if [ -n "$ALWAYS" ]; then
     printf 'KB layer (rebuilt with: python3 kb/build_kb.py):\n'
@@ -149,7 +166,7 @@ if [ "$FULL" -eq 1 ]; then
 fi
 
 printf '\nDone. Removed %s path(s).\n' "$deleted"
-printf 'Rebuild the KB layer:  python3 kb/build_kb.py\n'
+printf 'Rebuild the KB layer:  python3 kb/build_kb.py -env %s\n' "$ENV_NAME"
 if [ "$FULL" -eq 1 ]; then
     printf 'Rebuild raw output:  python3 classify_images.py --count N\n'
 fi
