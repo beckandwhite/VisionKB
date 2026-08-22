@@ -194,9 +194,18 @@ PY
 `pipeline.py` run shows up without a restart.
 
  ```bash
- python3 app/server.py                 # http://127.0.0.1:8000
- python3 app/server.py --port 8000 --open   # pick a port + open in browser
+python3 app/server.py -env DEV                         # http://127.0.0.1:8000
+python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
+# The UI reads the selected environment's tracker, annotations, exports, and thumbnails.
  ```
+
+The WebUI defaults to `DEV`. Use the same `-env` value as the pipeline so the
+UI and processor point at the same isolated workspace, for example:
+
+```bash
+python3 pipeline.py -env PRD-iCloud-Screenshots --count 5
+python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
+```
 
  Three sections, top → bottom:
  - **Backlog** — funnel of pipeline stages as % of the tracker total

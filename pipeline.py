@@ -220,8 +220,10 @@ def run(args):
 
 
 def main():
+    environments = config_loader.available_environments()
+    print("Available environments: %s" % ", ".join(environments))
     parser = argparse.ArgumentParser(description="Unified screenshot pipeline")
-    parser.add_argument("-env", default="DEV", choices=config_loader.available_environments())
+    parser.add_argument("-env", default="DEV", choices=environments)
     parser.add_argument("--count", type=int, default=None)
     parser.add_argument("--screenshot-dir", default=None)
     parser.add_argument("--no-thumbs", action="store_true")
@@ -230,6 +232,10 @@ def main():
     parser.add_argument("--until", metavar="HH:MM")
     parser.add_argument("--wait", action="store_true")
     args = parser.parse_args()
+    if args.env == "DEV":
+        print("Using environment: DEV (pass -env ENV to select another)")
+    else:
+        print("Using environment: %s" % args.env)
     try:
         raise SystemExit(run(args))
     except (RuntimeError, ValueError, OSError) as exc:
