@@ -16,9 +16,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import classify_images as classifier
+import build_kb
 import config_loader
 import tracker
-from kb import build_kb
 
 
 LOCK_NAME = ".pipeline.lock"

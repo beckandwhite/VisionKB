@@ -21,10 +21,7 @@ The tracker is a self-maintaining registry, not a bare index. Each run:
 Files already annotated in _annotations.jsonl are auto-marked processed on first
 reconcile so they are not reclassified.
 
-Usage:
-    python3 classify_images.py --count 50                           # classify next 50 unprocessed
-    python3 classify_images.py --screenshot-dir '/path/folder'      # scan a custom folder
-    python3 classify_images.py                                       # all remaining, default iCloud folder
+This module is used by pipeline.py and is not a standalone entry point.
 """
 
 import argparse

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-kb/build_kb.py -- Ingest _annotations.jsonl into the SQLite knowledgebase.
+build_kb.py -- Ingest _annotations.jsonl into the SQLite knowledgebase.
 
 This stage is INCREMENTAL: re-running re-does only new/changed work and
 leaves everything else alone -- no DB drop, no thumbnail regeneration.
@@ -15,10 +15,7 @@ Progress is recorded into the shared tracker (_tracker.json): each ingested
 file gets ingested_at; each thumb gets thumb_at / thumb_status, so the
 tracker is the single backlog + log across the whole pipeline.
 
-Usage:
-  python3 kb/build_kb.py                ingest + thumbnails (incremental)
-  python3 kb/build_kb.py --no-thumbs    ingest only, skip thumbnails
-  python3 kb/build_kb.py --force        rebuild DB + thumbnails from scratch
+This module is used by pipeline.py and is not a standalone entry point.
 """
 
 import json
@@ -31,13 +28,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-if str(Path(__file__).resolve().parent.parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tracker
 import config_loader
 
 IMG_EXTS      = {".png", ".jpg", ".jpeg", ".heic"}
-SCRIPT_DIR = Path(__file__).resolve().parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
 _, _CONFIG = config_loader.resolve_environment()
 DB_PATH = _CONFIG["db_path"]
 ANNOT_PATH = _CONFIG["annotations_path"]
@@ -66,7 +63,7 @@ def load_recs():
     """Parse _annotations.jsonl into {tracker_key: record}, dedup by key."""
     by_key = {}
     if not ANNOT_PATH.exists():
-        eprint("ERROR: no _annotations.jsonl found. Run classify_images.py first.")
+        eprint("ERROR: no _annotations.jsonl found. Run pipeline.py first.")
         sys.exit(1)
     for line in open(ANNOT_PATH, encoding="utf-8"):
         line = line.strip()

@@ -63,21 +63,22 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
  ├── pipeline.py             # single entry point: classify + ingest + exports
  ├── config_loader.py        # environment configuration and artifact paths
  ├── .workspace/<env>/        # config + isolated annotations/tracker/KB artifacts
- └── kb/                      # ingestion code
+ ├── classify_images.py       # classifier implementation used by pipeline.py
+ └── build_kb.py              # KB implementation used by pipeline.py
 ```
 
 Images themselves live in the configured source folder. Select an environment
 with `-env` (default `PRD-iCloud-Screenshots`):
 
 ```bash
-python3 classify_images.py -env QA
-python3 classify_images.py -env PRD-iCloud-Screenshots
+python3 pipeline.py -env QA
+python3 pipeline.py -env PRD-iCloud-Screenshots
 ```
 
 Images themselves commonly live in iCloud:
 `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`
 
-`classify_images.py` defaults to the active environment's `source_dir`; point it elsewhere with
+`pipeline.py` defaults to the active environment's `source_dir`; point it elsewhere with
 `--screenshot-dir` (see "How to use" below).
 
 The environment's `_tracker.json` is the **single source of truth for progress + telemetry**: it
@@ -124,8 +125,8 @@ python3 pipeline.py                    # configured limit; --count 0 = all remai
   "backfilled"`) so they are not reclassified.
  - **Note on edited files:** a file already in the registry keeps its
    `finished_at` even if its mtime changes, so an in-place edit is **not**
-   reprocessed by `classify_images.py` (keyed by path, not by content/mtime).
-   `build_kb.py`, though, detects an mtime change and re-ingests that row.
+  reprocessed by the classifier (keyed by path, not by content/mtime).
+  The KB ingestion stage, though, detects an mtime change and re-ingests that row.
    Delete a registry entry (and its `_annotations.jsonl` line) to force a full
    re-process.
  - Checkpointed atomically (`tmp` + `os.replace`) every 25 files and at end of run.
@@ -254,7 +255,7 @@ python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
 |---|---|
 | `_annotations.jsonl` | one JSON record per image (append, never rewritten) |
 | `_tracker.json` | per-file registry (filename + `mtime_iso` + `processed_at`) and run summary — the progress ledger |
-| `tracker.py` | shared tracker module used by classify_images.py, build_kb.py, app/server.py |
+| `tracker.py` | shared tracker module used by the pipeline's classifier and KB stages, plus `app/server.py` |
 | `telemetry.log` | (retired) telemetry now lives in `_tracker.json` |
 | `.workspace/<env>/wiki.db` | Environment-specific SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
 | `.workspace/<env>/wiki.ndjson` | flat dump of all records |

@@ -15,12 +15,10 @@ have an LLM write one wiki entry per topic, plus per-day digests.
 - **Data dir (read-only source):**
   `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`
 - **Working dir (git repo):** `/Users/I778444/git/screenshot_annotation`
-- **Pick one source of truth for the pipeline code.** iCloud has `classify_images.py`,
-  `kb/build_kb.py`, `kb/config.py` and output files; the git repo has an empty
-  `app/`, `queries/`, `exports/` and its own `kb/config.py`. The two copies **drift**.
-  Recommend: keep **code in the git repo**, keep **data + generated outputs in iCloud**,
-  and stop editing the iCloud copy of the scripts. (Decide before starting.)
-- **Model config lives in `kb/config.py`.** Current active vision model
+- **Pipeline code lives in the git repo.** Runtime data and generated outputs are
+  isolated under `.workspace/<env>/`; the root `exports/` directory is not used.
+- **Model config lives in the active environment's `config.json`,** loaded by
+  `config_loader.py`. Current active vision model
   `muse-glimmer:30b-mlx` is slow (~90 s/img). See §1 cost.
 
 ---
@@ -53,8 +51,8 @@ have an LLM write one wiki entry per topic, plus per-day digests.
 
 ### Stage 2 — Embedding pre-pass + clusters (cheap, no vision)
 - Embed each **unique** image once (embed model = `nomic-embed-text`).
-- **Cluster** embeddings via `hierarchical, min_cluster_size=3`
-  (already declared in `kb/config.py` → `CLUSTER_KWARGS`).
+- **Cluster** embeddings via `hierarchical, min_cluster_size=3` once clustering
+  configuration is added to the active environment.
 - Each cluster = a candidate **topic**. Small/loner clusters fold into "misc".
 - **Verify:** print cluster sizes + top tags per cluster.
 
@@ -74,10 +72,9 @@ Use existing `classify_images.py` logic, but:
 - Output: `_annotations.jsonl` (append, deterministic mtime order → safe re-run).
 - **Verify:** `--count 30` smoke run; confirm valid JSON + non-empty tags; watch latency.
 
-### Stage 4 — Ingest into SQLite (fix `kb/build_kb.py`)
+### Stage 4 — Ingest into SQLite (`build_kb.py`, called by `pipeline.py`)
 Existing design is good (SQLite FTS5 + embedding blob + tag co-occurrence +
-monthly histogram). **It currently does not run.** Fix before trusting:
-- `NameError: OUTPUT_DIR` (lines ~264, ~304) — define `OUTPUT_DIR = SCRIPT_DIR / "exports"`.
+monthly histogram). Keep its output paths environment-specific:
 - Replace mixed `cur` / `conn` usage with a **single cursor** consistently.
 - Delete the dead thumbnail block (it submits `recs[i].get("filepath","")` strings into
   the pool — a no-op) or implement real thumbnails with `sips`.
@@ -85,7 +82,7 @@ monthly histogram). **It currently does not run.** Fix before trusting:
   - `clusters (id, label, size, embedding_blob)`
   - `wiki_pages (id, slug, title, markdown, source_sids[], created_at)`
   - `timeline_digests (date_key, markdown, sids[])`
-- **Verify:** `python3 kb/build_kb.py --no-thumbs` builds
+- **Verify:** `python3 pipeline.py --rebuild-kb --no-thumbs` builds
   `.workspace/<env>/wiki.db` + `.workspace/<env>/wiki.ndjson` +
   `.workspace/<env>/tags_index.json` with no error.
 
@@ -113,7 +110,7 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 - `.workspace/<env>/` — `wiki/` markdown pages+index+timeline, `wiki.ndjson`,
   `tags_index.json` (co-occurrence graph), and `thumbnails/` (optional).
 - `data/manifest.jsonl` — dedup record.
-- All paths come from `kb/config.py`; do not hardcode in stage scripts.
+- All paths come from `config_loader.py`; do not hardcode in stage modules.
 
 ---
 
@@ -122,15 +119,16 @@ This is what actually becomes a knowledgebase, not a metadata dump.
   no `list[...]`/`dict[...]` generics evaluated at runtime. Keep stage scripts stdlib-only
   and 3.9-safe (the existing scripts already are — maintain that).
 - **Ollama** hosts: `muse-glimmer:30b-mlx` (vision, slow), `qwen3.8:27b-mlx`
-  (active), `nomic-embed-text` (embed). Confirm the model name in `config.py`
+  (active), `nomic-embed-text` (embed). Confirm the model name in the active
+  environment configuration
   matches an installed one before a run; a wrong name = every call fails silently
   to `None` and you get empty tags, not an error.
 - **tesseract = eng only.** Vision-model OCR handles English; non-English text won't
   OCR well — note as a known limitation, don't block on it.
-- **HEIC → jpeg** via `/usr/bin/sips` is already handled in `classify_images.py`.
+- **HEIC → jpeg** via `/usr/bin/sips` is already handled by the pipeline's classifier module.
   No ImageMagick installed — use `sips` / `ffmpeg` only.
-- **Two copies of the codebase drift** (iCloud vs git). Decide source of truth (§0)
-  before editing so you don't fix one copy and run the other.
+- **Keep the git checkout as the code source of truth.** Runtime data and generated
+  outputs belong under the selected `.workspace/<env>/` directory.
 - **iCloud path** can be stale mid-run if synced; run stage scripts from the local
   checkout, copy/`open` the iCloud dir once at start, don't rely on live sync.
 - `.mov` (7 files): skip for v1; optional ffmpeg keyframe extraction is a later
@@ -139,7 +137,7 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 ---
 
 ## 5. Suggested execution order / checkpoints
-1. Fix `kb/build_kb.py` so it runs on the existing 5 annotations (fast, validates schema).
+1. Validate `build_kb.py` against the existing 5 annotations (fast, validates schema).
 2. Write Stage 1 (dedup) → get true unique count; **report it** before any vision run.
 3. Stage 2 embeddings+clusters on uniques → sanity-check cluster sizes.
 4. Stage 3 vision extract via `--count` ramp: 30 → 100 → full, monitoring

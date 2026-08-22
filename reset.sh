@@ -74,7 +74,7 @@ esac
 ENV_DIR=".workspace/$ENV_NAME"
 
 # ------------------------------------------------------------------ targets
-# Always-on (cheap / regenerable in seconds via kb/build_kb.py):
+# Always-on (cheap / regenerable in seconds via pipeline.py):
 ALWAYS=""
 [ -e "$ENV_DIR/wiki.db" ]       && ALWAYS="$ALWAYS $ENV_DIR/wiki.db"
 [ -e "$ENV_DIR/wiki.ndjson" ]   && ALWAYS="$ALWAYS $ENV_DIR/wiki.ndjson"
@@ -106,7 +106,7 @@ printf 'Project root: %s\n\n' "$SCRIPT_DIR"
 printf 'Environment: %s\n\n' "$ENV_NAME"
 
 if [ -n "$ALWAYS" ]; then
-    printf 'KB layer (rebuilt with: python3 kb/build_kb.py):\n'
+    printf 'KB layer (rebuilt with: python3 pipeline.py --rebuild-kb):\n'
     for item in $ALWAYS; do printf '  [KB ]  %s\n' "$item"; done
 else
     printf 'KB layer: (nothing present)\n'
