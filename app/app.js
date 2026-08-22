@@ -237,6 +237,8 @@ async function renderTags() {
     const data = await api("/api/tags");
     const tags = data.top_tags || [];
 
+    renderTagCloud(tags);
+
     $("#tags-meta").textContent =
         "total screenshots: " + humanBytes(data.total_screenshots || 0) +
         " · unique tags: " + humanBytes(data.unique_tags || 0) +
@@ -279,6 +281,43 @@ async function renderTags() {
             '<span class="edge-arrow">↔</span>' +
             "<span>" + esc(e.target) + "</span>";
         ehost.appendChild(row);
+    }
+}
+
+function renderTagCloud(tags) {
+    const host = $("#tag-cloud");
+    const meta = $("#tag-cloud-meta");
+    if (!host || !meta) return;
+
+    host.innerHTML = "";
+    if (!tags.length) {
+        meta.textContent = "no tags yet";
+        host.innerHTML = '<span class="muted">no captured tags</span>';
+        return;
+    }
+
+    const counts = tags.map((t) => Number(t.count) || 0);
+    const max = Math.max(...counts, 1);
+    const min = Math.min(...counts);
+    meta.textContent = tags.length + " most frequent";
+
+    for (const tag of tags) {
+        const count = Number(tag.count) || 0;
+        const ratio = max === min ? 1 : (count - min) / (max - min);
+        const size = 0.78 + ratio * 1.18;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "cloud-tag";
+        button.style.fontSize = size.toFixed(2) + "rem";
+        button.title = "filter by " + tag.tag + " (" + count + ")";
+        button.innerHTML = esc(tag.tag) +
+            '<span class="cloud-tag-count">' + count + "</span>";
+        button.addEventListener("click", () => {
+            $("#filter-tag").value = tag.tag;
+            loadTimeline(true);
+            document.querySelector("#timeline-section").scrollIntoView({ block: "start" });
+        });
+        host.appendChild(button);
     }
 }
 
