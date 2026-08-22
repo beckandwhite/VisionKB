@@ -7,3 +7,4 @@ exports/
 kb/data/
 _annotations.jsonl
 telemetry.log
+_tracker.json
