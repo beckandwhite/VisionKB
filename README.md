@@ -13,8 +13,8 @@ into clustered topic pages + a timeline.
 ## What it does
 
 ```
-screenshots ──► classify_images.py ──► .workspace/<env>/_annotations.jsonl ──► kb/build_kb.py ──► wiki.db (SQLite FTS5)
- (images)        (vision + embed)       (per-image JSON)        (ingest + index)   + exports/*.json/ndjson
+screenshots ──► pipeline.py ──► .workspace/<env>/_annotations.jsonl + wiki.db + exports/
+ (images)       (classify → ingest → index, one image at a time)
 ```
 
 Each image becomes one JSON record: `tags[]`, `OCR_text[]`, `entities[]`,
@@ -60,10 +60,8 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 ```
  screenshot_annotation/
  ├── tracker.py             shared tracker module (registry + telemetry + KB stamps)
- ├── classify_images.py      # Stage: vision + embedding → _annotations.jsonl
- ├── kb/
- │    ├── config.py          # intended shared config (see Gotcha below)
- │    └── build_kb.py        # Stage: incremental ingest → SQLite FTS5 + exports + thumbs
+ ├── pipeline.py             # single entry point: classify + ingest + exports
+ ├── config_loader.py        # environment configuration and artifact paths
  ├── .workspace/<env>/        # config + isolated annotations/tracker/data/exports
  └── kb/                      # ingestion code
 ```
@@ -91,20 +89,20 @@ progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gon
 
 ## How to use
 
-### 1. Extract annotations (vision + embeddings)
+### 1. Run the pipeline (classification + knowledgebase)
 
 ```bash
-# classify the next 5 unprocessed files in DEV
-python3 classify_images.py --count 5
+# classify and ingest the next 5 unprocessed files in DEV
+python3 pipeline.py --count 5
 
 # use the environment's configured limit (QA=10)
-python3 classify_images.py -env QA
+python3 pipeline.py -env QA
 
 # scan a different folder with --screenshot-dir
-python3 classify_images.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/' --count 5
+python3 pipeline.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/' --count 5
 
 # classify all remaining unprocessed files (no limit)
-python3 classify_images.py              # --count 0 = everything not yet done
+python3 pipeline.py                    # configured limit; --count 0 = all remaining
 ```
 
 `.workspace/<env>/_tracker.json` is a **self-maintaining registry**, not a bare index. Each run:
@@ -138,25 +136,40 @@ python3 classify_images.py              # --count 0 = everything not yet done
    `vision_latency_s` + `started_at` / `finished_at`); the old `telemetry.log`
    is retired.
 
-### 2. Build the knowledgebase (incremental ingest → SQLite)
+Each image is classified and then immediately written to the environment's SQLite
+database, FTS index, thumbnail set, and exported views. The exports are refreshed
+after each image, so the read-only WebUI can be used during a long run.
+
+To repair or rebuild the KB from annotations without calling the vision model:
 
 ```bash
-python3 kb/build_kb.py --no-thumbs    # skip thumbnails for speed
-# or:
-python3 kb/build_kb.py                # also generate 320px thumbnails via sips
+python3 pipeline.py -env DEV --rebuild-kb --no-thumbs
+python3 pipeline.py -env DEV --rebuild-kb --force
 ```
 
 Produces `.workspace/<env>/data/wiki.db`, `.workspace/<env>/exports/wiki.ndjson`,
 and `.workspace/<env>/exports/tags_index.json`.
 
-`build_kb.py` is **incremental**: re-running it does only the new/changed
-work. It opens the existing `kb/data/wiki.db`, upserts only records whose
-`filepath` is new or whose `mtime_iso` is newer than what was already
-ingested, and generates a thumbnail only when the file isn't already
-recorded (or its source isn't on disk). Per-run progress —
-`ingested_this_run`, `thumbnails_this_run`, and the `ingested_at` /
-`thumb_at` stamps per file — lives in `_tracker.json`. Pass `--force` to
-rebuild from scratch; `--no-thumbs` skips thumbnail work.
+`pipeline.py` is incremental: completed files are skipped on later runs. A
+second writer for the same environment exits cleanly while another run holds
+the environment lock; use `--wait` when waiting is preferred.
+
+For a bounded nightly run, stop before starting another image at the next local
+06:00 deadline:
+
+```bash
+python3 pipeline.py -env PRD-iCloud-Screenshots --until 06:00
+```
+
+For cron, use `run.sh` with an explicit environment. Example copy-paste entry:
+
+```cron
+0 0 * * * /Users/t/git/VisionKB/run.sh -env PRD-iCloud-Screenshots --until 06:00 >> /Users/t/git/VisionKB/pipeline.log 2>&1
+```
+
+Cron does not run reliably while the Mac sleeps, and Ollama plus the configured
+source folder must be available. At roughly 90 seconds per image, 2,000 images
+requires about 50 hours of model time before failures or duplicates.
 
 ### 3. Query (FTS5 full-text)
 
@@ -178,7 +191,7 @@ PY
  A dependency-free single-page viewer over the pipeline artifacts (stdlib
  `http.server` + vanilla JS; no build). Read-only — it never writes or touches
  the pipeline scripts; every source file is re-read per request, so a live
- `classify_images.py` run shows up without a restart.
+`pipeline.py` run shows up without a restart.
 
  ```bash
  python3 app/server.py                 # http://127.0.0.1:8000
@@ -199,25 +212,23 @@ PY
    `exports/tags_index.json`; clicking a tag filters the timeline.
 
  Thumbnails render live once `exports/thumbnails/` is populated
- (`python3 kb/build_kb.py` without `--no-thumbs`); until then rows show a
+(`python3 pipeline.py` without `--no-thumbs`); until then rows show a
  placeholder. See [WebUI-1.0-plan.md](WebUI-1.0-plan.md) for the design.
 
 ---
 
 ## Gotchas (read these first)
 
-- **`classify_images.py` defaults to the iCloud folder**
+- **`pipeline.py` defaults to the active environment's source folder**
    (`~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`); pass
    `--screenshot-dir` to scan elsewhere. Outputs (`_tracker.json`,
    `_annotations.jsonl`) are written next to the script, not into
    the scanned folder. The existing `_annotations.jsonl` is real history (5 records);
    its old flat-index `_tracker.json` is auto-migrated — the registry is rebuilt from
    the folder + those annotations on the first run.
-- **`kb/config.py` is not yet wired in.** The classifier's Ollama URL, model
-  names, image extensions, and processing paths come from the active
-  `.workspace/<env>/config.json`; `kb/config.py` remains separate and is still
-  not used by either script. Reconcile it with the environment config before a
-  big run.
+- **Environment selection matters.** Use `-env` consistently for `pipeline.py`
+  and `app/server.py`; all annotations, tracker state, database, exports, and
+  thumbnails are isolated under `.workspace/<env>/`.
 - **Cost: ~90 s/image with muse-glimmer:30b.** Ollama is effectively single-stream,
   so Python "concurrency" won't speed up vision. For the full ~2,000 images, see the
   dedup + cheaper-model strategy in implementation.md.

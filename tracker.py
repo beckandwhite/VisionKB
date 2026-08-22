@@ -9,9 +9,8 @@ is the authoritative record of:
     * any error that broke a file -- error capture,
     * KB-layer progress (ingested_at / thumb_at / thumb_status).
 
-Producers that mutate the registry:
-  classify_images.py -- reconcile, mark_start / mark_finish per file
-  kb/build_kb.py     -- mark_ingested / mark_thumbnail
+Producer that mutates the registry:
+    pipeline.py        -- reconcile, analysis lifecycle, KB and thumbnail stamps
 
 Consumers:
   app/server.py      -- load_registry + telemetry_from_tracker
@@ -194,7 +193,7 @@ def mark_backfilled(files, key, quality_score=None, when=None):
 
 
 def mark_ingested(files, key, when=None):
-    """Stamp that kb/build_kb.py finished ingesting this row into the DB."""
+    """Stamp that pipeline.py finished ingesting this row into the DB."""
     entry = files.setdefault(key, {})
     entry["ingested_at"] = when or _now_iso()
     return entry

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+
+# Generated environment state and logs
+.workspace/*/.pipeline.lock
+.workspace/*/_annotations.jsonl
+.workspace/*/_tracker.json
+.workspace/*/data/
+.workspace/*/exports/
+pipeline.log

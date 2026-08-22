@@ -6,7 +6,7 @@
 # (_annotations.jsonl / telemetry.log / _tracker.json, ~90 s/image to regenerate)
 # is left in place unless you pass --full.
 #
-# After a reset, rebuild the KB layer with:   python3 kb/build_kb.py
+# After a reset, rebuild the KB layer with:   python3 pipeline.py --rebuild-kb
 #
 # Usage:
 #    ./reset.sh              dry-run: list what would be deleted (nothing removed)
@@ -91,10 +91,10 @@ RAW=""
 
 # ------------------------------------------------------------------ safety net
 # A reset only makes sense if we really are in the project root.
-if [ ! -f "classify_images.py" ] || [ ! -f "kb/build_kb.py" ]; then
+if [ ! -f "pipeline.py" ]; then
     printf '%s: refusing to run — not in the project root (%s).\n' \
         "$(basename "$0")" "$PWD" >&2
-    printf '       expected to find classify_images.py + kb/build_kb.py here.\n' >&2
+    printf '       expected to find pipeline.py here.\n' >&2
     exit 1
 fi
 
@@ -166,7 +166,7 @@ if [ "$FULL" -eq 1 ]; then
 fi
 
 printf '\nDone. Removed %s path(s).\n' "$deleted"
-printf 'Rebuild the KB layer:  python3 kb/build_kb.py -env %s\n' "$ENV_NAME"
+printf 'Rebuild the KB layer:  python3 pipeline.py -env %s --rebuild-kb\n' "$ENV_NAME"
 if [ "$FULL" -eq 1 ]; then
-    printf 'Rebuild raw output:  python3 classify_images.py --count N\n'
+    printf 'Rebuild raw output:  python3 pipeline.py -env %s --count N\n' "$ENV_NAME"
 fi

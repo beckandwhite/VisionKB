@@ -226,7 +226,9 @@ def write_exports(conn, tag_counter):
     """Write the flat NDJSON dump + tag co-occurrence index from the full DB."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    with open(OUTPUT_DIR / "wiki.ndjson", "w", encoding="utf-8") as fh:
+    wiki_path = OUTPUT_DIR / "wiki.ndjson"
+    wiki_tmp = OUTPUT_DIR / "wiki.ndjson.tmp"
+    with open(wiki_tmp, "w", encoding="utf-8") as fh:
         for sid, fname, path, mtime_iso, mtime_epoch, caption, quality in conn.execute(
             "SELECT id, filename, filepath, mtime_iso, mtime_epoch, caption, "
             "quality_score FROM screenshots ORDER BY mtime_epoch ASC"):
@@ -236,6 +238,7 @@ def write_exports(conn, tag_counter):
                 "caption": caption, "quality": quality,
             }
             fh.write(json.dumps(out) + "\n")
+    os.replace(wiki_tmp, wiki_path)
 
     sid_tags_by_id = {}
     for sid, tag in conn.execute("SELECT screenshot_id, tag FROM tags ORDER BY screenshot_id"):
@@ -256,13 +259,16 @@ def write_exports(conn, tag_counter):
 
     tags_index_data = {
         "total_screenshots": "",  # filled below
-        "unique_tags": len(tag_pairs),
+        "unique_tags": len(tag_counter),
         "top_tags":      top_tags_list,
         "edges":         edges,
     }
     tags_index_data["total_screenshots"] = conn.execute("SELECT COUNT(*) FROM screenshots").fetchone()[0]
-    with open(OUTPUT_DIR / "tags_index.json", "w", encoding="utf-8") as fh:
+    tags_path = OUTPUT_DIR / "tags_index.json"
+    tags_tmp = OUTPUT_DIR / "tags_index.json.tmp"
+    with open(tags_tmp, "w", encoding="utf-8") as fh:
         json.dump(tags_index_data, fh, indent=2)
+    os.replace(tags_tmp, tags_path)
     return tags_index_data
 
 
