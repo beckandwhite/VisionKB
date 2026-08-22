@@ -347,7 +347,7 @@ def classify_one(img_path, prompt_str):
 # Build and process
 # ============================================================================
 
-def main(count_limit, screenshot_dir, env="DEV"):
+def main(count_limit, screenshot_dir, env=config_loader.DEFAULT_ENV):
     global OLLAMA_BASE, VISION_MODEL, EMBED_MODEL, IMAGE_EXTS
     global SAVE_EVERY, MAX_DIM, TEMP_DIR, TAG_LIST
     _, config = config_loader.resolve_environment(env)
@@ -486,9 +486,10 @@ def main(count_limit, screenshot_dir, env="DEV"):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("-env", default="DEV",
+    p.add_argument("-env", default=config_loader.DEFAULT_ENV,
                    choices=config_loader.available_environments(),
-                   help="Environment workspace to use (default: DEV)")
+                   help="Environment workspace to use (default: %s)" %
+                        config_loader.DEFAULT_ENV)
     p.add_argument("--count", type=int, default=None,
                    help="Limit to N images (for testing)")
     p.add_argument("--screenshot-dir", default=None,

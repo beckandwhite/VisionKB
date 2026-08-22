@@ -67,7 +67,7 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 ```
 
 Images themselves live in the configured source folder. Select an environment
-with `-env` (default `DEV`):
+with `-env` (default `PRD-iCloud-Screenshots`):
 
 ```bash
 python3 classify_images.py -env QA
@@ -92,7 +92,7 @@ progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gon
 ### 1. Run the pipeline (classification + knowledgebase)
 
 ```bash
-# classify and ingest the next 5 unprocessed files in DEV
+# classify and ingest the next 5 unprocessed files in PRD-iCloud-Screenshots
 python3 pipeline.py --count 5
 
 # use the environment's configured limit (QA=10)
@@ -194,12 +194,12 @@ PY
 `pipeline.py` run shows up without a restart.
 
  ```bash
-python3 app/server.py -env DEV                         # http://127.0.0.1:8000
+python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open              # http://127.0.0.1:8000
 python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
 # The UI reads the selected environment's tracker, annotations, exports, and thumbnails.
  ```
 
-The WebUI defaults to `DEV`. Use the same `-env` value as the pipeline so the
+The WebUI defaults to `PRD-iCloud-Screenshots`. Use the same `-env` value as the pipeline so the
 UI and processor point at the same isolated workspace, for example:
 
 ```bash

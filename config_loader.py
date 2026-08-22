@@ -8,6 +8,7 @@ WORKSPACE_DIR = BASE_DIR / ".workspace"
 SUPPORTED_ENVIRONMENTS = (
     "DEV", "QA", "PRD-iCloud-Screenshots", "PRD-OneDrive-Pictures",
 )
+DEFAULT_ENV = "PRD-iCloud-Screenshots"
 
 DEFAULT_CONFIG = {
     "ollama_base": "http://127.0.0.1:11434",
@@ -29,7 +30,7 @@ def available_environments():
 
 def load_config(env: str) -> tuple[Dict[str, Any], str]:
     """Load and validate one complete environment configuration."""
-    env = str(env or "DEV")
+    env = str(env or DEFAULT_ENV)
     if env not in SUPPORTED_ENVIRONMENTS:
         choices = ", ".join(SUPPORTED_ENVIRONMENTS)
         raise ValueError("Unknown environment %r. Choose one of: %s" % (env, choices))
@@ -52,7 +53,7 @@ def load_config(env: str) -> tuple[Dict[str, Any], str]:
     return config, env
 
 
-def resolve_environment(env="DEV"):
+def resolve_environment(env=DEFAULT_ENV):
     """Return config plus all environment-owned artifact paths."""
     config, env = load_config(env)
     env_dir = WORKSPACE_DIR / env

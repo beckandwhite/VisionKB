@@ -47,8 +47,12 @@ async function api(path, params) {
 // ----- backlog status (page footer) --------------------------------------
 async function renderBacklog() {
     const data = await api("/api/overview");
+    const environment = $("#data-environment");
     const l1 = $("#backlog-line1");
     const l2 = $("#backlog-line2");
+    if (environment) {
+        environment.textContent = "data: " + (data.environment || "unknown");
+    }
     if (!l1 || !l2) return;
 
     l1.textContent = data.processed + "/" + data.total;

@@ -17,7 +17,7 @@ This update introduces a multi-environment configuration system and a managed wo
     - `max_dim`: Maximum dimension for image resizing to prevent OOM.
     - `save_every`: Frequency of checkpointing the tracker.
         - `TAG_LIST`: Space-separated list of allowed vision tags for the environment.
-- **Centralized Loading**: The `config_loader.py` module resolves the environment from the `-env` command-line parameter, defaulting to `DEV`.
+- **Centralized Loading**: The `config_loader.py` module resolves the environment from the `-env` command-line parameter, defaulting to `PRD-iCloud-Screenshots`.
 
 ### 2. Managed Workspace
 - **Workspace Directory**: A `.workspace/` directory is introduced to house environment-specific data and configuration.
@@ -48,4 +48,4 @@ To switch environments, pass the environment as a command-line parameter:
 python3 classify_images.py -env DEV
 ```
 
-If executed without specifying an environment, it'll list all the possible environments and then defaults to `DEV`. The configuration loader will automatically load the appropriate settings based on the current environment.
+If executed without specifying an environment, it'll list all the possible environments and then defaults to `PRD-iCloud-Screenshots`. The configuration loader will automatically load the appropriate settings based on the current environment.

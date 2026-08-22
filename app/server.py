@@ -228,6 +228,7 @@ def build_overview():
         if (remaining and has_speed) else "")
 
     return {
+        "environment": CURRENT_ENV,
         "total": total,
         "processed": processed,
         "remaining": remaining,
@@ -457,7 +458,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     global CURRENT_ENV, TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR
     parser = argparse.ArgumentParser(description="Screenshot KB WebUI server")
-    parser.add_argument("-env", default="DEV",
+    parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
                         choices=config_loader.available_environments())
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")

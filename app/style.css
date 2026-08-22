@@ -57,6 +57,12 @@ html, body {
    align-items: center;
    gap: 14px;
 }
+.data-environment {
+   color: var(--text);
+   font-size: 11px;
+   font-weight: 600;
+   white-space: nowrap;
+}
 .poll-toggle {
    display: flex;
    align-items: center;

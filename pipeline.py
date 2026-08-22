@@ -223,7 +223,8 @@ def main():
     environments = config_loader.available_environments()
     print("Available environments: %s" % ", ".join(environments))
     parser = argparse.ArgumentParser(description="Unified screenshot pipeline")
-    parser.add_argument("-env", default="DEV", choices=environments)
+    parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
+                        choices=environments)
     parser.add_argument("--count", type=int, default=None)
     parser.add_argument("--screenshot-dir", default=None)
     parser.add_argument("--no-thumbs", action="store_true")
@@ -232,8 +233,9 @@ def main():
     parser.add_argument("--until", metavar="HH:MM")
     parser.add_argument("--wait", action="store_true")
     args = parser.parse_args()
-    if args.env == "DEV":
-        print("Using environment: DEV (pass -env ENV to select another)")
+    if args.env == config_loader.DEFAULT_ENV:
+        print("Using environment: %s (pass -env ENV to select another)" %
+              config_loader.DEFAULT_ENV)
     else:
         print("Using environment: %s" % args.env)
     try:
