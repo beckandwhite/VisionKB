@@ -476,9 +476,12 @@ def main():
     url = "http://%s:%d/" % (args.host, args.port)
     print("WebUI running at %s" % url, flush=True)
     print("Serving from %s" % ROOT, flush=True)
-    print("Sources: tracker=%s annotations=%s wiki=%s tags=%s thumbs=%s"
-           % (TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR),
-         flush=True)
+    print("Sources:", flush=True)
+    print("  tracker=%s" % TRACKER_PATH, flush=True)
+    print("  annotations=%s" % ANNOT_PATH, flush=True)
+    print("  wiki=%s" % WIKI_PATH, flush=True)
+    print("  tags=%s" % TAGS_PATH, flush=True)
+    print("  thumbs=%s" % THUMB_DIR, flush=True)
     if args.open:
         try:
             webbrowser.open(url)
