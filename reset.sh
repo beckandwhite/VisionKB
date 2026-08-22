@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
 #
-# reset.sh — clear *generated* pipeline artifacts so the project can be rebuilt
-# from scratch. Safe by default: it only removes the cheap, fast-to-rebuild KB
-# layer (exports/, kb/data/, caches). The expensive raw classifier output
-# (_annotations.jsonl / telemetry.log / _tracker.json, ~90 s/image to regenerate)
-# is left in place unless you pass --full.
+# reset.sh — clear generated pipeline artifacts so the project can be rebuilt
+# from scratch. Only the cheap, fast-to-rebuild KB layer is removed.
 #
 # After a reset, rebuild the KB layer with:   python3 pipeline.py --rebuild-kb
 #
 # Usage:
-#    ./reset.sh              dry-run: list what would be deleted (nothing removed)
-#    ./reset.sh --apply      delete the KB layer, after a confirmation prompt
-#    ./reset.sh --yes        delete the KB layer, non-interactively
-#    ./reset.sh --full --apply  also delete the raw classifier output
-#    ./reset.sh -h           print this help
+#    ./reset.sh                  reset DEV
+#    ./reset.sh -env ENV         dry-run ENV (except DEV)
+#    ./reset.sh -dry-run         dry-run DEV
+#    ./reset.sh -h               print this help
 #
 set -euo pipefail
 
@@ -22,59 +18,60 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 ENV_NAME="DEV"
-for arg in "$@"; do
-    case "$arg" in
-        -env)
-            ENV_ARG_PENDING=1
-            ;;
-        DEV|QA|PRD-iCloud-Screenshots|PRD-OneDrive-Pictures)
-            if [[ "${ENV_ARG_PENDING:-0}" -eq 1 ]]; then ENV_NAME="$arg"; ENV_ARG_PENDING=0; fi
-            ;;
-    esac
-done
-ENV_DIR=".workspace/$ENV_NAME"
-
-DELETING=0             # default: dry-run, remove nothing
-FULL=0                 # also remove raw classifier output
-ASSUME_YES=0           # --yes skips the confirmation prompt
+DRY_RUN=0
 
 # ------------------------------------------------------------------ parsing
-for arg in "$@"; do
-    case "$arg" in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         -env)
+            [[ $# -ge 2 ]] || { printf '%s: -env requires an environment.\n' "$(basename "$0")" >&2; exit 2; }
+            ENV_NAME="$2"
+            shift 2
             ;;
-        DEV|QA|PRD-iCloud-Screenshots|PRD-OneDrive-Pictures)
+        -dry-run)
+            DRY_RUN=1
+            shift
             ;;
-        --dry-run|-n)   DELETING=0 ;;
-        --apply)        DELETING=1 ;;
-        --yes|-y)       DELETING=1; ASSUME_YES=1 ;;
-        --full)         FULL=1 ;;
         -h|--help|help)
             cat <<EOF
-usage: $(basename "$0") [-env ENV] [--apply] [--yes|-y] [--full] [--dry-run|-n] [-h]
+usage: $(basename "$0") [-env ENV] [-dry-run] [-h]
 
-    (default)         dry-run: list what would be deleted, remove nothing
-    --apply           actually delete the KB layer, after a confirmation prompt
-    --yes, -y         delete without prompting (for scripts/cron)
-    --full            also delete expensive raw output (_annotations.jsonl,
-                      telemetry.log, _tracker.json); ~90 s/image to regenerate.
-                      Default: keep.
-    --dry-run, -n     show what would be removed, change nothing (default)
-    -h, --help        print this help and exit
+Reset behavior:
+    No arguments       reset DEV immediately
+    -env DEV           reset DEV immediately
+    -env ENV           dry-run ENV and remove nothing
+    -dry-run           dry-run the selected environment
 
-Targets:
-    KB layer (always, cheap; rebuild with python3 kb/build_kb.py -env ENV):
-        $ENV_DIR/exports/   $ENV_DIR/data/   __pycache__/
-   RAW output (only with --full; rebuild with python3 classify_images.py):
-    $ENV_DIR/_annotations.jsonl   $ENV_DIR/_tracker.json
+Environments:
+    DEV
+    QA
+    PRD-iCloud-Screenshots
+    PRD-OneDrive-Pictures
+
+The reset clears generated KB artifacts in .workspace/ENV. Raw classifier
+output is kept. Use python3 pipeline.py -env ENV --rebuild-kb to rebuild.
 EOF
-            exit 0 ;;
+            exit 0
+            ;;
         *)
             printf '%s: unknown argument %s — try "%s -h".\n' \
-                 "$(basename "$0")" "$arg" "$(basename "$0")" >&2
-            exit 2 ;;
+                 "$(basename "$0")" "$1" "$(basename "$0")" >&2
+            exit 2
+            ;;
     esac
 done
+
+case "$ENV_NAME" in
+    DEV|QA|PRD-iCloud-Screenshots|PRD-OneDrive-Pictures) ;;
+    *)
+        printf '%s: unknown environment %s — try "%s -h".\n' \
+             "$(basename "$0")" "$ENV_NAME" "$(basename "$0")" >&2
+        exit 2
+        ;;
+esac
+
+[[ "$ENV_NAME" == "DEV" ]] || DRY_RUN=1
+ENV_DIR=".workspace/$ENV_NAME"
 
 # ------------------------------------------------------------------ targets
 # Always-on (cheap / regenerable in seconds via kb/build_kb.py):
@@ -83,11 +80,6 @@ ALWAYS=""
 [ -d "$ENV_DIR/data" ]    && ALWAYS="$ALWAYS $ENV_DIR/data"
 [ -d "kb/__pycache__" ] && ALWAYS="$ALWAYS kb/__pycache__"
 [ -d "__pycache__" ]   && ALWAYS="$ALWAYS __pycache__"
-
-# Optional --full (expensive: needs the vision model to regenerate):
-RAW=""
-[ -f "$ENV_DIR/_annotations.jsonl" ] && RAW="$RAW $ENV_DIR/_annotations.jsonl"
-[ -f "$ENV_DIR/_tracker.json" ] && RAW="$RAW $ENV_DIR/_tracker.json"
 
 # ------------------------------------------------------------------ safety net
 # A reset only makes sense if we really are in the project root.
@@ -99,14 +91,14 @@ if [ ! -f "pipeline.py" ]; then
 fi
 
 # Nothing to do?
-if [ -z "$ALWAYS" ] && [ -z "$RAW" ]; then
+if [ -z "$ALWAYS" ]; then
     printf 'Nothing to delete — the generated workspace is already clean.\n'
     exit 0
 fi
 
 # ------------------------------------------------------------------ report
 mode="DRY-RUN (no files will be removed)"
-[ "$DELETING" -eq 1 ] && mode="DELETING"
+[ "$DRY_RUN" -eq 0 ] && mode="DELETING"
 printf '=== %s reset — %s ===\n' "$(basename "$0")" "$mode"
 printf 'Project root: %s\n\n' "$SCRIPT_DIR"
 printf 'Environment: %s\n\n' "$ENV_NAME"
@@ -117,32 +109,13 @@ if [ -n "$ALWAYS" ]; then
 else
     printf 'KB layer: (nothing present)\n'
 fi
+printf 'RAW output: kept\n'
 printf '\n'
 
-if [ "$FULL" -eq 1 ]; then
-    if [ -n "$RAW" ]; then
-        printf 'RAW output (--full, requires vision model to regenerate, ~90 s/image):\n'
-        for item in $RAW; do printf '  [RAW]  %s\n' "$item"; done
-    else
-        printf 'RAW output: (none present)\n'
-    fi
-else
-    printf 'RAW output: SKIPPED (pass --full to also delete _annotations.jsonl / telemetry.log / _tracker.json)\n'
-fi
-printf '\n'
-
-# ------------------------------------------------------------------ confirm
-if [ "$DELETING" -eq 0 ]; then
-     printf "%s\n" "-> Dry run: nothing removed. Re-run with --apply (with a prompt) or --yes (no prompt) to delete$( [ "$FULL" -eq 1 ] && printf ' (incl. --full)' )."
+# ------------------------------------------------------------------ dry-run
+if [ "$DRY_RUN" -eq 1 ]; then
+    printf '%s\n' '-> Dry run: nothing removed.'
     exit 0
-fi
-
-if [ "$ASSUME_YES" -eq 0 ]; then
-     read -r -p "Proceed and delete these paths? [y/N] " answer || answer=""
-    if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
-         printf 'Aborted — nothing deleted.\n'
-        exit 0
-    fi
 fi
 
 # ------------------------------------------------------------------ do it
@@ -155,18 +128,5 @@ for item in $ALWAYS; do
     fi
 done
 
-if [ "$FULL" -eq 1 ]; then
-    for item in $RAW; do
-        if [ -e "$item" ]; then
-            rm -f -- "$item"
-            deleted=$((deleted + 1))
-            printf 'rm -f  %s\n' "$item"
-        fi
-    done
-fi
-
 printf '\nDone. Removed %s path(s).\n' "$deleted"
 printf 'Rebuild the KB layer:  python3 pipeline.py -env %s --rebuild-kb\n' "$ENV_NAME"
-if [ "$FULL" -eq 1 ]; then
-    printf 'Rebuild raw output:  python3 pipeline.py -env %s --count N\n' "$ENV_NAME"
-fi
