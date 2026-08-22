@@ -50,10 +50,10 @@ import config_loader
 # Constants
 # ============================================================================
 
-OLLAMA_BASE = "http://127.0.0.1:11434"
+OLLAMA_BASE = config_loader.CURRENT_CONFIG["ollama_base"]
 VISION_MODEL = config_loader.CURRENT_CONFIG["vision_model"]
 EMBED_MODEL = config_loader.CURRENT_CONFIG["embed_model"]
-IMAGE_EXTS = {"png", "jpg", "jpeg", "heic"}
+IMAGE_EXTS = set(config_loader.CURRENT_CONFIG["supported_images"])
 SAVE_EVERY = config_loader.CURRENT_CONFIG["save_every"]
 MAX_DIM = config_loader.CURRENT_CONFIG["max_dim"]
 TEMP_DIR = config_loader.CURRENT_CONFIG["temp_dir"]
@@ -348,10 +348,13 @@ def classify_one(img_path, prompt_str):
 # ============================================================================
 
 def main(count_limit, screenshot_dir, env="DEV"):
-    global VISION_MODEL, EMBED_MODEL, SAVE_EVERY, MAX_DIM, TEMP_DIR, TAG_LIST
+    global OLLAMA_BASE, VISION_MODEL, EMBED_MODEL, IMAGE_EXTS
+    global SAVE_EVERY, MAX_DIM, TEMP_DIR, TAG_LIST
     _, config = config_loader.resolve_environment(env)
+    OLLAMA_BASE = config["ollama_base"]
     VISION_MODEL = config["vision_model"]
     EMBED_MODEL = config["embed_model"]
+    IMAGE_EXTS = set(config["supported_images"])
     SAVE_EVERY = int(config["save_every"])
     MAX_DIM = int(config["max_dim"])
     TEMP_DIR = config["temp_dir"]

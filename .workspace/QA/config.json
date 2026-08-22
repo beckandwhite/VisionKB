@@ -1,5 +1,7 @@
 {
+    "ollama_base": "http://127.0.0.1:11434",
     "vision_model": "muse-glimmer:30b-mlx",
+    "supported_images": ["png", "jpg", "jpeg", "heic"],
     "embed_model": "nomic-embed-text:latest",
     "source_dir": "~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/",
     "temp_dir": "/tmp",

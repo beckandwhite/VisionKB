@@ -213,9 +213,11 @@ PY
    the scanned folder. The existing `_annotations.jsonl` is real history (5 records);
    its old flat-index `_tracker.json` is auto-migrated — the registry is rebuilt from
    the folder + those annotations on the first run.
-- **`kb/config.py` is not yet wired in.** Neither script imports it — model names
-  and paths are hardcoded inside each script instead. Treat config.py as the
-  *intended* source of truth and reconcile the two before a big run.
+- **`kb/config.py` is not yet wired in.** The classifier's Ollama URL, model
+  names, image extensions, and processing paths come from the active
+  `.workspace/<env>/config.json`; `kb/config.py` remains separate and is still
+  not used by either script. Reconcile it with the environment config before a
+  big run.
 - **Cost: ~90 s/image with muse-glimmer:30b.** Ollama is effectively single-stream,
   so Python "concurrency" won't speed up vision. For the full ~2,000 images, see the
   dedup + cheaper-model strategy in implementation.md.

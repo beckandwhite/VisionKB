@@ -7,7 +7,9 @@ This update introduces a multi-environment configuration system and a managed wo
 ### 1. Configuration Management
 - **Environment-specific configurations**: Each environment now has its own dedicated configuration file located in `.workspace/<env_name>/config.json`.
 - **Configuration parameters**:
+    - `ollama_base`: The base URL for the Ollama API.
     - `vision_model`: The Ollama model used for image analysis.
+    - `supported_images`: Image extensions the classifier scans, without dots.
     - `embed_model`: The Ollama model used for vector embeddings.
     - `source_dir`: The primary directory for input images (e.g., iCloud Screenshots).
     - `temp_dir`: Temporary directory for processing.
