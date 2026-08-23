@@ -59,12 +59,11 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 
 ```
  screenshot_annotation/
- ├── tracker.py             shared tracker module (registry + telemetry + KB stamps)
- ├── pipeline.py             # single entry point: classify + ingest + exports
- ├── config_loader.py        # environment configuration and artifact paths
- ├── .workspace/<env>/        # config + isolated annotations/tracker/KB artifacts
- ├── classify_images.py       # classifier implementation used by pipeline.py
- └── build_kb.py              # KB implementation used by pipeline.py
+ ├── tracker.py             # shared tracker module (registry + telemetry + KB stamps)
+ ├── config_loader.py       # environment configuration and artifact paths
+ ├── frontend.py            # read-only WebUI over the tracker + exports
+ ├── pipeline.py            # single entry point: reconcile → classify → ingest → exports
+ └── .workspace/<env>/      # config + isolated annotations/tracker/KB artifacts
 ```
 
 Images themselves live in the configured source folder. Select an environment
@@ -255,7 +254,8 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 |---|---|
 | `_annotations.jsonl` | one JSON record per image (append, never rewritten) |
 | `_tracker.json` | per-file registry (filename + `mtime_iso` + `processed_at`) and run summary — the progress ledger |
-| `tracker.py` | shared tracker module used by the pipeline's classifier and KB stages, plus `frontend.py` |
+| `tracker.py` | shared tracker module used by `pipeline.py` and `frontend.py` |
+| `config_loader.py` | per-environment config + artifact paths (used by `pipeline.py` + `frontend.py`) |
 | `telemetry.log` | (retired) telemetry now lives in `_tracker.json` |
 | `.workspace/<env>/wiki.db` | Environment-specific SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
 | `.workspace/<env>/wiki.ndjson` | flat dump of all records |

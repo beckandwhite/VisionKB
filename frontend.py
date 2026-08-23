@@ -194,7 +194,7 @@ def build_overview():
     Reports how many pictures are still unprocessed and the estimated time
     left, derived from the speed of the most recently processed files.
 
-     `processed` mirrors the pipeline's own "done" predicate (classify_images):
+      `processed` mirrors the pipeline's own "done" predicate (pipeline.py):
     a file counts as handled when it has a finished_at or processed_at stamp,
     so the backlog reflects the vision queue regardless of KB-layer stages.
     """
