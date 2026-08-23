@@ -221,24 +221,26 @@ def ollama_embed(text_str):
 # ============================================================================
 
 def list_images(directory):
-    """Scan directory for image files (no dots), return sorted by mtime desc."""
+    """Recursively scan directory for image files, sorted by mtime desc."""
     files = []
-    for entry in os.scandir(directory):
-        if not entry.is_file():
-            continue
-        name_lower = entry.name.lower()
-        if name_lower.startswith("."):
-            continue
-        if tracker.is_temp_artifact(entry.name):
-            continue
-         # Extract extension without leading dot
-        if "." in name_lower:
-            ext = name_lower.rsplit(".", 1)[-1]
-            if ext in IMAGE_EXTS:
-                files.append(entry.path)
-        elif name_lower.endswith((".png", ".jpg", ".jpeg", ".heic")):
-            # Edge case: no extension char (unlikely but defensive)
-            pass
+    for root, _dirs, names in os.walk(directory):
+        for name in names:
+            entry = os.path.join(root, name)
+            if not os.path.isfile(entry):
+                continue
+            name_lower = name.lower()
+            if name_lower.startswith("."):
+                continue
+            if tracker.is_temp_artifact(name):
+                continue
+             # Extract extension without leading dot
+            if "." in name_lower:
+                ext = name_lower.rsplit(".", 1)[-1]
+                if ext in IMAGE_EXTS:
+                    files.append(entry)
+            elif name_lower.endswith((".png", ".jpg", ".jpeg", ".heic")):
+                # Edge case: no extension char (unlikely but defensive)
+                pass
     files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
     return files
 

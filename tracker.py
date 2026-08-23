@@ -246,18 +246,20 @@ def reconcile(directory, img_exts, files):
     (new_count, unprocessed_count).
     """
     all_files = []
-    for entry in os.scandir(directory):
-        if not entry.is_file():
-            continue
-        name_lower = entry.name.lower()
-        if name_lower.startswith("."):
-            continue
-        if is_temp_artifact(entry.name):
-            continue
-        if "." in name_lower:
-            ext = name_lower.rsplit(".", 1)[-1]
-            if ext in img_exts:
-                all_files.append(entry.path)
+    for root, _dirs, names in os.walk(directory):
+        for name in names:
+            path = os.path.join(root, name)
+            if not os.path.isfile(path):
+                continue
+            name_lower = name.lower()
+            if name_lower.startswith("."):
+                continue
+            if is_temp_artifact(name):
+                continue
+            if "." in name_lower:
+                ext = name_lower.rsplit(".", 1)[-1]
+                if ext in img_exts:
+                    all_files.append(path)
     all_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
 
     new_count = 0
