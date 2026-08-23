@@ -1,53 +1,69 @@
 {
-  "total_screenshots": 101,
-  "unique_tags": 48,
+  "total_screenshots": 128,
+  "unique_tags": 53,
   "top_tags": [
     {
       "tag": "conference-call",
-      "count": 56
+      "count": 66
     },
     {
       "tag": "business-meeting",
-      "count": 53
+      "count": 64
     },
     {
       "tag": "video-call-screen",
-      "count": 47
+      "count": 57
     },
     {
       "tag": "participant-grid",
-      "count": 45
+      "count": 56
+    },
+    {
+      "tag": "data-visualization",
+      "count": 37
+    },
+    {
+      "tag": "internet-browsing",
+      "count": 37
     },
     {
       "tag": "dashboard-analytics",
       "count": 35
     },
     {
-      "tag": "data-visualization",
-      "count": 35
-    },
-    {
-      "tag": "internet-browsing",
-      "count": 31
-    },
-    {
       "tag": "chat-interface",
-      "count": 26
-    },
-    {
-      "tag": "chart-graph",
-      "count": 20
+      "count": 34
     },
     {
       "tag": "terminal-window",
-      "count": 20
-    },
-    {
-      "tag": "coding-dev",
-      "count": 17
+      "count": 28
     },
     {
       "tag": "chat-panel",
+      "count": 23
+    },
+    {
+      "tag": "coding-dev",
+      "count": 23
+    },
+    {
+      "tag": "chart-graph",
+      "count": 22
+    },
+    {
+      "tag": "git-repo",
+      "count": 18
+    },
+    {
+      "tag": "ide-screen",
+      "count": 17
+    },
+    {
+      "tag": "terminal-shell",
+      "count": 16
+    },
+    {
+      "tag": "presentation-slide-share",
       "count": 15
     },
     {
@@ -55,39 +71,27 @@
       "count": 15
     },
     {
-      "tag": "git-repo",
-      "count": 14
-    },
-    {
-      "tag": "ide-screen",
-      "count": 12
-    },
-    {
-      "tag": "presentation-slide-share",
-      "count": 12
-    },
-    {
-      "tag": "terminal-shell",
-      "count": 10
-    },
-    {
       "tag": "chat-panel-live",
-      "count": 9
-    },
-    {
-      "tag": "debugging",
-      "count": 9
-    },
-    {
-      "tag": "performance-monitor",
-      "count": 8
-    },
-    {
-      "tag": "bug-report",
-      "count": 7
+      "count": 12
     },
     {
       "tag": "lecture-slide",
+      "count": 12
+    },
+    {
+      "tag": "performance-monitor",
+      "count": 11
+    },
+    {
+      "tag": "debugging",
+      "count": 10
+    },
+    {
+      "tag": "office-work",
+      "count": 9
+    },
+    {
+      "tag": "bug-report",
       "count": 7
     },
     {
@@ -99,7 +103,11 @@
       "count": 5
     },
     {
-      "tag": "office-work",
+      "tag": "data-analysis",
+      "count": 5
+    },
+    {
+      "tag": "log-panel",
       "count": 5
     },
     {
@@ -111,11 +119,15 @@
       "count": 4
     },
     {
-      "tag": "log-panel",
+      "tag": "social-media-feed",
       "count": 4
     },
     {
-      "tag": "data-analysis",
+      "tag": "webinar",
+      "count": 4
+    },
+    {
+      "tag": "activity-feed",
       "count": 3
     },
     {
@@ -123,7 +135,23 @@
       "count": 2
     },
     {
+      "tag": "forum-thread",
+      "count": 2
+    },
+    {
       "tag": "incident-response",
+      "count": 2
+    },
+    {
+      "tag": "meeting-room",
+      "count": 2
+    },
+    {
+      "tag": "spreadsheet",
+      "count": 2
+    },
+    {
+      "tag": "webinar-training",
       "count": 2
     },
     {
@@ -167,31 +195,11 @@
       "count": 1
     },
     {
-      "tag": "forum-thread",
-      "count": 1
-    },
-    {
       "tag": "illustrator-artwork",
       "count": 1
     },
     {
       "tag": "invitation-card",
-      "count": 1
-    },
-    {
-      "tag": "meeting-room",
-      "count": 1
-    },
-    {
-      "tag": "search-engine",
-      "count": 1
-    },
-    {
-      "tag": "ticket-dashboard",
-      "count": 1
-    },
-    {
-      "tag": "webinar-training",
       "count": 1
     }
   ],
@@ -199,32 +207,37 @@
     {
       "source": "business-meeting",
       "target": "conference-call",
+      "weight": 62
+    },
+    {
+      "source": "conference-call",
+      "target": "participant-grid",
+      "weight": 55
+    },
+    {
+      "source": "conference-call",
+      "target": "video-call-screen",
+      "weight": 55
+    },
+    {
+      "source": "business-meeting",
+      "target": "participant-grid",
+      "weight": 54
+    },
+    {
+      "source": "business-meeting",
+      "target": "video-call-screen",
       "weight": 53
-    },
-    {
-      "source": "conference-call",
-      "target": "video-call-screen",
-      "weight": 46
-    },
-    {
-      "source": "conference-call",
-      "target": "participant-grid",
-      "weight": 45
-    },
-    {
-      "source": "business-meeting",
-      "target": "participant-grid",
-      "weight": 44
-    },
-    {
-      "source": "business-meeting",
-      "target": "video-call-screen",
-      "weight": 44
     },
     {
       "source": "participant-grid",
       "target": "video-call-screen",
-      "weight": 38
+      "weight": 48
+    },
+    {
+      "source": "conference-call",
+      "target": "internet-browsing",
+      "weight": 25
     },
     {
       "source": "dashboard-analytics",
@@ -232,64 +245,99 @@
       "weight": 24
     },
     {
-      "source": "conference-call",
-      "target": "internet-browsing",
-      "weight": 24
-    },
-    {
       "source": "business-meeting",
       "target": "internet-browsing",
-      "weight": 22
+      "weight": 23
     },
     {
       "source": "conference-call",
       "target": "data-visualization",
+      "weight": 23
+    },
+    {
+      "source": "business-meeting",
+      "target": "chat-interface",
+      "weight": 22
+    },
+    {
+      "source": "chat-interface",
+      "target": "conference-call",
       "weight": 22
     },
     {
       "source": "business-meeting",
+      "target": "data-visualization",
+      "weight": 22
+    },
+    {
+      "source": "chart-graph",
       "target": "data-visualization",
       "weight": 21
     },
     {
       "source": "internet-browsing",
       "target": "participant-grid",
-      "weight": 20
+      "weight": 21
     },
     {
       "source": "internet-browsing",
       "target": "video-call-screen",
-      "weight": 20
+      "weight": 21
     },
     {
       "source": "data-visualization",
       "target": "video-call-screen",
-      "weight": 20
-    },
-    {
-      "source": "chart-graph",
-      "target": "data-visualization",
-      "weight": 19
+      "weight": 21
     },
     {
       "source": "data-visualization",
       "target": "participant-grid",
+      "weight": 20
+    },
+    {
+      "source": "coding-dev",
+      "target": "terminal-window",
       "weight": 19
     },
     {
-      "source": "business-meeting",
-      "target": "chat-interface",
+      "source": "chat-interface",
+      "target": "chat-panel",
+      "weight": 19
+    },
+    {
+      "source": "chat-interface",
+      "target": "video-call-screen",
+      "weight": 18
+    },
+    {
+      "source": "coding-dev",
+      "target": "ide-screen",
       "weight": 17
     },
     {
       "source": "chat-interface",
-      "target": "conference-call",
+      "target": "participant-grid",
       "weight": 17
     },
     {
       "source": "conference-call",
       "target": "dashboard-analytics",
       "weight": 17
+    },
+    {
+      "source": "ide-screen",
+      "target": "terminal-window",
+      "weight": 16
+    },
+    {
+      "source": "business-meeting",
+      "target": "chat-panel",
+      "weight": 16
+    },
+    {
+      "source": "chat-panel",
+      "target": "conference-call",
+      "weight": 16
     },
     {
       "source": "business-meeting",
@@ -297,6 +345,21 @@
       "weight": 16
     },
     {
+      "source": "terminal-shell",
+      "target": "terminal-window",
+      "weight": 16
+    },
+    {
+      "source": "business-meeting",
+      "target": "presentation-slide-share",
+      "weight": 15
+    },
+    {
+      "source": "conference-call",
+      "target": "presentation-slide-share",
+      "weight": 15
+    },
+    {
       "source": "dashboard-analytics",
       "target": "internet-browsing",
       "weight": 15
@@ -307,108 +370,98 @@
       "weight": 15
     },
     {
-      "source": "chat-interface",
-      "target": "chat-panel",
+      "source": "participant-grid",
+      "target": "presentation-slide-share",
       "weight": 14
     },
     {
-      "source": "coding-dev",
-      "target": "terminal-window",
-      "weight": 13
-    },
-    {
-      "source": "business-meeting",
-      "target": "chat-panel",
-      "weight": 13
-    },
-    {
-      "source": "chat-interface",
-      "target": "video-call-screen",
+      "source": "chat-panel",
+      "target": "internet-browsing",
       "weight": 13
     },
     {
       "source": "chat-panel",
-      "target": "conference-call",
+      "target": "video-call-screen",
       "weight": 13
-    },
-    {
-      "source": "coding-dev",
-      "target": "ide-screen",
-      "weight": 12
-    },
-    {
-      "source": "chat-interface",
-      "target": "participant-grid",
-      "weight": 12
     },
     {
       "source": "business-meeting",
       "target": "chart-graph",
-      "weight": 12
-    },
-    {
-      "source": "business-meeting",
-      "target": "presentation-slide-share",
-      "weight": 12
+      "weight": 13
     },
     {
       "source": "chart-graph",
       "target": "conference-call",
-      "weight": 12
+      "weight": 13
     },
     {
       "source": "chart-graph",
       "target": "video-call-screen",
-      "weight": 12
-    },
-    {
-      "source": "conference-call",
-      "target": "presentation-slide-share",
-      "weight": 12
-    },
-    {
-      "source": "dashboard-analytics",
-      "target": "participant-grid",
-      "weight": 12
-    },
-    {
-      "source": "data-visualization",
-      "target": "internet-browsing",
-      "weight": 12
-    },
-    {
-      "source": "chart-graph",
-      "target": "dashboard-analytics",
-      "weight": 11
-    },
-    {
-      "source": "ide-screen",
-      "target": "terminal-window",
-      "weight": 11
-    },
-    {
-      "source": "chart-graph",
-      "target": "participant-grid",
-      "weight": 11
-    },
-    {
-      "source": "participant-grid",
-      "target": "presentation-slide-share",
-      "weight": 11
+      "weight": 13
     },
     {
       "source": "presentation-slide-share",
       "target": "video-call-screen",
-      "weight": 11
+      "weight": 13
+    },
+    {
+      "source": "data-visualization",
+      "target": "internet-browsing",
+      "weight": 13
+    },
+    {
+      "source": "chat-interface",
+      "target": "chat-panel-live",
+      "weight": 12
     },
     {
       "source": "chat-panel",
-      "target": "video-call-screen",
+      "target": "chat-panel-live",
+      "weight": 12
+    },
+    {
+      "source": "chat-panel",
+      "target": "participant-grid",
+      "weight": 12
+    },
+    {
+      "source": "chart-graph",
+      "target": "participant-grid",
+      "weight": 12
+    },
+    {
+      "source": "dashboard-analytics",
+      "target": "participant-grid",
+      "weight": 12
+    },
+    {
+      "source": "chart-graph",
+      "target": "dashboard-analytics",
+      "weight": 11
+    },
+    {
+      "source": "coding-dev",
+      "target": "git-repo",
+      "weight": 11
+    },
+    {
+      "source": "performance-monitor",
+      "target": "terminal-window",
+      "weight": 11
+    },
+    {
+      "source": "chat-interface",
+      "target": "internet-browsing",
+      "weight": 11
+    },
+    {
+      "source": "business-meeting",
+      "target": "chat-panel-live",
       "weight": 10
     },
     {
-      "source": "terminal-shell",
-      "target": "terminal-window",
+      "source": "chat-panel-live",
+      "target": "conference-call",
       "weight": 10
     },
     {
@@ -422,8 +475,28 @@
       "weight": 10
     },
     {
+      "source": "business-meeting",
+      "target": "lecture-slide",
+      "weight": 10
+    },
+    {
       "source": "dashboard-analytics",
       "target": "terminal-window",
+      "weight": 9
+    },
+    {
+      "source": "data-visualization",
+      "target": "terminal-window",
+      "weight": 9
+    },
+    {
+      "source": "git-repo",
+      "target": "terminal-window",
+      "weight": 9
+    },
+    {
+      "source": "chat-interface",
+      "target": "coding-dev",
       "weight": 9
     },
     {
@@ -432,24 +505,34 @@
       "weight": 9
     },
     {
-      "source": "chat-interface",
-      "target": "chat-panel-live",
+      "source": "coding-dev",
+      "target": "terminal-shell",
       "weight": 9
     },
     {
-      "source": "chat-panel",
-      "target": "chat-panel-live",
-      "weight": 9
-    },
-    {
-      "source": "chat-panel",
-      "target": "participant-grid",
+      "source": "performance-monitor",
+      "target": "terminal-shell",
       "weight": 9
     },
     {
       "source": "business-meeting",
       "target": "project-management",
       "weight": 9
+    },
+    {
+      "source": "conference-call",
+      "target": "lecture-slide",
+      "weight": 9
+    },
+    {
+      "source": "lecture-slide",
+      "target": "participant-grid",
+      "weight": 9
+    },
+    {
+      "source": "chart-graph",
+      "target": "terminal-window",
+      "weight": 8
     },
     {
       "source": "dashboard-analytics",
@@ -462,33 +545,28 @@
       "weight": 8
     },
     {
-      "source": "data-visualization",
-      "target": "terminal-window",
-      "weight": 8
-    },
-    {
-      "source": "performance-monitor",
-      "target": "terminal-window",
-      "weight": 8
-    },
-    {
-      "source": "chat-interface",
-      "target": "coding-dev",
-      "weight": 8
-    },
-    {
-      "source": "business-meeting",
-      "target": "chat-panel-live",
-      "weight": 8
-    },
-    {
-      "source": "chat-interface",
-      "target": "internet-browsing",
+      "source": "git-repo",
+      "target": "ide-screen",
       "weight": 8
     },
     {
       "source": "chat-panel-live",
-      "target": "conference-call",
+      "target": "participant-grid",
+      "weight": 8
+    },
+    {
+      "source": "chat-panel-live",
+      "target": "video-call-screen",
+      "weight": 8
+    },
+    {
+      "source": "chat-interface",
+      "target": "terminal-window",
+      "weight": 8
+    },
+    {
+      "source": "ide-screen",
+      "target": "terminal-shell",
       "weight": 8
     },
     {
@@ -502,28 +580,23 @@
       "weight": 8
     },
     {
+      "source": "lecture-slide",
+      "target": "presentation-slide-share",
+      "weight": 8
+    },
+    {
+      "source": "lecture-slide",
+      "target": "video-call-screen",
+      "weight": 8
+    },
+    {
       "source": "chart-graph",
       "target": "performance-monitor",
       "weight": 7
     },
     {
-      "source": "chart-graph",
-      "target": "terminal-window",
-      "weight": 7
-    },
-    {
-      "source": "coding-dev",
-      "target": "git-repo",
-      "weight": 7
-    },
-    {
       "source": "business-meeting",
       "target": "coding-dev",
-      "weight": 7
-    },
-    {
-      "source": "chat-panel",
-      "target": "internet-browsing",
       "weight": 7
     },
     {
@@ -534,6 +607,31 @@
     {
       "source": "git-repo",
       "target": "video-call-screen",
+      "weight": 7
+    },
+    {
+      "source": "business-meeting",
+      "target": "terminal-window",
+      "weight": 7
+    },
+    {
+      "source": "conference-call",
+      "target": "terminal-window",
+      "weight": 7
+    },
+    {
+      "source": "coding-dev",
+      "target": "debugging",
+      "weight": 7
+    },
+    {
+      "source": "debugging",
+      "target": "ide-screen",
+      "weight": 7
+    },
+    {
+      "source": "debugging",
+      "target": "terminal-window",
       "weight": 7
     },
     {
@@ -553,12 +651,7 @@
     },
     {
       "source": "chat-panel-live",
-      "target": "participant-grid",
-      "weight": 6
-    },
-    {
-      "source": "chat-panel-live",
-      "target": "video-call-screen",
+      "target": "internet-browsing",
       "weight": 6
     },
     {
@@ -572,28 +665,8 @@
       "weight": 6
     },
     {
-      "source": "business-meeting",
-      "target": "terminal-window",
-      "weight": 6
-    },
-    {
-      "source": "chat-interface",
-      "target": "terminal-window",
-      "weight": 6
-    },
-    {
-      "source": "conference-call",
-      "target": "terminal-window",
-      "weight": 6
-    },
-    {
       "source": "chart-graph",
       "target": "terminal-shell",
-      "weight": 6
-    },
-    {
-      "source": "coding-dev",
-      "target": "debugging",
       "weight": 6
     },
     {
@@ -603,21 +676,6 @@
     },
     {
       "source": "data-visualization",
-      "target": "terminal-shell",
-      "weight": 6
-    },
-    {
-      "source": "debugging",
-      "target": "ide-screen",
-      "weight": 6
-    },
-    {
-      "source": "debugging",
-      "target": "terminal-window",
-      "weight": 6
-    },
-    {
-      "source": "performance-monitor",
       "target": "terminal-shell",
       "weight": 6
     },
@@ -627,19 +685,14 @@
       "weight": 6
     },
     {
-      "source": "business-meeting",
-      "target": "lecture-slide",
+      "source": "chat-interface",
+      "target": "data-visualization",
       "weight": 6
     },
     {
-      "source": "conference-call",
-      "target": "lecture-slide",
-      "weight": 6
-    },
-    {
-      "source": "lecture-slide",
-      "target": "presentation-slide-share",
-      "weight": 6
+      "source": "coding-dev",
+      "target": "performance-monitor",
+      "weight": 5
     },
     {
       "source": "data-visualization",
@@ -648,12 +701,12 @@
     },
     {
       "source": "git-repo",
-      "target": "ide-screen",
+      "target": "performance-monitor",
       "weight": 5
     },
     {
-      "source": "git-repo",
-      "target": "terminal-window",
+      "source": "business-meeting",
+      "target": "office-work",
       "weight": 5
     },
     {
@@ -667,8 +720,28 @@
       "weight": 5
     },
     {
+      "source": "conference-call",
+      "target": "office-work",
+      "weight": 5
+    },
+    {
       "source": "internet-browsing",
       "target": "office-work",
+      "weight": 5
+    },
+    {
+      "source": "office-work",
+      "target": "video-call-screen",
+      "weight": 5
+    },
+    {
+      "source": "chart-graph",
+      "target": "presentation-slide-share",
+      "weight": 5
+    },
+    {
+      "source": "data-visualization",
+      "target": "presentation-slide-share",
       "weight": 5
     },
     {
@@ -682,13 +755,28 @@
       "weight": 5
     },
     {
+      "source": "chart-graph",
+      "target": "internet-browsing",
+      "weight": 5
+    },
+    {
       "source": "conference-call",
       "target": "ide-screen",
       "weight": 5
     },
     {
-      "source": "chat-interface",
-      "target": "data-visualization",
+      "source": "git-repo",
+      "target": "terminal-shell",
+      "weight": 5
+    },
+    {
+      "source": "participant-grid",
+      "target": "terminal-window",
+      "weight": 5
+    },
+    {
+      "source": "terminal-window",
+      "target": "video-call-screen",
       "weight": 5
     },
     {
@@ -697,18 +785,13 @@
       "weight": 5
     },
     {
+      "source": "chat-interface",
+      "target": "ide-screen",
+      "weight": 5
+    },
+    {
       "source": "dashboard-analytics",
       "target": "project-management",
-      "weight": 5
-    },
-    {
-      "source": "lecture-slide",
-      "target": "video-call-screen",
-      "weight": 5
-    },
-    {
-      "source": "lecture-slide",
-      "target": "participant-grid",
       "weight": 5
     },
     {
@@ -717,8 +800,8 @@
       "weight": 4
     },
     {
-      "source": "chat-panel-live",
-      "target": "internet-browsing",
+      "source": "ide-screen",
+      "target": "performance-monitor",
       "weight": 4
     },
     {
@@ -727,23 +810,8 @@
       "weight": 4
     },
     {
-      "source": "chart-graph",
-      "target": "presentation-slide-share",
-      "weight": 4
-    },
-    {
-      "source": "data-visualization",
-      "target": "presentation-slide-share",
-      "weight": 4
-    },
-    {
-      "source": "chart-graph",
-      "target": "internet-browsing",
-      "weight": 4
-    },
-    {
-      "source": "coding-dev",
-      "target": "terminal-shell",
+      "source": "debugging",
+      "target": "git-repo",
       "weight": 4
     },
     {
@@ -753,22 +821,12 @@
     },
     {
       "source": "ide-screen",
-      "target": "terminal-shell",
-      "weight": 4
-    },
-    {
-      "source": "ide-screen",
       "target": "video-call-screen",
       "weight": 4
     },
     {
-      "source": "participant-grid",
+      "source": "internet-browsing",
       "target": "terminal-window",
-      "weight": 4
-    },
-    {
-      "source": "terminal-window",
-      "target": "video-call-screen",
       "weight": 4
     },
     {
@@ -782,18 +840,63 @@
       "weight": 4
     },
     {
+      "source": "business-meeting",
+      "target": "data-analysis",
+      "weight": 4
+    },
+    {
+      "source": "chat-interface",
+      "target": "data-analysis",
+      "weight": 4
+    },
+    {
       "source": "chat-interface",
       "target": "debugging",
       "weight": 4
     },
     {
+      "source": "conference-call",
+      "target": "data-analysis",
+      "weight": 4
+    },
+    {
+      "source": "data-analysis",
+      "target": "video-call-screen",
+      "weight": 4
+    },
+    {
       "source": "chat-interface",
-      "target": "ide-screen",
+      "target": "terminal-shell",
       "weight": 4
     },
     {
       "source": "jira-dashboard",
       "target": "project-management",
+      "weight": 4
+    },
+    {
+      "source": "chat-panel",
+      "target": "social-media-feed",
+      "weight": 4
+    },
+    {
+      "source": "internet-browsing",
+      "target": "social-media-feed",
+      "weight": 4
+    },
+    {
+      "source": "business-meeting",
+      "target": "webinar",
+      "weight": 4
+    },
+    {
+      "source": "lecture-slide",
+      "target": "webinar",
+      "weight": 4
+    },
+    {
+      "source": "participant-grid",
+      "target": "webinar",
       "weight": 4
     },
     {
@@ -807,18 +910,28 @@
       "weight": 3
     },
     {
+      "source": "log-panel",
+      "target": "terminal-window",
+      "weight": 3
+    },
+    {
+      "source": "chat-interface",
+      "target": "office-work",
+      "weight": 3
+    },
+    {
+      "source": "chat-panel",
+      "target": "office-work",
+      "weight": 3
+    },
+    {
       "source": "coding-dev",
       "target": "internet-browsing",
       "weight": 3
     },
     {
-      "source": "conference-call",
-      "target": "office-work",
-      "weight": 3
-    },
-    {
       "source": "office-work",
-      "target": "video-call-screen",
+      "target": "participant-grid",
       "weight": 3
     },
     {
@@ -833,17 +946,27 @@
     },
     {
       "source": "debugging",
-      "target": "git-repo",
-      "weight": 3
-    },
-    {
-      "source": "debugging",
       "target": "terminal-shell",
       "weight": 3
     },
     {
-      "source": "internet-browsing",
-      "target": "terminal-window",
+      "source": "chart-graph",
+      "target": "chat-interface",
+      "weight": 3
+    },
+    {
+      "source": "chart-graph",
+      "target": "chat-panel",
+      "weight": 3
+    },
+    {
+      "source": "chat-panel",
+      "target": "data-visualization",
+      "weight": 3
+    },
+    {
+      "source": "chat-panel",
+      "target": "data-analysis",
       "weight": 3
     },
     {
@@ -862,11 +985,6 @@
       "weight": 3
     },
     {
-      "source": "chat-interface",
-      "target": "terminal-shell",
-      "weight": 3
-    },
-    {
       "source": "cockpit-dashboard",
       "target": "internet-browsing",
       "weight": 3
@@ -874,6 +992,31 @@
     {
       "source": "cockpit-dashboard",
       "target": "dashboard-analytics",
+      "weight": 3
+    },
+    {
+      "source": "activity-feed",
+      "target": "chat-panel",
+      "weight": 3
+    },
+    {
+      "source": "activity-feed",
+      "target": "internet-browsing",
+      "weight": 3
+    },
+    {
+      "source": "activity-feed",
+      "target": "social-media-feed",
+      "weight": 3
+    },
+    {
+      "source": "conference-call",
+      "target": "webinar",
+      "weight": 3
+    },
+    {
+      "source": "video-call-screen",
+      "target": "webinar",
       "weight": 3
     },
     {
@@ -902,11 +1045,6 @@
       "weight": 2
     },
     {
-      "source": "coding-dev",
-      "target": "performance-monitor",
-      "weight": 2
-    },
-    {
       "source": "dashboard-analytics",
       "target": "ide-screen",
       "weight": 2
@@ -922,28 +1060,8 @@
       "weight": 2
     },
     {
-      "source": "git-repo",
-      "target": "performance-monitor",
-      "weight": 2
-    },
-    {
       "source": "ide-screen",
       "target": "log-panel",
-      "weight": 2
-    },
-    {
-      "source": "ide-screen",
-      "target": "performance-monitor",
-      "weight": 2
-    },
-    {
-      "source": "log-panel",
-      "target": "terminal-window",
-      "weight": 2
-    },
-    {
-      "source": "business-meeting",
-      "target": "office-work",
       "weight": 2
     },
     {
@@ -959,6 +1077,21 @@
     {
       "source": "chat-panel-live",
       "target": "coding-dev",
+      "weight": 2
+    },
+    {
+      "source": "chat-panel-live",
+      "target": "office-work",
+      "weight": 2
+    },
+    {
+      "source": "chat-panel",
+      "target": "terminal-window",
+      "weight": 2
+    },
+    {
+      "source": "chat-panel-live",
+      "target": "terminal-window",
       "weight": 2
     },
     {
@@ -994,11 +1127,6 @@
     {
       "source": "debugging",
       "target": "video-call-screen",
-      "weight": 2
-    },
-    {
-      "source": "git-repo",
-      "target": "terminal-shell",
       "weight": 2
     },
     {
@@ -1047,43 +1175,8 @@
       "weight": 2
     },
     {
-      "source": "chart-graph",
-      "target": "chat-interface",
-      "weight": 2
-    },
-    {
-      "source": "chart-graph",
-      "target": "chat-panel",
-      "weight": 2
-    },
-    {
-      "source": "chat-panel",
-      "target": "data-visualization",
-      "weight": 2
-    },
-    {
-      "source": "business-meeting",
-      "target": "data-analysis",
-      "weight": 2
-    },
-    {
-      "source": "chat-interface",
-      "target": "data-analysis",
-      "weight": 2
-    },
-    {
-      "source": "conference-call",
-      "target": "data-analysis",
-      "weight": 2
-    },
-    {
       "source": "dashboard-analytics",
       "target": "data-analysis",
-      "weight": 2
-    },
-    {
-      "source": "data-analysis",
-      "target": "video-call-screen",
       "weight": 2
     },
     {
@@ -1137,6 +1230,16 @@
       "weight": 2
     },
     {
+      "source": "lecture-slide",
+      "target": "webinar-training",
+      "weight": 2
+    },
+    {
+      "source": "business-meeting",
+      "target": "meeting-room",
+      "weight": 2
+    },
+    {
       "source": "business-meeting",
       "target": "jira-dashboard",
       "weight": 2
@@ -1192,6 +1295,66 @@
       "weight": 2
     },
     {
+      "source": "data-visualization",
+      "target": "lecture-slide",
+      "weight": 2
+    },
+    {
+      "source": "business-meeting",
+      "target": "spreadsheet",
+      "weight": 2
+    },
+    {
+      "source": "chat-interface",
+      "target": "spreadsheet",
+      "weight": 2
+    },
+    {
+      "source": "chat-panel",
+      "target": "spreadsheet",
+      "weight": 2
+    },
+    {
+      "source": "conference-call",
+      "target": "spreadsheet",
+      "weight": 2
+    },
+    {
+      "source": "data-analysis",
+      "target": "office-work",
+      "weight": 2
+    },
+    {
+      "source": "data-analysis",
+      "target": "participant-grid",
+      "weight": 2
+    },
+    {
+      "source": "data-analysis",
+      "target": "spreadsheet",
+      "weight": 2
+    },
+    {
+      "source": "office-work",
+      "target": "spreadsheet",
+      "weight": 2
+    },
+    {
+      "source": "participant-grid",
+      "target": "spreadsheet",
+      "weight": 2
+    },
+    {
+      "source": "spreadsheet",
+      "target": "video-call-screen",
+      "weight": 2
+    },
+    {
+      "source": "presentation-slide-share",
+      "target": "webinar",
+      "weight": 2
+    },
+    {
       "source": "git-repo",
       "target": "log-panel",
       "weight": 1
@@ -1213,11 +1376,6 @@
     },
     {
       "source": "chat-interface",
-      "target": "office-work",
-      "weight": 1
-    },
-    {
-      "source": "chat-interface",
       "target": "search-engine",
       "weight": 1
     },
@@ -1228,22 +1386,12 @@
     },
     {
       "source": "chat-panel",
-      "target": "office-work",
-      "weight": 1
-    },
-    {
-      "source": "chat-panel",
       "target": "search-engine",
       "weight": 1
     },
     {
       "source": "chat-panel-live",
       "target": "git-repo",
-      "weight": 1
-    },
-    {
-      "source": "chat-panel-live",
-      "target": "office-work",
       "weight": 1
     },
     {
@@ -1283,11 +1431,6 @@
     },
     {
       "source": "office-work",
-      "target": "participant-grid",
-      "weight": 1
-    },
-    {
-      "source": "office-work",
       "target": "search-engine",
       "weight": 1
     },
@@ -1299,16 +1442,6 @@
     {
       "source": "search-engine",
       "target": "video-call-screen",
-      "weight": 1
-    },
-    {
-      "source": "chat-panel",
-      "target": "terminal-window",
-      "weight": 1
-    },
-    {
-      "source": "chat-panel-live",
-      "target": "terminal-window",
       "weight": 1
     },
     {
@@ -1498,11 +1631,6 @@
     },
     {
       "source": "chat-panel",
-      "target": "data-analysis",
-      "weight": 1
-    },
-    {
-      "source": "chat-panel",
       "target": "debugging",
       "weight": 1
     },
@@ -1574,126 +1702,6 @@
     {
       "source": "crm-dashboard",
       "target": "data-visualization",
-      "weight": 1
-    },
-    {
-      "source": "crm-dashboard",
-      "target": "video-call-screen",
-      "weight": 1
-    },
-    {
-      "source": "chart-graph",
-      "target": "office-work",
-      "weight": 1
-    },
-    {
-      "source": "data-visualization",
-      "target": "office-work",
-      "weight": 1
-    },
-    {
-      "source": "chart-graph",
-      "target": "kpi-metrics",
-      "weight": 1
-    },
-    {
-      "source": "activity-app",
-      "target": "client-list",
-      "weight": 1
-    },
-    {
-      "source": "bookshelf",
-      "target": "business-meeting",
-      "weight": 1
-    },
-    {
-      "source": "bookshelf",
-      "target": "cockpit-dashboard",
-      "weight": 1
-    },
-    {
-      "source": "bookshelf",
-      "target": "conference-call",
-      "weight": 1
-    },
-    {
-      "source": "bookshelf",
-      "target": "internet-browsing",
-      "weight": 1
-    },
-    {
-      "source": "bookshelf",
-      "target": "participant-grid",
-      "weight": 1
-    },
-    {
-      "source": "bookshelf",
-      "target": "video-call-screen",
-      "weight": 1
-    },
-    {
-      "source": "cockpit-dashboard",
-      "target": "video-call-screen",
-      "weight": 1
-    },
-    {
-      "source": "audit-trail",
-      "target": "cockpit-dashboard",
-      "weight": 1
-    },
-    {
-      "source": "audit-trail",
-      "target": "dashboard-analytics",
-      "weight": 1
-    },
-    {
-      "source": "audit-trail",
-      "target": "data-visualization",
-      "weight": 1
-    },
-    {
-      "source": "cockpit-dashboard",
-      "target": "data-visualization",
-      "weight": 1
-    },
-    {
-      "source": "chat-interface",
-      "target": "cockpit-dashboard",
-      "weight": 1
-    },
-    {
-      "source": "chat-panel",
-      "target": "cockpit-dashboard",
-      "weight": 1
-    },
-    {
-      "source": "chat-panel-live",
-      "target": "cockpit-dashboard",
-      "weight": 1
-    },
-    {
-      "source": "bug-report",
-      "target": "cockpit-dashboard",
-      "weight": 1
-    },
-    {
-      "source": "bug-report",
-      "target": "dashboard-analytics",
-      "weight": 1
-    },
-    {
-      "source": "dashboard-analytics",
-      "target": "jira-dashboard",
-      "weight": 1
-    },
-    {
-      "source": "jira-dashboard",
-      "target": "kpi-metrics",
-      "weight": 1
-    },
-    {
-      "source": "jira-dashboard",
-      "target": "ticket-dashboard",
       "weight": 1
     }
   ]
