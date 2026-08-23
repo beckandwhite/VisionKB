@@ -2,11 +2,11 @@
 """Lightweight screenshot-to-text pipeline.
 
 Per image it sends one vision request to Ollama and stores the raw response in
-annotation2.json:
+annotation_generic.json:
 
   reconcile folder -> _tracker.json
   for each unprocessed image:
-    Ollama vision (empty system prompt) -> annotation2.json
+    Ollama vision (empty system prompt) -> annotation_generic.json
 
 The legacy KB rebuild is disabled; this runner only writes generic image
 descriptions and tracker state.
@@ -44,7 +44,7 @@ IMAGE_EXTS = set(config_loader.CURRENT_CONFIG["supported_images"])
 MAX_DIM = config_loader.CURRENT_CONFIG["max_dim"]
 TEMP_DIR = config_loader.CURRENT_CONFIG["temp_dir"]
 
-ANNOT2_PATH = config_loader.CURRENT_CONFIG["env_dir"] / "annotation2.json"
+ANNOT2_PATH = config_loader.CURRENT_CONFIG["env_dir"] / "annotation_generic.json"
 
 LOCK_NAME = ".pipeline.lock"
 
@@ -622,7 +622,7 @@ def configure_globals(config):
     IMAGE_EXTS = set(config["supported_images"])
     MAX_DIM = config["max_dim"]
     TEMP_DIR = config["temp_dir"]
-    ANNOT2_PATH = config["env_dir"] / "annotation2.json"
+    ANNOT2_PATH = config["env_dir"] / "annotation_generic.json"
 
 
 def acquire_lock(path, wait):
@@ -669,7 +669,7 @@ def save_progress(config, files, count_limit, total, new_count, processed, error
 
 
 def load_simple_annotations():
-    """Load the path/filename/response records from annotation2.json."""
+    """Load the path/filename/response records from annotation_generic.json."""
     if not ANNOT2_PATH.exists():
         return []
     try:
