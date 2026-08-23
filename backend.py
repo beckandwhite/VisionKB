@@ -362,7 +362,7 @@ def load_recs():
     """Parse _annotations.jsonl into {tracker_key: record}, dedup by key."""
     by_key = {}
     if not ANNOT_PATH.exists():
-        eprint("ERROR: no _annotations.jsonl found. Run pipeline.py first.")
+        eprint("ERROR: no _annotations.jsonl found. Run backend.py first.")
         sys.exit(1)
     for line in open(ANNOT_PATH, encoding="utf-8"):
         line = line.strip()

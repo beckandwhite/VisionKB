@@ -13,7 +13,7 @@ into clustered topic pages + a timeline.
 ## What it does
 
 ```
-screenshots ──► pipeline.py ──► .workspace/<env>/_annotations.jsonl + wiki.db + exports
+screenshots ──► backend.py ──► .workspace/<env>/_annotations.jsonl + wiki.db + exports
  (images)       (classify → ingest → index, one image at a time)
 ```
 
@@ -62,7 +62,7 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
  ├── tracker.py             # shared tracker module (registry + telemetry + KB stamps)
  ├── config_loader.py       # environment configuration and artifact paths
  ├── frontend.py            # read-only WebUI over the tracker + exports
- ├── pipeline.py            # single entry point: reconcile → classify → ingest → exports
+ ├── backend.py            # single entry point: reconcile → classify → ingest → exports
  └── .workspace/<env>/      # config + isolated annotations/tracker/KB artifacts
 ```
 
@@ -70,14 +70,14 @@ Images themselves live in the configured source folder. Select an environment
 with `-env` (default `PRD-iCloud-Screenshots`):
 
 ```bash
-python3 pipeline.py -env QA
-python3 pipeline.py -env PRD-iCloud-Screenshots
+python3 backend.py -env QA
+python3 backend.py -env PRD-iCloud-Screenshots
 ```
 
 Images themselves commonly live in iCloud:
 `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`
 
-`pipeline.py` defaults to the active environment's `source_dir`; point it elsewhere with
+`backend.py` defaults to the active environment's `source_dir`; point it elsewhere with
 `--screenshot-dir` (see "How to use" below).
 
 The environment's `_tracker.json` is the **single source of truth for progress + telemetry**: it
@@ -93,16 +93,16 @@ progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gon
 
 ```bash
 # classify and ingest the next 5 unprocessed files in PRD-iCloud-Screenshots
-python3 pipeline.py --count 5
+python3 backend.py --count 5
 
 # use the environment's configured limit (QA=100)
-python3 pipeline.py -env QA
+python3 backend.py -env QA
 
 # scan a different folder with --screenshot-dir
-python3 pipeline.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/' --count 5
+python3 backend.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/' --count 5
 
 # classify all remaining unprocessed files (no limit)
-python3 pipeline.py                    # configured limit; --count 0 = all remaining
+python3 backend.py                    # configured limit; --count 0 = all remaining
 ```
 
 `.workspace/<env>/_tracker.json` is a **self-maintaining registry**, not a bare index. Each run:
@@ -143,15 +143,15 @@ after each image, so the read-only WebUI can be used during a long run.
 To repair or rebuild the KB from annotations without calling the vision model:
 
 ```bash
-python3 pipeline.py -env DEV --rebuild-kb --no-thumbs
-python3 pipeline.py -env DEV --rebuild-kb --force
+python3 backend.py -env DEV --rebuild-kb --no-thumbs
+python3 backend.py -env DEV --rebuild-kb --force
 ```
 
 Produces `.workspace/<env>/wiki.db`, `.workspace/<env>/wiki.ndjson`,
 and `.workspace/<env>/tags_index.json`; thumbnails are stored in
 `.workspace/<env>/thumbnails/`.
 
-`pipeline.py` is incremental: completed files are skipped on later runs. A
+`backend.py` is incremental: completed files are skipped on later runs. A
 second writer for the same environment exits cleanly while another run holds
 the environment lock; use `--wait` when waiting is preferred.
 
@@ -159,7 +159,7 @@ For a bounded nightly run, stop before starting another image at the next local
 06:00 deadline:
 
 ```bash
-python3 pipeline.py -env PRD-iCloud-Screenshots --until 06:00
+python3 backend.py -env PRD-iCloud-Screenshots --until 06:00
 ```
 
 For cron, use `run.sh` with an explicit environment. Example copy-paste entry:
@@ -192,7 +192,7 @@ PY
  A dependency-free single-page viewer over the pipeline artifacts (stdlib
  `http.server` + vanilla JS; no build). Read-only — it never writes or touches
  the pipeline scripts; every source file is re-read per request, so a live
-`pipeline.py` run shows up without a restart.
+`backend.py` run shows up without a restart.
 
  ```bash
 python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open               # http://127.0.0.1:8000
@@ -204,7 +204,7 @@ The WebUI defaults to `PRD-iCloud-Screenshots`. Use the same `-env` value as the
 UI and processor point at the same isolated workspace, for example:
 
 ```bash
-python3 pipeline.py -env PRD-iCloud-Screenshots --count 5
+python3 backend.py -env PRD-iCloud-Screenshots --count 5
 python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 ```
 
@@ -222,21 +222,21 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
   `tags_index.json`; clicking a tag filters the timeline.
 
  Thumbnails render live once `thumbnails/` is populated
-(`python3 pipeline.py` without `--no-thumbs`); until then rows show a
+(`python3 backend.py` without `--no-thumbs`); until then rows show a
  placeholder. See [WebUI-1.0-plan.md](WebUI-1.0-plan.md) for the design.
 
 ---
 
 ## Gotchas (read these first)
 
-- **`pipeline.py` defaults to the active environment's source folder**
+- **`backend.py` defaults to the active environment's source folder**
    (`~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`); pass
    `--screenshot-dir` to scan elsewhere. Outputs (`_tracker.json`,
    `_annotations.jsonl`) are written next to the script, not into
    the scanned folder. The existing `_annotations.jsonl` is real history (5 records);
    its old flat-index `_tracker.json` is auto-migrated — the registry is rebuilt from
    the folder + those annotations on the first run.
-- **Environment selection matters.** Use `-env` consistently for `pipeline.py`
+- **Environment selection matters.** Use `-env` consistently for `backend.py`
   and `frontend.py`; all annotations, tracker state, database, exports, and
   thumbnails are isolated under `.workspace/<env>/`.
 - **Cost: ~90 s/image with muse-glimmer:30b.** Ollama is effectively single-stream,
@@ -254,8 +254,8 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 |---|---|
 | `_annotations.jsonl` | one JSON record per image (append, never rewritten) |
 | `_tracker.json` | per-file registry (filename + `mtime_iso` + `processed_at`) and run summary — the progress ledger |
-| `tracker.py` | shared tracker module used by `pipeline.py` and `frontend.py` |
-| `config_loader.py` | per-environment config + artifact paths (used by `pipeline.py` + `frontend.py`) |
+| `tracker.py` | shared tracker module used by `backend.py` and `frontend.py` |
+| `config_loader.py` | per-environment config + artifact paths (used by `backend.py` + `frontend.py`) |
 | `telemetry.log` | (retired) telemetry now lives in `_tracker.json` |
 | `.workspace/<env>/wiki.db` | Environment-specific SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
 | `.workspace/<env>/wiki.ndjson` | flat dump of all records |

@@ -3,7 +3,7 @@
 # reset.sh — clear generated pipeline artifacts so the project can be rebuilt
 # from scratch. Only the cheap, fast-to-rebuild KB layer is removed.
 #
-# After a reset, rebuild the KB layer with:   python3 pipeline.py --rebuild-kb
+# After a reset, rebuild the KB layer with:   python3 backend.py --rebuild-kb
 #
 # Usage:
 #    ./reset.sh                  reset DEV
@@ -49,7 +49,7 @@ Environments:
     PRD-OneDrive-Pictures
 
 The reset clears generated KB artifacts in .workspace/ENV. Raw classifier
-output is kept. Use python3 pipeline.py -env ENV --rebuild-kb to rebuild.
+output is kept. Use python3 backend.py -env ENV --rebuild-kb to rebuild.
 EOF
             exit 0
             ;;
@@ -74,7 +74,7 @@ esac
 ENV_DIR=".workspace/$ENV_NAME"
 
 # ------------------------------------------------------------------ targets
-# Always-on (cheap / regenerable in seconds via pipeline.py):
+# Always-on (cheap / regenerable in seconds via backend.py):
 ALWAYS=""
 [ -e "$ENV_DIR/wiki.db" ]       && ALWAYS="$ALWAYS $ENV_DIR/wiki.db"
 [ -e "$ENV_DIR/wiki.ndjson" ]   && ALWAYS="$ALWAYS $ENV_DIR/wiki.ndjson"
@@ -85,10 +85,10 @@ ALWAYS=""
 
 # ------------------------------------------------------------------ safety net
 # A reset only makes sense if we really are in the project root.
-if [ ! -f "pipeline.py" ]; then
+if [ ! -f "backend.py" ]; then
     printf '%s: refusing to run — not in the project root (%s).\n' \
         "$(basename "$0")" "$PWD" >&2
-    printf '       expected to find pipeline.py here.\n' >&2
+    printf '       expected to find backend.py here.\n' >&2
     exit 1
 fi
 
@@ -106,7 +106,7 @@ printf 'Project root: %s\n\n' "$SCRIPT_DIR"
 printf 'Environment: %s\n\n' "$ENV_NAME"
 
 if [ -n "$ALWAYS" ]; then
-    printf 'KB layer (rebuilt with: python3 pipeline.py --rebuild-kb):\n'
+    printf 'KB layer (rebuilt with: python3 backend.py --rebuild-kb):\n'
     for item in $ALWAYS; do printf '  [KB ]  %s\n' "$item"; done
 else
     printf 'KB layer: (nothing present)\n'
@@ -131,4 +131,4 @@ for item in $ALWAYS; do
 done
 
 printf '\nDone. Removed %s path(s).\n' "$deleted"
-printf 'Rebuild the KB layer:  python3 pipeline.py -env %s --rebuild-kb\n' "$ENV_NAME"
+printf 'Rebuild the KB layer:  python3 backend.py -env %s --rebuild-kb\n' "$ENV_NAME"

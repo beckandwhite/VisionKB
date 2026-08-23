@@ -24,7 +24,7 @@ have an LLM write one wiki entry per topic, plus per-day digests.
 ---
 
 ## 1. Cost reality (read this first)
-- `classify_images.py` runs ~**90 s/image** with the 30B vision model.
+ - `backend.py` runs ~**90 s/image** with the 30B vision model.
   2028 images ⇒ **~50 hours**. Not viable as-is.
 - Ollama is effectively **single-stream**; Python "concurrency" does **not** speed up
   vision (requests just queue). Real levers:
@@ -57,22 +57,22 @@ have an LLM write one wiki entry per topic, plus per-day digests.
 - **Verify:** print cluster sizes + top tags per cluster.
 
 ### Stage 3 — Vision extract per image (the expensive atom, resumable)
-Use existing `classify_images.py` logic, but:
+ Use existing `backend.py` logic, but:
 - Run over **uniques only**, in **mtime order**.
 - Vision prompt → `{caption, OCR_text[], entities[], tags[], quality 1–5}`.
 - Keep `embedding_vector` (768-dim, nomic).
 - Keep checkpointing `_tracker.json`. Per-file telemetry now lives alongside
    in the shared `tracker.py` module: each entry gains `started_at`, `finished_at`,
    `vision_latency_s`, `status` (`ok`/`fail`/`error`), `error`, plus `ingested_at`
-   and `thumb_at` from `build_kb.py`. The old `telemetry.log` is retired.
-   `build_kb.py` is incremental: it re-ingests only new/changed records (mtime newer
+    and `thumb_at` from `backend.py`. The old `telemetry.log` is retired.
+     `backend.py` is incremental: it re-ingests only new/changed records (mtime newer
    than `ingested_at`) and adopts thumbnails already on disk without re-running `sips`
 - Optionally: run cheap **pre-screen** (Stage-2 embedding + a fast model) and only
   invoke the 30B model on cluster *representatives*; other images get the cheaper model.
 - Output: `_annotations.jsonl` (append, deterministic mtime order → safe re-run).
 - **Verify:** `--count 30` smoke run; confirm valid JSON + non-empty tags; watch latency.
 
-### Stage 4 — Ingest into SQLite (`build_kb.py`, called by `pipeline.py`)
+ ### Stage 4 — Ingest into SQLite (folded into `backend.py`, runs per image)
 Existing design is good (SQLite FTS5 + embedding blob + tag co-occurrence +
 monthly histogram). Keep its output paths environment-specific:
 - Replace mixed `cur` / `conn` usage with a **single cursor** consistently.
@@ -82,7 +82,7 @@ monthly histogram). Keep its output paths environment-specific:
   - `clusters (id, label, size, embedding_blob)`
   - `wiki_pages (id, slug, title, markdown, source_sids[], created_at)`
   - `timeline_digests (date_key, markdown, sids[])`
-- **Verify:** `python3 pipeline.py --rebuild-kb --no-thumbs` builds
+ - **Verify:** `python3 backend.py --rebuild-kb --no-thumbs` builds
   `.workspace/<env>/wiki.db` + `.workspace/<env>/wiki.ndjson` +
   `.workspace/<env>/tags_index.json` with no error.
 
@@ -137,7 +137,7 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 ---
 
 ## 5. Suggested execution order / checkpoints
-1. Validate `build_kb.py` against the existing 5 annotations (fast, validates schema).
+ 1. Validate `backend.py` against the existing 5 annotations (fast, validates schema).
 2. Write Stage 1 (dedup) → get true unique count; **report it** before any vision run.
 3. Stage 2 embeddings+clusters on uniques → sanity-check cluster sizes.
 4. Stage 3 vision extract via `--count` ramp: 30 → 100 → full, monitoring

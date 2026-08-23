@@ -45,7 +45,7 @@ This update introduces a multi-environment configuration system and a managed wo
 ## Workflow
 To switch environments, pass the environment as a command-line parameter:
 ```bash
-python3 pipeline.py -env DEV
+python3 backend.py -env DEV
 ```
 
 If executed without specifying an environment, it'll list all the possible environments and then defaults to `PRD-iCloud-Screenshots`. The configuration loader will automatically load the appropriate settings based on the current environment.

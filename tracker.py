@@ -10,7 +10,7 @@ is the authoritative record of:
     * KB-layer progress (ingested_at / thumb_at / thumb_status).
 
 Producer that mutates the registry:
-    pipeline.py        -- reconcile, analysis lifecycle, KB and thumbnail stamps
+     backend.py          -- reconcile, analysis lifecycle, KB and thumbnail stamps
 
 Consumers:
   frontend.py         -- load_registry + telemetry_from_tracker
@@ -193,7 +193,7 @@ def mark_backfilled(files, key, quality_score=None, when=None):
 
 
 def mark_ingested(files, key, when=None):
-    """Stamp that pipeline.py finished ingesting this row into the DB."""
+    """Stamp that backend.py finished ingesting this row into the DB."""
     entry = files.setdefault(key, {})
     entry["ingested_at"] = when or _now_iso()
     return entry
