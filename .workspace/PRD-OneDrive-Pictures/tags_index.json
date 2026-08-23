@@ -1,0 +1,1700 @@
+{
+  "total_screenshots": 149,
+  "unique_tags": 48,
+  "top_tags": [
+    {
+      "tag": "indoor",
+      "count": 74
+    },
+    {
+      "tag": "adult",
+      "count": 68
+    },
+    {
+      "tag": "outdoor",
+      "count": 62
+    },
+    {
+      "tag": "outdoors",
+      "count": 47
+    },
+    {
+      "tag": "nature",
+      "count": 42
+    },
+    {
+      "tag": "wide-shot",
+      "count": 42
+    },
+    {
+      "tag": "candid",
+      "count": 39
+    },
+    {
+      "tag": "candid-photo",
+      "count": 30
+    },
+    {
+      "tag": "park",
+      "count": 27
+    },
+    {
+      "tag": "sports",
+      "count": 26
+    },
+    {
+      "tag": "landscape",
+      "count": 25
+    },
+    {
+      "tag": "child",
+      "count": 19
+    },
+    {
+      "tag": "close-up",
+      "count": 19
+    },
+    {
+      "tag": "vehicle",
+      "count": 17
+    },
+    {
+      "tag": "car",
+      "count": 16
+    },
+    {
+      "tag": "family",
+      "count": 14
+    },
+    {
+      "tag": "playground",
+      "count": 14
+    },
+    {
+      "tag": "dining",
+      "count": 13
+    },
+    {
+      "tag": "home",
+      "count": 13
+    },
+    {
+      "tag": "parent",
+      "count": 12
+    },
+    {
+      "tag": "smartphone",
+      "count": 12
+    },
+    {
+      "tag": "garden",
+      "count": 9
+    },
+    {
+      "tag": "landmark",
+      "count": 8
+    },
+    {
+      "tag": "teenager",
+      "count": 8
+    },
+    {
+      "tag": "artwork",
+      "count": 7
+    },
+    {
+      "tag": "meal",
+      "count": 7
+    },
+    {
+      "tag": "photo",
+      "count": 6
+    },
+    {
+      "tag": "portrait",
+      "count": 6
+    },
+    {
+      "tag": "travel",
+      "count": 5
+    },
+    {
+      "tag": "selfie",
+      "count": 4
+    },
+    {
+      "tag": "children",
+      "count": 3
+    },
+    {
+      "tag": "flowers",
+      "count": 3
+    },
+    {
+      "tag": "mountain",
+      "count": 3
+    },
+    {
+      "tag": "posed",
+      "count": 3
+    },
+    {
+      "tag": "couple",
+      "count": 2
+    },
+    {
+      "tag": "cycling",
+      "count": 2
+    },
+    {
+      "tag": "group-photo",
+      "count": 2
+    },
+    {
+      "tag": "senior",
+      "count": 2
+    },
+    {
+      "tag": "album",
+      "count": 1
+    },
+    {
+      "tag": "anniversary",
+      "count": 1
+    },
+    {
+      "tag": "birthday",
+      "count": 1
+    },
+    {
+      "tag": "celebration",
+      "count": 1
+    },
+    {
+      "tag": "holiday",
+      "count": 1
+    },
+    {
+      "tag": "kitchen",
+      "count": 1
+    },
+    {
+      "tag": "living-room",
+      "count": 1
+    },
+    {
+      "tag": "music",
+      "count": 1
+    },
+    {
+      "tag": "school",
+      "count": 1
+    },
+    {
+      "tag": "soccer",
+      "count": 1
+    }
+  ],
+  "edges": [
+    {
+      "source": "outdoor",
+      "target": "outdoors",
+      "weight": 42
+    },
+    {
+      "source": "adult",
+      "target": "candid",
+      "weight": 39
+    },
+    {
+      "source": "adult",
+      "target": "outdoor",
+      "weight": 39
+    },
+    {
+      "source": "nature",
+      "target": "outdoor",
+      "weight": 39
+    },
+    {
+      "source": "nature",
+      "target": "outdoors",
+      "weight": 35
+    },
+    {
+      "source": "adult",
+      "target": "outdoors",
+      "weight": 30
+    },
+    {
+      "source": "adult",
+      "target": "candid-photo",
+      "weight": 29
+    },
+    {
+      "source": "nature",
+      "target": "park",
+      "weight": 27
+    },
+    {
+      "source": "outdoor",
+      "target": "park",
+      "weight": 25
+    },
+    {
+      "source": "adult",
+      "target": "indoor",
+      "weight": 25
+    },
+    {
+      "source": "adult",
+      "target": "nature",
+      "weight": 24
+    },
+    {
+      "source": "adult",
+      "target": "sports",
+      "weight": 24
+    },
+    {
+      "source": "outdoors",
+      "target": "park",
+      "weight": 24
+    },
+    {
+      "source": "candid",
+      "target": "outdoors",
+      "weight": 23
+    },
+    {
+      "source": "outdoor",
+      "target": "sports",
+      "weight": 23
+    },
+    {
+      "source": "outdoor",
+      "target": "wide-shot",
+      "weight": 23
+    },
+    {
+      "source": "landscape",
+      "target": "outdoor",
+      "weight": 23
+    },
+    {
+      "source": "adult",
+      "target": "park",
+      "weight": 22
+    },
+    {
+      "source": "candid",
+      "target": "outdoor",
+      "weight": 22
+    },
+    {
+      "source": "outdoors",
+      "target": "sports",
+      "weight": 22
+    },
+    {
+      "source": "candid",
+      "target": "candid-photo",
+      "weight": 22
+    },
+    {
+      "source": "nature",
+      "target": "sports",
+      "weight": 21
+    },
+    {
+      "source": "park",
+      "target": "sports",
+      "weight": 21
+    },
+    {
+      "source": "landscape",
+      "target": "outdoors",
+      "weight": 21
+    },
+    {
+      "source": "candid-photo",
+      "target": "outdoors",
+      "weight": 20
+    },
+    {
+      "source": "candid",
+      "target": "nature",
+      "weight": 19
+    },
+    {
+      "source": "candid",
+      "target": "park",
+      "weight": 19
+    },
+    {
+      "source": "candid",
+      "target": "sports",
+      "weight": 19
+    },
+    {
+      "source": "candid-photo",
+      "target": "outdoor",
+      "weight": 19
+    },
+    {
+      "source": "outdoors",
+      "target": "wide-shot",
+      "weight": 19
+    },
+    {
+      "source": "adult",
+      "target": "child",
+      "weight": 18
+    },
+    {
+      "source": "candid-photo",
+      "target": "nature",
+      "weight": 18
+    },
+    {
+      "source": "candid-photo",
+      "target": "park",
+      "weight": 18
+    },
+    {
+      "source": "indoor",
+      "target": "wide-shot",
+      "weight": 18
+    },
+    {
+      "source": "landscape",
+      "target": "wide-shot",
+      "weight": 18
+    },
+    {
+      "source": "child",
+      "target": "outdoor",
+      "weight": 17
+    },
+    {
+      "source": "candid-photo",
+      "target": "sports",
+      "weight": 17
+    },
+    {
+      "source": "adult",
+      "target": "wide-shot",
+      "weight": 17
+    },
+    {
+      "source": "child",
+      "target": "nature",
+      "weight": 16
+    },
+    {
+      "source": "child",
+      "target": "park",
+      "weight": 16
+    },
+    {
+      "source": "child",
+      "target": "sports",
+      "weight": 16
+    },
+    {
+      "source": "landscape",
+      "target": "nature",
+      "weight": 16
+    },
+    {
+      "source": "close-up",
+      "target": "indoor",
+      "weight": 16
+    },
+    {
+      "source": "candid",
+      "target": "child",
+      "weight": 15
+    },
+    {
+      "source": "child",
+      "target": "outdoors",
+      "weight": 15
+    },
+    {
+      "source": "candid",
+      "target": "indoor",
+      "weight": 15
+    },
+    {
+      "source": "car",
+      "target": "vehicle",
+      "weight": 15
+    },
+    {
+      "source": "adult",
+      "target": "family",
+      "weight": 14
+    },
+    {
+      "source": "child",
+      "target": "family",
+      "weight": 13
+    },
+    {
+      "source": "family",
+      "target": "outdoor",
+      "weight": 13
+    },
+    {
+      "source": "nature",
+      "target": "playground",
+      "weight": 13
+    },
+    {
+      "source": "outdoor",
+      "target": "playground",
+      "weight": 13
+    },
+    {
+      "source": "park",
+      "target": "playground",
+      "weight": 13
+    },
+    {
+      "source": "candid-photo",
+      "target": "child",
+      "weight": 13
+    },
+    {
+      "source": "nature",
+      "target": "wide-shot",
+      "weight": 13
+    },
+    {
+      "source": "car",
+      "target": "outdoor",
+      "weight": 13
+    },
+    {
+      "source": "outdoor",
+      "target": "vehicle",
+      "weight": 13
+    },
+    {
+      "source": "adult",
+      "target": "playground",
+      "weight": 12
+    },
+    {
+      "source": "family",
+      "target": "nature",
+      "weight": 12
+    },
+    {
+      "source": "family",
+      "target": "park",
+      "weight": 12
+    },
+    {
+      "source": "family",
+      "target": "sports",
+      "weight": 12
+    },
+    {
+      "source": "adult",
+      "target": "parent",
+      "weight": 12
+    },
+    {
+      "source": "family",
+      "target": "outdoors",
+      "weight": 11
+    },
+    {
+      "source": "playground",
+      "target": "sports",
+      "weight": 11
+    },
+    {
+      "source": "child",
+      "target": "parent",
+      "weight": 11
+    },
+    {
+      "source": "outdoor",
+      "target": "parent",
+      "weight": 11
+    },
+    {
+      "source": "dining",
+      "target": "indoor",
+      "weight": 11
+    },
+    {
+      "source": "car",
+      "target": "wide-shot",
+      "weight": 11
+    },
+    {
+      "source": "landscape",
+      "target": "vehicle",
+      "weight": 11
+    },
+    {
+      "source": "outdoors",
+      "target": "vehicle",
+      "weight": 11
+    },
+    {
+      "source": "candid",
+      "target": "family",
+      "weight": 10
+    },
+    {
+      "source": "outdoors",
+      "target": "playground",
+      "weight": 10
+    },
+    {
+      "source": "nature",
+      "target": "parent",
+      "weight": 10
+    },
+    {
+      "source": "parent",
+      "target": "park",
+      "weight": 10
+    },
+    {
+      "source": "parent",
+      "target": "sports",
+      "weight": 10
+    },
+    {
+      "source": "family",
+      "target": "parent",
+      "weight": 10
+    },
+    {
+      "source": "adult",
+      "target": "landscape",
+      "weight": 10
+    },
+    {
+      "source": "car",
+      "target": "landscape",
+      "weight": 10
+    },
+    {
+      "source": "car",
+      "target": "outdoors",
+      "weight": 10
+    },
+    {
+      "source": "vehicle",
+      "target": "wide-shot",
+      "weight": 10
+    },
+    {
+      "source": "home",
+      "target": "indoor",
+      "weight": 9
+    },
+    {
+      "source": "candid-photo",
+      "target": "playground",
+      "weight": 9
+    },
+    {
+      "source": "candid",
+      "target": "parent",
+      "weight": 9
+    },
+    {
+      "source": "outdoors",
+      "target": "parent",
+      "weight": 9
+    },
+    {
+      "source": "candid-photo",
+      "target": "family",
+      "weight": 9
+    },
+    {
+      "source": "adult",
+      "target": "car",
+      "weight": 9
+    },
+    {
+      "source": "garden",
+      "target": "outdoor",
+      "weight": 9
+    },
+    {
+      "source": "candid",
+      "target": "playground",
+      "weight": 8
+    },
+    {
+      "source": "child",
+      "target": "playground",
+      "weight": 8
+    },
+    {
+      "source": "family",
+      "target": "playground",
+      "weight": 8
+    },
+    {
+      "source": "candid-photo",
+      "target": "parent",
+      "weight": 8
+    },
+    {
+      "source": "adult",
+      "target": "teenager",
+      "weight": 8
+    },
+    {
+      "source": "nature",
+      "target": "teenager",
+      "weight": 8
+    },
+    {
+      "source": "park",
+      "target": "teenager",
+      "weight": 8
+    },
+    {
+      "source": "sports",
+      "target": "teenager",
+      "weight": 8
+    },
+    {
+      "source": "adult",
+      "target": "vehicle",
+      "weight": 8
+    },
+    {
+      "source": "candid-photo",
+      "target": "indoor",
+      "weight": 8
+    },
+    {
+      "source": "candid-photo",
+      "target": "teenager",
+      "weight": 7
+    },
+    {
+      "source": "outdoor",
+      "target": "teenager",
+      "weight": 7
+    },
+    {
+      "source": "outdoors",
+      "target": "teenager",
+      "weight": 7
+    },
+    {
+      "source": "candid",
+      "target": "wide-shot",
+      "weight": 7
+    },
+    {
+      "source": "landmark",
+      "target": "outdoors",
+      "weight": 7
+    },
+    {
+      "source": "landmark",
+      "target": "outdoor",
+      "weight": 7
+    },
+    {
+      "source": "garden",
+      "target": "outdoors",
+      "weight": 7
+    },
+    {
+      "source": "garden",
+      "target": "nature",
+      "weight": 7
+    },
+    {
+      "source": "parent",
+      "target": "playground",
+      "weight": 6
+    },
+    {
+      "source": "candid",
+      "target": "teenager",
+      "weight": 6
+    },
+    {
+      "source": "indoor",
+      "target": "meal",
+      "weight": 6
+    },
+    {
+      "source": "adult",
+      "target": "landmark",
+      "weight": 6
+    },
+    {
+      "source": "landmark",
+      "target": "landscape",
+      "weight": 6
+    },
+    {
+      "source": "landmark",
+      "target": "wide-shot",
+      "weight": 6
+    },
+    {
+      "source": "dining",
+      "target": "wide-shot",
+      "weight": 6
+    },
+    {
+      "source": "candid-photo",
+      "target": "wide-shot",
+      "weight": 5
+    },
+    {
+      "source": "adult",
+      "target": "portrait",
+      "weight": 5
+    },
+    {
+      "source": "photo",
+      "target": "portrait",
+      "weight": 5
+    },
+    {
+      "source": "adult",
+      "target": "close-up",
+      "weight": 5
+    },
+    {
+      "source": "dining",
+      "target": "meal",
+      "weight": 5
+    },
+    {
+      "source": "car",
+      "target": "landmark",
+      "weight": 5
+    },
+    {
+      "source": "landmark",
+      "target": "vehicle",
+      "weight": 5
+    },
+    {
+      "source": "smartphone",
+      "target": "vehicle",
+      "weight": 5
+    },
+    {
+      "source": "nature",
+      "target": "vehicle",
+      "weight": 5
+    },
+    {
+      "source": "garden",
+      "target": "landscape",
+      "weight": 5
+    },
+    {
+      "source": "park",
+      "target": "wide-shot",
+      "weight": 4
+    },
+    {
+      "source": "sports",
+      "target": "wide-shot",
+      "weight": 4
+    },
+    {
+      "source": "playground",
+      "target": "teenager",
+      "weight": 4
+    },
+    {
+      "source": "adult",
+      "target": "photo",
+      "weight": 4
+    },
+    {
+      "source": "close-up",
+      "target": "dining",
+      "weight": 4
+    },
+    {
+      "source": "close-up",
+      "target": "meal",
+      "weight": 4
+    },
+    {
+      "source": "car",
+      "target": "smartphone",
+      "weight": 4
+    },
+    {
+      "source": "garden",
+      "target": "wide-shot",
+      "weight": 4
+    },
+    {
+      "source": "adult",
+      "target": "selfie",
+      "weight": 4
+    },
+    {
+      "source": "car",
+      "target": "nature",
+      "weight": 4
+    },
+    {
+      "source": "home",
+      "target": "nature",
+      "weight": 4
+    },
+    {
+      "source": "home",
+      "target": "outdoor",
+      "weight": 4
+    },
+    {
+      "source": "home",
+      "target": "outdoors",
+      "weight": 4
+    },
+    {
+      "source": "garden",
+      "target": "park",
+      "weight": 4
+    },
+    {
+      "source": "landscape",
+      "target": "park",
+      "weight": 4
+    },
+    {
+      "source": "artwork",
+      "target": "indoor",
+      "weight": 4
+    },
+    {
+      "source": "home",
+      "target": "smartphone",
+      "weight": 3
+    },
+    {
+      "source": "indoor",
+      "target": "smartphone",
+      "weight": 3
+    },
+    {
+      "source": "adult",
+      "target": "children",
+      "weight": 3
+    },
+    {
+      "source": "candid",
+      "target": "children",
+      "weight": 3
+    },
+    {
+      "source": "candid-photo",
+      "target": "children",
+      "weight": 3
+    },
+    {
+      "source": "child",
+      "target": "children",
+      "weight": 3
+    },
+    {
+      "source": "children",
+      "target": "nature",
+      "weight": 3
+    },
+    {
+      "source": "children",
+      "target": "outdoor",
+      "weight": 3
+    },
+    {
+      "source": "children",
+      "target": "outdoors",
+      "weight": 3
+    },
+    {
+      "source": "children",
+      "target": "park",
+      "weight": 3
+    },
+    {
+      "source": "children",
+      "target": "sports",
+      "weight": 3
+    },
+    {
+      "source": "child",
+      "target": "teenager",
+      "weight": 3
+    },
+    {
+      "source": "child",
+      "target": "photo",
+      "weight": 3
+    },
+    {
+      "source": "child",
+      "target": "portrait",
+      "weight": 3
+    },
+    {
+      "source": "outdoor",
+      "target": "portrait",
+      "weight": 3
+    },
+    {
+      "source": "adult",
+      "target": "dining",
+      "weight": 3
+    },
+    {
+      "source": "outdoor",
+      "target": "smartphone",
+      "weight": 3
+    },
+    {
+      "source": "candid",
+      "target": "landmark",
+      "weight": 3
+    },
+    {
+      "source": "outdoor",
+      "target": "selfie",
+      "weight": 3
+    },
+    {
+      "source": "flowers",
+      "target": "outdoor",
+      "weight": 3
+    },
+    {
+      "source": "landscape",
+      "target": "mountain",
+      "weight": 3
+    },
+    {
+      "source": "mountain",
+      "target": "outdoor",
+      "weight": 3
+    },
+    {
+      "source": "outdoor",
+      "target": "travel",
+      "weight": 3
+    },
+    {
+      "source": "garden",
+      "target": "home",
+      "weight": 3
+    },
+    {
+      "source": "home",
+      "target": "landscape",
+      "weight": 3
+    },
+    {
+      "source": "adult",
+      "target": "posed",
+      "weight": 3
+    },
+    {
+      "source": "indoor",
+      "target": "photo",
+      "weight": 2
+    },
+    {
+      "source": "children",
+      "target": "parent",
+      "weight": 2
+    },
+    {
+      "source": "child",
+      "target": "wide-shot",
+      "weight": 2
+    },
+    {
+      "source": "parent",
+      "target": "teenager",
+      "weight": 2
+    },
+    {
+      "source": "family",
+      "target": "teenager",
+      "weight": 2
+    },
+    {
+      "source": "playground",
+      "target": "wide-shot",
+      "weight": 2
+    },
+    {
+      "source": "family",
+      "target": "photo",
+      "weight": 2
+    },
+    {
+      "source": "family",
+      "target": "portrait",
+      "weight": 2
+    },
+    {
+      "source": "outdoor",
+      "target": "photo",
+      "weight": 2
+    },
+    {
+      "source": "parent",
+      "target": "photo",
+      "weight": 2
+    },
+    {
+      "source": "parent",
+      "target": "portrait",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "close-up",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "dining",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "couple",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "smartphone",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "car",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "couple",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "landscape",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "vehicle",
+      "weight": 2
+    },
+    {
+      "source": "candid-photo",
+      "target": "couple",
+      "weight": 2
+    },
+    {
+      "source": "candid-photo",
+      "target": "landmark",
+      "weight": 2
+    },
+    {
+      "source": "candid-photo",
+      "target": "smartphone",
+      "weight": 2
+    },
+    {
+      "source": "couple",
+      "target": "landmark",
+      "weight": 2
+    },
+    {
+      "source": "couple",
+      "target": "outdoor",
+      "weight": 2
+    },
+    {
+      "source": "couple",
+      "target": "outdoors",
+      "weight": 2
+    },
+    {
+      "source": "couple",
+      "target": "wide-shot",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "senior",
+      "weight": 2
+    },
+    {
+      "source": "outdoor",
+      "target": "senior",
+      "weight": 2
+    },
+    {
+      "source": "senior",
+      "target": "sports",
+      "weight": 2
+    },
+    {
+      "source": "car",
+      "target": "sports",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "garden",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "group-photo",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "group-photo",
+      "weight": 2
+    },
+    {
+      "source": "candid-photo",
+      "target": "group-photo",
+      "weight": 2
+    },
+    {
+      "source": "smartphone",
+      "target": "travel",
+      "weight": 2
+    },
+    {
+      "source": "travel",
+      "target": "vehicle",
+      "weight": 2
+    },
+    {
+      "source": "cycling",
+      "target": "outdoor",
+      "weight": 2
+    },
+    {
+      "source": "dining",
+      "target": "outdoor",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "mountain",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "travel",
+      "weight": 2
+    },
+    {
+      "source": "landscape",
+      "target": "travel",
+      "weight": 2
+    },
+    {
+      "source": "mountain",
+      "target": "travel",
+      "weight": 2
+    },
+    {
+      "source": "mountain",
+      "target": "wide-shot",
+      "weight": 2
+    },
+    {
+      "source": "travel",
+      "target": "wide-shot",
+      "weight": 2
+    },
+    {
+      "source": "mountain",
+      "target": "outdoors",
+      "weight": 2
+    },
+    {
+      "source": "close-up",
+      "target": "outdoor",
+      "weight": 2
+    },
+    {
+      "source": "home",
+      "target": "wide-shot",
+      "weight": 2
+    },
+    {
+      "source": "flowers",
+      "target": "garden",
+      "weight": 2
+    },
+    {
+      "source": "flowers",
+      "target": "home",
+      "weight": 2
+    },
+    {
+      "source": "flowers",
+      "target": "landscape",
+      "weight": 2
+    },
+    {
+      "source": "flowers",
+      "target": "nature",
+      "weight": 2
+    },
+    {
+      "source": "flowers",
+      "target": "outdoors",
+      "weight": 2
+    },
+    {
+      "source": "candid",
+      "target": "selfie",
+      "weight": 2
+    },
+    {
+      "source": "candid-photo",
+      "target": "portrait",
+      "weight": 2
+    },
+    {
+      "source": "candid-photo",
+      "target": "selfie",
+      "weight": 2
+    },
+    {
+      "source": "outdoors",
+      "target": "selfie",
+      "weight": 2
+    },
+    {
+      "source": "portrait",
+      "target": "selfie",
+      "weight": 2
+    },
+    {
+      "source": "adult",
+      "target": "home",
+      "weight": 2
+    },
+    {
+      "source": "home",
+      "target": "posed",
+      "weight": 2
+    },
+    {
+      "source": "indoor",
+      "target": "posed",
+      "weight": 2
+    },
+    {
+      "source": "indoor",
+      "target": "outdoor",
+      "weight": 2
+    },
+    {
+      "source": "close-up",
+      "target": "home",
+      "weight": 2
+    },
+    {
+      "source": "album",
+      "target": "indoor",
+      "weight": 1
+    },
+    {
+      "source": "album",
+      "target": "photo",
+      "weight": 1
+    },
+    {
+      "source": "children",
+      "target": "playground",
+      "weight": 1
+    },
+    {
+      "source": "children",
+      "target": "family",
+      "weight": 1
+    },
+    {
+      "source": "teenager",
+      "target": "wide-shot",
+      "weight": 1
+    },
+    {
+      "source": "family",
+      "target": "wide-shot",
+      "weight": 1
+    },
+    {
+      "source": "adult",
+      "target": "meal",
+      "weight": 1
+    },
+    {
+      "source": "candid",
+      "target": "meal",
+      "weight": 1
+    },
+    {
+      "source": "adult",
+      "target": "holiday",
+      "weight": 1
+    },
+    {
+      "source": "child",
+      "target": "holiday",
+      "weight": 1
+    },
+    {
+      "source": "family",
+      "target": "holiday",
+      "weight": 1
+    },
+    {
+      "source": "holiday",
+      "target": "outdoor",
+      "weight": 1
+    },
+    {
+      "source": "holiday",
+      "target": "parent",
+      "weight": 1
+    },
+    {
+      "source": "holiday",
+      "target": "photo",
+      "weight": 1
+    },
+    {
+      "source": "holiday",
+      "target": "portrait",
+      "weight": 1
+    },
+    {
+      "source": "outdoor",
+      "target": "soccer",
+      "weight": 1
+    },
+    {
+      "source": "smartphone",
+      "target": "soccer",
+      "weight": 1
+    },
+    {
+      "source": "smartphone",
+      "target": "sports",
+      "weight": 1
+    },
+    {
+      "source": "soccer",
+      "target": "sports",
+      "weight": 1
+    },
+    {
+      "source": "candid",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "candid-photo",
+      "target": "car",
+      "weight": 1
+    },
+    {
+      "source": "candid-photo",
+      "target": "landscape",
+      "weight": 1
+    },
+    {
+      "source": "candid-photo",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "couple",
+      "weight": 1
+    },
+    {
+      "source": "couple",
+      "target": "landscape",
+      "weight": 1
+    },
+    {
+      "source": "couple",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "couple",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "landmark",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "landscape",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "outdoors",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "smartphone",
+      "target": "wide-shot",
+      "weight": 1
+    },
+    {
+      "source": "candid",
+      "target": "senior",
+      "weight": 1
+    },
+    {
+      "source": "outdoors",
+      "target": "senior",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "senior",
+      "weight": 1
+    },
+    {
+      "source": "senior",
+      "target": "wide-shot",
+      "weight": 1
+    },
+    {
+      "source": "candid",
+      "target": "garden",
+      "weight": 1
+    },
+    {
+      "source": "candid-photo",
+      "target": "garden",
+      "weight": 1
+    },
+    {
+      "source": "couple",
+      "target": "garden",
+      "weight": 1
+    },
+    {
+      "source": "garden",
+      "target": "landmark",
+      "weight": 1
+    },
+    {
+      "source": "landmark",
+      "target": "sports",
+      "weight": 1
+    },
+    {
+      "source": "landscape",
+      "target": "sports",
+      "weight": 1
+    },
+    {
+      "source": "sports",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "group-photo",
+      "target": "indoor",
+      "weight": 1
+    },
+    {
+      "source": "artwork",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "travel",
+      "weight": 1
+    },
+    {
+      "source": "adult",
+      "target": "cycling",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "cycling",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "selfie",
+      "weight": 1
+    },
+    {
+      "source": "cycling",
+      "target": "selfie",
+      "weight": 1
+    },
+    {
+      "source": "cycling",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "cycling",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "selfie",
+      "target": "smartphone",
+      "weight": 1
+    },
+    {
+      "source": "selfie",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "adult",
+      "target": "celebration",
+      "weight": 1
+    },
+    {
+      "source": "adult",
+      "target": "flowers",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "celebration",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "dining",
+      "weight": 1
+    },
+    {
+      "source": "car",
+      "target": "flowers",
+      "weight": 1
+    },
+    {
+      "source": "celebration",
+      "target": "dining",
+      "weight": 1
+    },
+    {
+      "source": "celebration",
+      "target": "flowers",
+      "weight": 1
+    },
+    {
+      "source": "celebration",
+      "target": "outdoor",
+      "weight": 1
+    },
+    {
+      "source": "celebration",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "dining",
+      "target": "flowers",
+      "weight": 1
+    },
+    {
+      "source": "dining",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "flowers",
+      "target": "vehicle",
+      "weight": 1
+    },
+    {
+      "source": "outdoors",
+      "target": "travel",
+      "weight": 1
+    },
+    {
+      "source": "landmark",
+      "target": "travel",
+      "weight": 1
+    },
+    {
+      "source": "mountain",
+      "target": "nature",
+      "weight": 1
+    },
+    {
+      "source": "garden",
+      "target": "meal",
+      "weight": 1
+    },
+    {
+      "source": "meal",
+      "target": "nature",
+      "weight": 1
+    },
+    {
+      "source": "meal",
+      "target": "outdoor",
+      "weight": 1
+    },
+    {
+      "source": "meal",
+      "target": "outdoors",
+      "weight": 1
+    },
+    {
+      "source": "landmark",
+      "target": "nature",
+      "weight": 1
+    },
+    {
+      "source": "cycling",
+      "target": "landscape",
+      "weight": 1
+    }
+  ]
+}

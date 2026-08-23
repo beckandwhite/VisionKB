@@ -44,13 +44,13 @@ different latencies.
 
 Status chips: `ok · fail · pending = TOTAL − max ok`.
 
-## Backend — `app/server.py` (stdlib, 3.9-safe)
+## Backend — `frontend.py` (stdlib, 3.9-safe)
 - `http.server.ThreadingHTTPServer` + `BaseHTTPRequestHandler`.
 - Re-parses all source files **fresh per request** (tracks a live run, no restart).
 - Resolves JSON/JSONL via absolute paths from `__file__` (CWD-independent).
 - JSONL parse: line-by-line `json.loads`, skip blank/malformed.
 - Endpoints:
-   - `GET /` → `app/index.html`
+    - `GET /` → `index.html`
    - `GET /app.js`, `/style.css` → static
    - `GET /api/overview` → `{stages:[{name,count,pct,color}], avg_latency_s,
      remaining, eta_seconds, eta_human, projected_finish_iso, sparkline:[],
@@ -63,9 +63,9 @@ Status chips: `ok · fail · pending = TOTAL − max ok`.
    - `GET /api/tags` → passthrough `top_tags` + `edges`.
    - `GET /api/telemetry` → raw telemetry rows (sparkline detail).
   - `GET /thumb/<filename>` → serve from `.workspace/<env>/thumbnails/` or 404 (placeholder).
-- CLI: `python3 app/server.py [--port 8000]`.
+- CLI: `python3 frontend.py [--port 8000]`.
 
-## Frontend — `app/index.html` + `app/app.js` + `app/style.css`
+## Frontend — `index.html` + `app.js` + `style.css`
 Single scrolling page, dark monospace theme, no CSS framework:
 1. **Backlog dashboard** — funnel bars (from `/api/overview`), ETA/status chips,
    inline-SVG latency sparkline. Auto-poll every 5s (toggleable).
@@ -85,7 +85,7 @@ Single scrolling page, dark monospace theme, no CSS framework:
   the data layer.
 
 ## Verification
-- `python3 app/server.py --port 8000`, open `http://localhost:8000`.
+- `python3 frontend.py --port 8000`, open `http://localhost:8000`.
 - `curl localhost:8000/api/overview` → funnel matches the table (vision ok=11,
   annotated=13, wiki=5, total=2027).
 - `curl localhost:8000/api/timeline` → merged rows incl. the 1 `fail`.

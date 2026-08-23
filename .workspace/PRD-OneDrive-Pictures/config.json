@@ -3,7 +3,7 @@
     "vision_model": "muse-glimmer:30b-mlx",
     "supported_images": ["png", "jpg", "jpeg", "heic"],
     "embed_model": "nomic-embed-text:latest",
-    "source_dir": "~/Library/Mobile Documents/com~apple~CloudDocs/Pictures/",
+    "source_dir": "/Users/I778444/Library/CloudStorage/OneDrive-Personal/Képek/Filmtekercs/2026/05",
     "temp_dir": "/tmp",
     "processed_limit": 0,
     "max_dim": 2560,

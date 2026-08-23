@@ -10,7 +10,7 @@ Telemetry and per-file progress now live in the shared tracker (_tracker.json);
 this server reconstructs telemetry rows from it via tracker.telemetry_from_tracker().
 
 Endpoints:
-    GET /                         -> app/index.html
+    GET /                          -> index.html
     GET /app.js / /style.css      -> static assets
     GET /api/overview              -> backlog status + ETA (remaining + speed window)
     GET /api/timeline             -> merged rows (annotations x tracker x wiki),
@@ -21,8 +21,8 @@ Endpoints:
     GET /thumb/<file>             -> 320px thumbnail; ?original=1 -> full-res original
 
 Usage:
-    python3 app/server.py
-    python3 app/server.py --port 8000 --open
+    python3 frontend.py
+    python3 frontend.py --port 8000 --open
 """
 
 import argparse
@@ -36,13 +36,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
 
-if str(Path(__file__).resolve().parent.parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tracker
 import config_loader
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(SCRIPT_DIR)
+ROOT = SCRIPT_DIR
 
 CURRENT_ENV, _CONFIG = config_loader.resolve_environment()
 TRACKER_PATH = str(_CONFIG["tracker_path"])

@@ -196,8 +196,8 @@ PY
 `pipeline.py` run shows up without a restart.
 
  ```bash
-python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open              # http://127.0.0.1:8000
-python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
+python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open               # http://127.0.0.1:8000
+python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 # The UI reads the selected environment's tracker, annotations, exports, and thumbnails.
  ```
 
@@ -206,7 +206,7 @@ UI and processor point at the same isolated workspace, for example:
 
 ```bash
 python3 pipeline.py -env PRD-iCloud-Screenshots --count 5
-python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
+python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 ```
 
  Three sections, top → bottom:
@@ -238,7 +238,7 @@ python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
    its old flat-index `_tracker.json` is auto-migrated — the registry is rebuilt from
    the folder + those annotations on the first run.
 - **Environment selection matters.** Use `-env` consistently for `pipeline.py`
-  and `app/server.py`; all annotations, tracker state, database, exports, and
+  and `frontend.py`; all annotations, tracker state, database, exports, and
   thumbnails are isolated under `.workspace/<env>/`.
 - **Cost: ~90 s/image with muse-glimmer:30b.** Ollama is effectively single-stream,
   so Python "concurrency" won't speed up vision. For the full ~2,000 images, see the
@@ -255,7 +255,7 @@ python3 app/server.py -env PRD-iCloud-Screenshots --port 8000 --open
 |---|---|
 | `_annotations.jsonl` | one JSON record per image (append, never rewritten) |
 | `_tracker.json` | per-file registry (filename + `mtime_iso` + `processed_at`) and run summary — the progress ledger |
-| `tracker.py` | shared tracker module used by the pipeline's classifier and KB stages, plus `app/server.py` |
+| `tracker.py` | shared tracker module used by the pipeline's classifier and KB stages, plus `frontend.py` |
 | `telemetry.log` | (retired) telemetry now lives in `_tracker.json` |
 | `.workspace/<env>/wiki.db` | Environment-specific SQLite: screenshots, tags, ocr_lines, entities, embeddings, FTS5 |
 | `.workspace/<env>/wiki.ndjson` | flat dump of all records |

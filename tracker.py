@@ -13,7 +13,7 @@ Producer that mutates the registry:
     pipeline.py        -- reconcile, analysis lifecycle, KB and thumbnail stamps
 
 Consumers:
-  app/server.py      -- load_registry + telemetry_from_tracker
+  frontend.py         -- load_registry + telemetry_from_tracker
 
 Stdlib-only and Python 3.9-safe (no match, no runtime X | Y unions).
 """
