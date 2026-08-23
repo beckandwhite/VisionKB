@@ -12,6 +12,10 @@ const state = {
     loading: false,
     pollTimer: null,
     lastTags: [],
+    mtimeMin: null,
+    mtimeMax: null,
+    mtimeFrom: null,
+    mtimeTo: null,
 };
 
 // ----- tiny helpers ---------------------------------------------------------
@@ -30,6 +34,12 @@ function fmtTime(iso) {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
     return d.toISOString().replace("T", " ").replace("Z", "Z").slice(0, 19);
+}
+
+function fmtEpoch(epoch) {
+    if (!Number.isFinite(Number(epoch))) return "—";
+    const d = new Date(Number(epoch) * 1000);
+    return isNaN(d.getTime()) ? "—" : d.toISOString().slice(0, 10);
 }
 
 function humanBytes(n) { return String(n); }
@@ -108,7 +118,66 @@ function currentFilters() {
         q: $("#filter-q").value.trim(),
         status: $("#filter-status").value,
         tag: $("#filter-tag").value,
+        mtimeFrom: state.mtimeFrom,
+        mtimeTo: state.mtimeTo,
     };
+}
+
+function renderMtimeFilter(data) {
+    const minimum = Number(data.mtime_min_epoch);
+    const maximum = Number(data.mtime_max_epoch);
+    const heatmap = $("#mtime-heatmap");
+    const from = $("#mtime-from");
+    const to = $("#mtime-to");
+    if (!heatmap || !from || !to || !Number.isFinite(minimum) ||
+        !Number.isFinite(maximum)) {
+        $("#mtime-range-label").textContent = "no modification dates";
+        return;
+    }
+
+    if (state.mtimeMin == null || state.mtimeMax == null) {
+        state.mtimeMin = minimum;
+        state.mtimeMax = maximum;
+        state.mtimeFrom = minimum;
+        state.mtimeTo = maximum;
+    } else {
+        state.mtimeMin = minimum;
+        state.mtimeMax = maximum;
+        state.mtimeFrom = Math.max(minimum, Math.min(state.mtimeFrom, maximum));
+        state.mtimeTo = Math.max(state.mtimeFrom, Math.min(state.mtimeTo, maximum));
+    }
+    from.min = String(minimum);
+    from.max = String(maximum);
+    from.step = "1";
+    to.min = String(minimum);
+    to.max = String(maximum);
+    to.step = "1";
+    from.value = String(state.mtimeFrom);
+    to.value = String(state.mtimeTo);
+    const span = maximum - minimum || 1;
+    const fromPct = ((state.mtimeFrom - minimum) / span) * 100;
+    const toPct = ((state.mtimeTo - minimum) / span) * 100;
+    $(".mtime-track").style.background =
+        "linear-gradient(to right, var(--border) 0%, var(--border) " +
+        fromPct + "%, var(--accent) " + fromPct + "%, var(--accent) " +
+        toPct + "%, var(--border) " + toPct + "%, var(--border) 100%)";
+    from.disabled = minimum === maximum;
+    to.disabled = minimum === maximum;
+
+    const buckets = Array.isArray(data.mtime_buckets) ? data.mtime_buckets : [];
+    if (buckets.length) {
+        const peak = Math.max(...buckets.map((bucket) => Number(bucket.count)), 1);
+        heatmap.innerHTML = buckets.map((bucket) => {
+            const count = Number(bucket.count) || 0;
+            const intensity = Math.max(count / peak, 0.06);
+            return '<span class="mtime-cell" style="--heat:' + intensity.toFixed(3) +
+                '" title="' + count + ' file' + (count === 1 ? '' : 's') + '"></span>';
+        }).join("");
+    }
+    $("#mtime-from-label").textContent = fmtEpoch(state.mtimeFrom);
+    $("#mtime-to-label").textContent = fmtEpoch(state.mtimeTo);
+    $("#mtime-range-label").textContent = fmtEpoch(state.mtimeFrom) +
+        " → " + fmtEpoch(state.mtimeTo);
 }
 
 async function loadTimeline(reset) {
@@ -124,8 +193,13 @@ async function loadTimeline(reset) {
     if (f.q) params.q = f.q;
     if (f.status && f.status !== "all") params.status = f.status;
     if (f.tag) params.tag = f.tag;
+    if (f.mtimeFrom != null && f.mtimeTo != null) {
+        params.mtime_from = f.mtimeFrom;
+        params.mtime_to = f.mtimeTo;
+    }
 
     const data = await api("/api/timeline", params);
+    renderMtimeFilter(data);
 
     const host = $("#timeline");
     if (reset) host.innerHTML = "";
@@ -399,10 +473,32 @@ function wireControls() {
     });
     $("#filter-status").addEventListener("change", () => loadTimeline(true));
     $("#filter-tag").addEventListener("change", () => loadTimeline(true));
+    let mtimeTimer;
+    function updateMtime(which, value) {
+        const numeric = Number(value);
+        if (which === "from") {
+            state.mtimeFrom = Math.min(numeric, state.mtimeTo);
+        } else {
+            state.mtimeTo = Math.max(numeric, state.mtimeFrom);
+        }
+        renderMtimeFilter({
+            mtime_min_epoch: state.mtimeMin,
+            mtime_max_epoch: state.mtimeMax,
+            mtime_buckets: [],
+        });
+        clearTimeout(mtimeTimer);
+        mtimeTimer = setTimeout(() => loadTimeline(true), 180);
+    }
+    $("#mtime-from").addEventListener("input", (e) =>
+        updateMtime("from", e.target.value));
+    $("#mtime-to").addEventListener("input", (e) =>
+        updateMtime("to", e.target.value));
     $("#clear-filters").addEventListener("click", () => {
         $("#filter-q").value = "";
         $("#filter-status").value = "all";
         $("#filter-tag").value = "";
+        state.mtimeFrom = state.mtimeMin;
+        state.mtimeTo = state.mtimeMax;
         loadTimeline(true);
     });
 

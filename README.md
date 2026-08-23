@@ -275,10 +275,15 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
    Vision ok → Annotated → Wiki-ingested*, plus a time-equivalent backlog
    (`avg latency × remaining` → ETA + projected finish), status chips
    (`ok / fail / error / pending`, plus `ingested` + `thumbnails` from the builder), and a per-run latency sparkline.
- - **Timeline** — rows joined from `_annotations.jsonl` + the tracker (telemetry + error) +
-   `wiki.ndjson` (filename key), newest first; filters by tag / status /
-   free-text search; click a row to expand full OCR / entities / tags and an
-   "open original" link.
+ - **Timeline** — rows based on tracker `files`, enriched from `_annotations.jsonl` and
+   `wiki.ndjson` (filename key), newest first; filters by modification-time range,
+   tag / status / free-text search; click a row to expand available OCR / entities /
+   tags and an "open original" link. Pending tracker files are included with empty
+   annotation fields.
+   The `/api/timeline` endpoint accepts inclusive `mtime_from` and `mtime_to` epoch
+   seconds and returns `mtime_min_epoch`, `mtime_max_epoch`, and 48 `mtime_buckets`
+   derived from valid tracker `mtime_iso` values. Invalid timestamps are excluded
+   from the heatmap domain.
  - **Tags** — `top_tags` bars + `edges` co-occurrence list from
   `tags_index.json`; clicking a tag filters the timeline.
 

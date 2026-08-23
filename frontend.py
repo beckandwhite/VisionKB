@@ -27,6 +27,7 @@ Usage:
 
 import argparse
 import json
+import math
 import mimetypes
 import os
 import sys
@@ -143,6 +144,15 @@ def _iso_to_epoch(iso_str):
         return 0.0
 
 
+def _query_float(qs, key):
+    value = qs.get(key, [None])[0]
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
 def _human_duration(seconds):
     seconds = int(round(seconds))
     d, rem = divmod(seconds, 86400)
@@ -241,10 +251,29 @@ def build_overview():
     }
 
 
+def _timeline_histogram(values, bucket_count=48):
+    """Return a stable modification-time domain and density buckets."""
+    valid = sorted(value for value in values if math.isfinite(value))
+    if not valid:
+        return None, None, []
+    minimum, maximum = valid[0], valid[-1]
+    if minimum == maximum:
+        return minimum, maximum, [{"start": minimum, "end": minimum,
+                                   "count": len(valid)}]
+
+    width = (maximum - minimum) / bucket_count
+    buckets = [{"start": minimum + i * width,
+                "end": minimum + (i + 1) * width,
+                "count": 0} for i in range(bucket_count)]
+    for value in valid:
+        index = min(int((value - minimum) / width), bucket_count - 1)
+        buckets[index]["count"] += 1
+    return minimum, maximum, buckets
+
+
 def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
-                   query=None):
-    """Merge annotations (detail) + tracker telemetry + wiki (flag), newest
-    first, with optional filters and pagination."""
+                   query=None, mtime_from=None, mtime_to=None):
+    """Merge tracker files with annotation detail, newest first."""
     annotations = load_annotations()
     files, runs = load_tracker()
     wiki = load_wiki()
@@ -256,7 +285,9 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
             telem_by_name.setdefault(nm, []).append(r)
 
     rows = []
-    for name, rec in annotations.items():
+    for path, entry in files.items():
+        name = entry.get("filename") or os.path.basename(path)
+        rec = annotations.get(name, {})
         telem = telem_by_name.get(name)
         telem_status = telem_latency = telem_ts = telem_error = None
         if telem:
@@ -268,17 +299,21 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
 
         tags = rec.get("tags") or []
         ocr = rec.get("OCR_text") or []
-        quality = rec.get("quality_score")
+        quality = entry.get("quality_score")
+        if quality is None:
+            quality = rec.get("quality_score")
 
-        status = telem_status
+        mtime_iso = entry.get("mtime_iso") or rec.get("mtime_iso") or ""
+
+        status = entry.get("status") or telem_status
         if status is None:
             status = "ok" if (rec.get("caption") or tags or ocr) else "none"
 
         ocr_trunc, truncated = _truncate_ocr(ocr)
         rows.append({
              "filename": name,
-             "mtime_iso": rec.get("mtime_iso") or "",
-             "mtime_epoch": _iso_to_epoch(rec.get("mtime_iso")),
+             "mtime_iso": mtime_iso,
+             "mtime_epoch": _iso_to_epoch(mtime_iso),
              "status": status,
              "quality": quality,
              "caption": rec.get("caption") or "",
@@ -295,9 +330,15 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
              "original_path": rec.get("filepath") or "",
          })
 
+    domain_min, domain_max, buckets = _timeline_histogram(
+        [row["mtime_epoch"] for row in rows if row["mtime_epoch"] > 0])
     rows.sort(key=lambda r: r["mtime_epoch"], reverse=True)
     total_rows = len(rows)
 
+    if mtime_from is not None and mtime_to is not None:
+        rows = [r for r in rows
+                if r["mtime_epoch"] >= mtime_from
+                and r["mtime_epoch"] <= mtime_to]
     if tag_filter:
         rows = [r for r in rows if tag_filter in r["tags"]]
     if status_filter and status_filter not in ("all", "", None):
@@ -321,6 +362,9 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
          "shown_total": shown_total,
          "total_rows": total_rows,
          "has_more": (offset + len(page)) < shown_total,
+         "mtime_min_epoch": domain_min,
+         "mtime_max_epoch": domain_max,
+         "mtime_buckets": buckets,
      }
 
 
@@ -328,7 +372,22 @@ def load_record(filename):
     """Full untruncated record for one annotation, plus tracker telemetry, or None."""
     rec = load_annotations().get(filename)
     if rec is None:
-        return None
+        files, _ = load_tracker()
+        for path, entry in files.items():
+            if entry.get("filename") == filename:
+                rec = {
+                    "filename": filename,
+                    "filepath": path,
+                    "mtime_iso": entry.get("mtime_iso") or "",
+                    "quality_score": entry.get("quality_score"),
+                    "caption": "",
+                    "tags": [],
+                    "OCR_text": [],
+                    "entities": [],
+                }
+                break
+        if rec is None:
+            return None
     rec["ocr_text"] = rec.get("OCR_text") or []
     rec["ocr_truncated"] = False
     files, runs = load_tracker()
@@ -418,9 +477,16 @@ class Handler(BaseHTTPRequestHandler):
             status_filter = qs.get("status", [None])[0]
             tag_filter = qs.get("tag", [None])[0]
             query = qs.get("q", [None])[0]
+            mtime_from = _query_float(qs, "mtime_from")
+            mtime_to = _query_float(qs, "mtime_to")
+            if (mtime_from is None) != (mtime_to is None):
+                mtime_from = mtime_to = None
+            elif mtime_from is not None and mtime_from > mtime_to:
+                mtime_from, mtime_to = mtime_to, mtime_from
             self._send_json(build_timeline(limit=limit, offset=offset,
                                       status_filter=status_filter,
-                                      tag_filter=tag_filter, query=query))
+                                      tag_filter=tag_filter, query=query,
+                                      mtime_from=mtime_from, mtime_to=mtime_to))
             return
 
         if path == "/api/record":
