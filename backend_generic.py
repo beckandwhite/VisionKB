@@ -8,7 +8,8 @@ annotation2.json:
   for each unprocessed image:
     Ollama vision (empty system prompt) -> annotation2.json
 
-The legacy KB rebuild is retained behind --rebuild-kb.
+The legacy KB rebuild is disabled; this runner only writes generic image
+descriptions and tracker state.
 """
 
 import argparse
@@ -16,8 +17,6 @@ import base64
 import fcntl
 import json
 import os
-import sqlite3
-import struct
 import subprocess
 import sys
 import time
@@ -41,36 +40,17 @@ import tracker
 
 OLLAMA_BASE = config_loader.CURRENT_CONFIG["ollama_base"]
 VISION_MODEL = config_loader.CURRENT_CONFIG["vision_model"]
-EMBED_MODEL = config_loader.CURRENT_CONFIG["embed_model"]
 IMAGE_EXTS = set(config_loader.CURRENT_CONFIG["supported_images"])
-SAVE_EVERY = config_loader.CURRENT_CONFIG["save_every"]
 MAX_DIM = config_loader.CURRENT_CONFIG["max_dim"]
 TEMP_DIR = config_loader.CURRENT_CONFIG["temp_dir"]
 
-TAG_LIST = sorted({str(t).strip() for t in config_loader.CURRENT_CONFIG.get("TAG_LIST", [])
-                   if str(t).strip()})
-
-DB_PATH = config_loader.CURRENT_CONFIG["db_path"]
-ANNOT_PATH = config_loader.CURRENT_CONFIG["annotations_path"]
 ANNOT2_PATH = config_loader.CURRENT_CONFIG["env_dir"] / "annotation2.json"
-TRACKER_PATH = config_loader.CURRENT_CONFIG["tracker_path"]
-OUTPUT_DIR = config_loader.CURRENT_CONFIG["exports_dir"]
 
 LOCK_NAME = ".pipeline.lock"
 
 
 def eprint(*args):
     print(*args, flush=True, file=sys.stderr)
-
-
-def tag_list_for_config(config):
-    """Return the tag taxonomy supplied by the active environment config."""
-    tags = config.get("TAG_LIST", [])
-    if isinstance(tags, str):
-        tags = tags.split()
-    if not isinstance(tags, list):
-        raise ValueError("Environment config 'tags' must be a list or string")
-    return sorted({str(tag).strip() for tag in tags if str(tag).strip()})
 
 
 # ============================================================================
@@ -337,7 +317,8 @@ def classify_one(img_path, prompt_str):
 
 
 # ============================================================================
-# KB layer -- SQLite FTS5 + embeddings + exports + thumbnails
+# Legacy KB layer -- disabled. Keep for reference, but do not execute.
+'''
 # ============================================================================
 
 def iso_to_epoch(iso_str):
@@ -627,28 +608,21 @@ def generate_thumbnails(recs_by_key, files, make_thumbs):
 
 
 # ============================================================================
+# End of disabled legacy KB layer.
+'''
 # Per-environment override + pipeline driver
 # ============================================================================
 
 def configure_globals(config):
     """Apply one resolved environment to this module's globals."""
-    global OLLAMA_BASE, VISION_MODEL, EMBED_MODEL, IMAGE_EXTS, SAVE_EVERY
-    global MAX_DIM, TEMP_DIR, TAG_LIST
-    global DB_PATH, ANNOT_PATH, ANNOT2_PATH, TRACKER_PATH, OUTPUT_DIR
+    global OLLAMA_BASE, VISION_MODEL, IMAGE_EXTS, MAX_DIM, TEMP_DIR
+    global ANNOT2_PATH
     OLLAMA_BASE = config["ollama_base"]
     VISION_MODEL = config["vision_model"]
-    EMBED_MODEL = config["embed_model"]
     IMAGE_EXTS = set(config["supported_images"])
-    SAVE_EVERY = config["save_every"]
     MAX_DIM = config["max_dim"]
     TEMP_DIR = config["temp_dir"]
-    TAG_LIST = tag_list_for_config(config)
-
-    DB_PATH = config["db_path"]
-    ANNOT_PATH = config["annotations_path"]
     ANNOT2_PATH = config["env_dir"] / "annotation2.json"
-    TRACKER_PATH = config["tracker_path"]
-    OUTPUT_DIR = config["exports_dir"]
 
 
 def acquire_lock(path, wait):
@@ -879,8 +853,6 @@ def run(args):
         print("Another pipeline run is active for %s." % args.env, file=sys.stderr)
         return 0
     try:
-        config["db_path"].parent.mkdir(parents=True, exist_ok=True)
-        config["exports_dir"].mkdir(parents=True, exist_ok=True)
         payload = tracker.load_registry(config["tracker_path"])
         files = payload["files"]
         source_dir = args.screenshot_dir or config["source_dir"]
@@ -895,11 +867,6 @@ def run(args):
                 files, count_limit, len(images), new_this_run=new_count,
                 status="reconciled")},
          )
-
-        # KB build phase is temporarily disabled.
-        # if args.rebuild_kb:
-        #     rebuild_kb(config, files, args.force, args.no_thumbs)
-        #     return 0
 
         deadline = resolve_deadline(args.until)
         process_pending_generic(config, files, images, count_limit, deadline)
@@ -917,9 +884,6 @@ def main():
                         choices=environments)
     parser.add_argument("--count", type=int, default=None)
     parser.add_argument("--screenshot-dir", default=None)
-    parser.add_argument("--no-thumbs", action="store_true")
-    # parser.add_argument("--rebuild-kb", action="store_true")
-    parser.add_argument("--force", action="store_true")
     parser.add_argument("--until", metavar="HH:MM")
     parser.add_argument("--wait", action="store_true")
     args = parser.parse_args()
