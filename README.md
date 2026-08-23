@@ -1,45 +1,82 @@
 # Screenshot Knowledgebase
 
-Turn a folder of screenshots into a local, searchable, **LLM-written wiki**.
+Turn a folder of screenshots (or other pictures later) into a local, searchable, **LLM-written wiki**.
 Raw per-image metadata is extracted with a local vision model, then synthesized
 into clustered topic pages + a timeline.
 
+Use cases in mind: 
+1. Screenshots
+2. random everyday Photos (taken by phone) without context (other than EXIF, GPS)
+
 > Status: **experimental**. The extraction + ingestion pipeline runs; the
 > clustering + LLM-wiki synthesis layers are still to be built — see
-> [implementation.md](implementation.md).
+> [implementation.md](Plans/implementation.md).
+
+## TLDR
+
+```bash
+# 1. Backend: classify the next N screenshots → build the KB + thumbnails
+python3 backend.py -env PRD-iCloud-Screenshots --count 5
+
+# 2. Frontend: view the results in a browser
+python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open   # http://127.0.0.1:8000
+```
+
+Point both at the same environment with `-env`. The frontend is read-only and
+re-reads the environment's tracker, annotations, exports, and thumbnails on every
+request, so the backend must have produced at least one record first
+(`--count 0` = all remaining; see "Backend options" below).
 
 ---
 
-## What it does
+## What it does, How it is working
 
-```
-screenshots ──► backend.py ──► .workspace/<env>/_annotations.jsonl + wiki.db + exports
- (images)       (classify → ingest → index, one image at a time)
-```
+
 
 Each image becomes one JSON record: `tags[]`, `OCR_text[]`, `entities[]`,
  `caption`, `quality_score (1-5)` (the vision model's confidence that the
  screenshot is crisp and readable — 5 = clearly readable, 1 = blurry/unusable),
  and a 768-dim embedding. The ingestion step
-builds an FTS5 full-text index, tag co-occurrence graph, and monthly histogram.
+ builds an FTS5 full-text index, tag co-occurrence graph, and monthly histogram.
+
+Every run **also** writes a 320px JPEG thumbnail per annotated image into
+`.workspace/<env>/thumbnails/`, refreshed after each image so the WebUI shows
+live previews. Pass `--no-thumbs` to skip it. See "Backend options" below.
+
+The read-only **frontend** then serves those same artifacts to a browser:
+
+```
+                reconcile → classify → ingest → thumbnails → exports
+
+screenshots ──► backend.py ──► .workspace/<env>/
+
+(images)        (one image at a time, so the KB + UI stay live)
+                          
+                          └───► _annotations.jsonl + wiki.db +
+                                wiki.ndjson  + tags_index.json  + thumbnails/
+
+
+ .workspace/<env>/   ──►  frontend.py  ──►  browser (http://127.0.0.1:8000)
+
+ (the exports +         (re-reads per      explore the extracted info:
+  thumbnails)           request)           backlog → timeline → tags
+```
 
 ---
 
 ## Prerequisites
 
-All on macOS. No `pip` install required — the scripts are **stdlib-only**.
+On macOS, no `pip` install required — the scripts are **stdlib-only**.
 
 | Requirement | Where | Needed for |
 |---|---|---|
 | **Python 3.9+** (3.9.6 verified) | `/usr/bin/python3` | everything |
+| **sips** | `/usr/bin/sips` (preinstalled) | HEIC→JPEG, thumbnails — the only binary the code calls |
 | **Ollama** + models below | homebrew | vision + embeddings |
-| **sips** | `/usr/bin/sips` (preinstalled) | HEIC→JPEG, thumbnails |
-| ffmpeg / tesseract | homebrew | optional / not used by core path |
-
 ### Ollama models (must be pulled)
 
 ```bash
-ollama pull muse-glimmer:30b-mlx     # vision model  (slow: ~90s/image)
+ollama pull muse-glimmer:30b-mlx     # Lare vision model  (relative slow: ~90s/image on an M5 Pro Macbook Pro)
 ollama pull nomic-embed-text         # embedding model
 ```
 
@@ -49,16 +86,12 @@ Start the server and confirm it is up:
 ollama serve &                          # or: it may already be running
 curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 ```
-
-> A wrong/missing model name makes vision calls fail **silently** (empty tags,
-> not an error). Verify the name matches `ollama list`.
-
 ---
 
 ## Layout
 
 ```
- screenshot_annotation/
+Repo/
  ├── tracker.py             # shared tracker module (registry + telemetry + KB stamps)
  ├── config_loader.py       # environment configuration and artifact paths
  ├── frontend.py            # read-only WebUI over the tracker + exports
@@ -172,6 +205,34 @@ Cron does not run reliably while the Mac sleeps, and Ollama plus the configured
 source folder must be available. At roughly 90 seconds per image, 2,000 images
 requires about 50 hours of model time before failures or duplicates.
 
+### Backend options
+
+`backend.py` is the single entry point that consolidated the former multi-stage
+scripts. It interleaves `reconcile → classify → ingest → thumbnails → exports`,
+one image at a time, so the KB (and the WebUI) stay live during a long run.
+All options are passed on its command line:
+
+| Flag | Meaning |
+|---|---|
+| `-env ENV` | Choose the environment: `DEV`, `QA`, `PRD-iCloud-Screenshots` (default), `PRD-OneDrive-Pictures`. All artifacts are isolated under `.workspace/<env>/`. |
+| `--count N` | Process up to **N** unprocessed files this run (newest `mtime` first). Omit it to use the environment's `processed_limit` (DEV = 5, PRD = 0); `0` = all remaining. |
+| `--screenshot-dir PATH` | Scan a folder other than the environment's configured `source_dir`. Generated outputs still land in `.workspace/<env>/`, not the scanned folder. |
+| `--no-thumbs` | Skip 320px thumbnail generation (used by both the normal run and `--rebuild-kb`). |
+| `--rebuild-kb` | Rebuild `wiki.db` + the exports from an existing `_annotations.jsonl` **without calling the vision model**. Incremental: a record is re-ingested only when its source `mtime` changed. |
+| `--force` | With `--rebuild-kb`: **wipe every existing DB row** and re-ingest from scratch, ignoring the `mtime` change-detection. |
+| `--until HH:MM` | Stop before starting the next image once the local wall-clock deadline passes (for a bounded nightly/cron run). |
+| `--wait` | Wait for the environment lock instead of exiting cleanly when another run holds it. |
+
+- **Incremental.** Completed files are skipped on later runs; a re-run with no
+  new files prints *Nothing to do* and does no vision work.
+- **One writer per environment.** A second `backend.py` for the same env exits
+  cleanly while another run holds the lock; use `--wait` to queue instead.
+- **Companion scripts.** `run.sh` is the thin cron wrapper (`exec backend.py "$@"`,
+  so it takes the same flags). `reset.sh` clears only the cheap, regenerable KB
+  layer — `wiki.db`, `wiki.ndjson`, `tags_index.json`, `thumbnails/` — and is
+  rebuilt with `python3 backend.py -env ENV --rebuild-kb`; raw
+  `_annotations.jsonl` is always kept.
+
 ### 3. Query (FTS5 full-text)
 
 ```bash
@@ -185,7 +246,7 @@ PY
 ```
 
  (Embedding/semantic search and the clustered **LLM-wiki** layer are planned —
- see implementation.md, Stage 5.)
+ see [implementation.md](Plans/implementation.md) Stage 5.)
 
  ### 4. WebUI (timeline + backlog dashboard)
 
@@ -223,7 +284,7 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 
  Thumbnails render live once `thumbnails/` is populated
 (`python3 backend.py` without `--no-thumbs`); until then rows show a
- placeholder. See [WebUI-1.0-plan.md](WebUI-1.0-plan.md) for the design.
+ placeholder. See [WebUI-1.0-plan.md](Plans/WebUI-1.0-plan.md) for the design.
 
 ---
 
@@ -241,12 +302,13 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
   thumbnails are isolated under `.workspace/<env>/`.
 - **Cost: ~90 s/image with muse-glimmer:30b.** Ollama is effectively single-stream,
   so Python "concurrency" won't speed up vision. For the full ~2,000 images, see the
-  dedup + cheaper-model strategy in implementation.md.
-- **python3 is 3.9**: no `match`, no runtime `X | Y` unions. Keep scripts stdlib-only.
-- **tesseract is english-only**; the vision model handles OCR, but non-English text
-  won't be read well.
+   dedup + cheaper-model strategy in see [implementation.md](Plans/implementation.md).
+ - **python3 is 3.9**: no `match`, no runtime `X | Y` unions. Keep scripts stdlib-only.
+ - **OCR is the vision model's, English-leaning:** non-English text won't be read
+   well (there is no separate tesseract/ffmpeg in the pipeline — `sips` is the
+   only external binary, used for HEIC→JPEG + thumbnails).
 
----
+ ---
 
 ## Data files
 
@@ -295,7 +357,46 @@ absolute path; `processed_at == null` means *unprocessed*.
 ```
 
 - `status` per file: `pending` (not yet done), `ok` / `fail` (just classified),
-  `backfilled` (auto-seeded from an existing `_annotations.jsonl` line).
+   `backfilled` (auto-seeded from an existing `_annotations.jsonl` line).
 - `runs.status`: `completed`, `nothing-to-process`.
 - Old flat-index checkpoints (`last_processed_index`, …) are detected and ignored;
   the registry is rebuilt from the folder + existing annotations on first run.
+
+---
+
+## Annotation format (`_annotations.jsonl`)
+
+The raw per-image output of the classifier — one JSON object per line, appended
+as each image finishes and never rewritten (the durable source of truth; the
+tracker and `wiki.db` are derived from it).
+
+```json
+{
+  "filename":        "Screenshot 2026-07-06 at 16.04.29.png",
+  "filepath":        "/abs/path/Screenshot 2026-07-06 at 16.04.29.png",
+  "mtime_iso":       "2026-07-06T14:04:34.841885+00:00",
+  "tags":            ["conference-call", "video-call-screen", "participant-grid"],
+  "OCR_text":        ["Microsoft Teams", "Welcome to Agentic Value — Team Kick-off", "SAP"],
+  "entities":        ["Microsoft Teams", "SAP", "Doerflinger, Joerg"],
+  "caption":         "A Microsoft Teams meeting with a 34-participant grid shows a cartoon living room with the SAP logo.",
+  "quality_score":   5,
+  "embedding_vector": [768 float32 values from nomic-embed-text]
+}
+```
+
+Field glossary:
+
+- `filename` / `filepath` — source image name and its absolute path (the tracker
+   keys by `filepath`).
+- `mtime_iso` — source file mtime in ISO-8601 UTC; drives KB re-ingest (a newer
+   `mtime` means "re-ingest this row").
+- `tags[]` — scene tags chosen from the environment's `TAG_LIST` (at least one if
+   anything matched).
+- `OCR_text[]` — visible text lines, produced by the **vision model** (not an
+   external OCR engine).
+- `entities[]` — notable named entities the model saw on screen.
+- `caption` — a one-sentence plain-English description of the screenshot.
+- `quality_score` — integer 1–5, the model's confidence the shot is crisp/readable
+   (5 = clearly readable, 1 = blurry/unusable).
+- `embedding_vector` — a 768-dim float vector from `nomic-embed-text`, stored in
+   `wiki.db` (as a `float32` blob) for planned semantic search.
