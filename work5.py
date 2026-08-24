@@ -100,7 +100,8 @@ def write_result(path, groups, source_count):
 def main():
     parser = argparse.ArgumentParser(description="Work 5: find similar pictures")
     parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
-                        choices=config_loader.available_environments())
+                        help="environment name; omit for the default (.workspace/). "
+                              "An unknown name is auto-created on first run.")
     parser.add_argument("--screenshot-dir", default=None)
     parser.add_argument("--output", default=None,
                         help="override the work5 duplicatefinder.jsonl path")

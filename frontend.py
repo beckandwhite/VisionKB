@@ -527,13 +527,19 @@ def main():
     global CURRENT_ENV, TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR
     parser = argparse.ArgumentParser(description="Screenshot KB WebUI server")
     parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
-                        choices=config_loader.available_environments())
+                        help="environment name; omit for the default (.workspace/). "
+                              "Unknown names are refused — list via "
+                              "'environment_admin.sh init' or backend.py auto-create.")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--open", action="store_true",
                         help="open the UI in the default browser")
     args = parser.parse_args()
-    CURRENT_ENV, config = config_loader.resolve_environment(args.env)
+    try:
+        CURRENT_ENV, config = config_loader.resolve_environment(
+             args.env, auto_bootstrap=False)
+    except (RuntimeError, ValueError, OSError) as exc:
+        parser.error(str(exc))
     TRACKER_PATH = str(config["tracker_path"])
     ANNOT_PATH = str(config["annotations_path"])
     WIKI_PATH = str(config["exports_dir"] / "wiki.ndjson")

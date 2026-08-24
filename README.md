@@ -90,26 +90,31 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 
 ## Layout
 
-```
-Repo/
- ├── tracker.py             # source manifest + generic task lifecycle
- ├── config_loader.py       # environment configuration and artifact paths
- ├── frontend.py            # read-only WebUI over the tracker + exports
- ├── backend.py            # generic per-source work runner
- ├── work1.py              # generic vision query
- ├── work2.py              # OCR extraction
- ├── work3.py              # classifier
- ├── work4.py              # thumbnail generation
- ├── work5.py              # dataset-wide similarity/duplicate producer
- └── .workspace/<env>/      # config + isolated annotations/tracker/KB artifacts
-```
+  ```
+ Repo/
+  ├── tracker.py              # source manifest + generic task lifecycle
+  ├── config_loader.py         # environment configuration and artifact paths
+  ├── environment_admin.sh     # init / decomm of environments
+  ├── frontend.py              # read-only WebUI over the tracker + exports
+  ├── backend.py               # generic per-source work runner
+    ├── work1.py                # generic vision query
+    ├── work2.py                # OCR extraction
+    ├── work3.py                # classifier
+    ├── work4.py                # thumbnail generation
+    ├── work5.py                # dataset-wide similarity/duplicate producer
+     └── .workspace/           # default env config + isolated per-env folders
+       ├── config.template.json # canonical config + TAG_LIST; seeds every env
+        └── <env>/             # per-env config + annotations/tracker/KB artifacts
+ ```
 
-Images themselves live in the configured source folder. Select an environment
-with `-env` (default `PRD-iCloud-Screenshots`):
+ Images themselves live in the configured source folder. Omit `-env` to use the
+ default — the `.workspace/` directory itself — or select a named environment:
 
-```bash
-python3 backend.py -env QA
-python3 backend.py -env PRD-iCloud-Screenshots
+ ```bash
+ python3 backend.py                       # default (.workspace/)
+ python3 backend.py -env QA
+ python3 backend.py -env PRD-iCloud-Screenshots
+ python3 backend.py -env NEWENV           # auto-created on first run
 ```
 
 Images themselves commonly live in iCloud:
@@ -283,7 +288,7 @@ All options are passed on its command line:
 
 | Flag | Meaning |
 |---|---|
-| `-env ENV` | Choose the environment: `DEV`, `QA`, `PRD-iCloud-Screenshots` (default), `PRD-OneDrive-Pictures`. All artifacts are isolated under `.workspace/<env>/`. |
+| `-env NAME` | Named environment under `.workspace/<NAME>/` (e.g. `QA`, `DEV`, `PRD-iCloud-Screenshots`, `PRD-OneDrive-Pictures`). Omit it to use the default — the `.workspace/` directory itself. An unknown name is auto-created on first run. `frontend.py` instead refuses unknown names and lists the available ones. |
 | `--count N` | Process up to **N** unprocessed files this run (newest `mtime` first). Omit it to use the environment's `processed_limit` (DEV = 5, PRD = 0); `0` = all remaining. |
 | `--screenshot-dir PATH` | Scan a folder other than the environment's configured `source_dir`. Generated outputs still land in `.workspace/<env>/`, not the scanned folder. |
 | `--count N` | Process up to N pending work tasks. |
@@ -294,8 +299,10 @@ All options are passed on its command line:
   new files prints *Nothing to do* and does no vision work.
 - **One writer per environment.** A second `backend.py` for the same env exits
   cleanly while another run holds the lock; use `--wait` to queue instead.
-- **Companion scripts.** `run.sh` is the thin cron wrapper. `work5.py`
-  is a separate dataset-wide producer and writes `duplicatefinder.jsonl`.
+ - **Companion scripts.** `run.sh` is the thin cron wrapper. `work5.py`
+   is a separate dataset-wide producer and writes `duplicatefinder.jsonl`.
+   `environment_admin.sh` initializes and decommissions environments and is
+   documented in "Environment administration" below.
 
 ### 4. Query (FTS5 full-text)
 
@@ -325,12 +332,13 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 # The UI reads the selected environment's tracker, annotations, exports, and thumbnails.
  ```
 
-The WebUI defaults to `PRD-iCloud-Screenshots`. Use the same `-env` value as the pipeline so the
-UI and processor point at the same isolated workspace, for example:
+ The WebUI defaults to the `.workspace/` root (omit `-env` to match). Use the same
+ `-env` value as the pipeline so the UI and processor point at the same isolated
+ workspace, for example:
 
-```bash
-python3 backend.py -env PRD-iCloud-Screenshots --count 5
-python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
+ ```bash
+ python3 backend.py                         # default (.workspace/)
+ python3 frontend.py --port 8000 --open     # default (.workspace/)
 ```
 
  Three sections, top → bottom:
@@ -355,9 +363,43 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 (`python3 backend.py` without `--no-thumbs`); until then rows show a
  placeholder. See [WebUI-1.0-plan.md](Plans/WebUI-1.0-plan.md) for the design.
 
----
+ ---
 
-## Gotchas (read these first)
+ ## Environment administration
+
+ Every config is seeded from `.workspace/config.template.json`, the single source of truth
+ for the schema and the canonical `TAG_LIST`. Manage environments with
+ `environment_admin.sh`:
+
+ ```bash
+ ./environment_admin.sh init                         # refresh/create the default (.workspace/)
+ ./environment_admin.sh init --source ~/iCloud/Screens/
+ ./environment_admin.sh init QA --source ~/iCloud/Screens/    # create a named env
+ ./environment_admin.sh init                         # interactive: prompts name + source
+ ./environment_admin.sh decomm QA                     # remove a named env (confirms)
+ ./environment_admin.sh decomm QA --yes              # skip confirmation
+ ```
+
+ - **Default is the `.workspace/` root.** Omit `-env` everywhere to use it; `init`
+   with no name writes `.workspace/config.json`. A named env is a subfolder.
+ - **Auto-creates.** `backend.py -env NEWENV` creates `.workspace/NEWENV/config.json`
+   on first run (inheriting the root's `source_dir`); a typo such as `-env QAl` is
+   allowed. `frontend.py` instead refuses unknown names and lists the available
+   ones. `init` prompts only for **name** and **source folder**; everything else
+   comes from the template. Use `--force` to overwrite an existing config.
+ - **Name validation.** Names are `[A-Za-z0-9._-]`; path traversal (`..`, `/`, a
+   leading dot) is rejected.
+ - **`decomm` is a full nuke** of `.workspace/<NAME>/` (RAW + KB + config +
+   thumbnails + lock). The default workspace is **forbidden** as a target, and a
+   decomm is **refused while that env's `.pipeline.lock` is held** (a stale lock is
+   released). Source images are **never** touched. Per-env configs are git-tracked,
+   so a decomm surfaces as a git deletion.
+ - **Power users** edit `.workspace/<env>/config.json` directly; `init` will not
+   clobber it without `--force`.
+
+ ---
+
+ ## Gotchas (read these first)
 
 - **`backend.py` defaults to the active environment's source folder**
    (`~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`); pass

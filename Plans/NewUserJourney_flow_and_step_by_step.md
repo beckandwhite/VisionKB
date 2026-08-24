@@ -7,11 +7,17 @@ This guide explains how to quickly process a folder of screenshots and see the r
 If you have a folder of images (e.g., `/Users/User1/Screenshots`) and want to see how the system handles them, follow these steps:
 
 ### 1. Initialize your environment
-First, create a new environment to manage your settings:
-```bash
-./environment_admin.sh init
-```
-Follow the prompts to set up your models and directories.
+ First, create a new environment to manage your settings:
+ ```bash
+ ./environment_admin.sh init
+ ```
+ This seeds `.workspace/config.json` from `.workspace/config.template.json`. It prompts only
+ for the environment name and the source folder; every other value is inherited
+ from the template. Pass them instead to skip the prompts:
+ ```bash
+ ./environment_admin.sh init <NAME> --source /Users/User1/Screenshots
+ ```
+ To remove an environment again: `./environment_admin.sh decomm <NAME>`.
 
 ### 2. Process a sample run
 Run the backend on your specific folder, limited to the first 10 images for quick feedback:

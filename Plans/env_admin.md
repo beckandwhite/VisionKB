@@ -19,7 +19,7 @@ for every config; the power user edits `config.json` directly when they need mor
   `-env`**.
 - **Named envs** = `.workspace/<ENV>/` subfolders. The existing `DEV`, `QA`,
   `PRD-iCloud-Screenshots`, `PRD-OneDrive-Pictures` are kept as-is.
-- **Single source of truth**: a new repo-root **`config.template.json`** replaces
+ - **Single source of truth**: a new `.workspace/config.template.json` replaces
   the hard-coded `DEFAULT_CONFIG` dict in `config_loader.py` (no drift). The
   template carries a **complete, canonical `TAG_LIST`**, so every created env is
   self-contained.
@@ -42,10 +42,10 @@ for every config; the power user edits `config.json` directly when they need mor
 
 ## 1. Template + `config_loader.py` refactor
 
-- **Add `config.template.json`** at repo root: the full config schema **plus a
+ - **Add `.workspace/config.template.json`**: the full config schema **plus a
   complete `TAG_LIST`**. It is the only place defaults are written.
 - **`config_loader.py`**:
-   - `load_defaults()` reads `config.template.json`; delete the hard-coded
+     - `load_defaults()` reads `.workspace/config.template.json`; delete the hard-coded
      `DEFAULT_CONFIG` dict and the `SUPPORTED_ENVIRONMENTS` tuple.
    - **Root sentinel**: a name meaning the default maps to `env_dir = WORKSPACE_DIR`
      (`.workspace/`) and `config_path = .workspace/config.json`; any other name maps
@@ -120,7 +120,7 @@ Delete `reset.sh` — its KB-only clear is no longer a command. Update
 - `decomm` warnings: full nuke, root forbidden, source images safe, git-deletion
   note.
 - Remove all `reset`/`unlock` mentions.
-- Note that config values come from `config.template.json` and the power user edits
+ - Note that config values come from `.workspace/config.template.json` and the power user edits
   `config.json` directly.
 
 ## 5. Verification
