@@ -47,7 +47,7 @@ live previews. Pass `--no-thumbs` to skip it. See "Backend options" below.
 The read-only **frontend** then serves those same artifacts to a browser:
 
 ```
-                reconcile → work1 / work2 / work3 / work4
+                reconcile → work1 / work2 / work3 ... work N
 
 screenshots ──► backend.py ──► .workspace/<env>/
 
@@ -234,6 +234,15 @@ The runner creates one Work 6 task for every source, claims it independently,
 and writes results to `.workspace/<env>/work6.jsonl`. A work can be disabled
 without removing its historical task or result data by setting `enabled` to
 `false` for future runs.
+
+**Run only one worker.** `backend.py` runs every enabled per-source work, and the
+individual modules (`work1`–`work4`) have no `__main__`, so they cannot be run
+directly — only `work5.py` is standalone today. To process a single worker, in
+`.workspace/<env>/config.json` set `"enabled": true` for it and `"enabled": false`
+for the others, then run `backend.py` as usual (`backend.py` runs only the enabled
+per-source works, `backend.py:123`). This is per-environment and affects all
+future runs; historical task and result data are preserved. A `--only`/`--work`
+flag that avoids editing JSON per run is proposed in `Plans/env_admin.md`.
 
 For a file-producing worker, use `"output": "files"`, add an `output_dir`, and
 write the derived files from `run()`. Work 4 is the example: its JPEG files are

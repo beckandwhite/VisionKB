@@ -142,3 +142,75 @@ Add focused checks for:
 - source images remaining untouched by decommissioning
 
 Run shell syntax checks and Python compile checks for all affected scripts and modules.
+
+## 9. Per-worker selection (`--only` / `--work`)
+
+Add the ability to run a single worker (or a named subset) without hand-editing
+each environment's `config.json`.
+
+### 9.1 Current behavior (baseline)
+
+- `backend.py` selects the per-source works to run from the config's `enabled`
+  flag: `per_source = [w for w in config["works"] if w.get("enabled", True)
+  and w["scope"] == "per_source"]` (`backend.py:123`).
+- The only way to run just one worker today is to set `"enabled": false` for the
+  other per-source works in `.workspace/<env>/config.json`, run, then flip them
+  back. This is persistent, per-environment, easy to forget to revert, and cannot
+  be combined with a one-off `--count`/`--until` run.
+- The individual modules `work1`–`work4` have no `__main__`/argparse, so
+  `python3 work1.py` does nothing; only `work5.py` is a standalone producer.
+- `work5` is `scope: "dataset"` and is never selected by `backend.py`; it is run
+  separately. A selection flag must leave dataset-scope works untouched by the
+  per-source runner (or explicitly handle them as a distinct mode).
+
+### 9.2 Proposed CLI
+
+Add a per-run selection flag to `backend.py` (and pass it through `run.sh`):
+
+```bash
+python3 backend.py -env DEV --only work1
+python3 backend.py -env DEV --work work1,work3      # allow a named subset
+```
+
+Semantics:
+
+- Resolve the request against the environment's *enabled* per-source works: the
+  effective set is `enabled_per_source ∩ requested`.
+- Unknown or non-per-source names are a hard error (report the valid set).
+- An empty intersection is a clean "nothing selected to run" exit, not a no-op
+  success that silently does work.
+- The flag is a **temporary override for this run only**; it must not mutate
+  `config.json` or the tracker.
+- It composes with `--count`, `--until`, and `--wait` (count slots and the
+  deadline apply to the selected works).
+- Document that `--count N` counts tasks of the *selected* works, not pictures.
+
+### 9.3 Integration with environment administration
+
+Consider, when reworking `environment_admin.sh`:
+
+- A per-environment "default enabled set" that `init` writes into `config.json`,
+  so selection is part of environment configuration rather than a global default.
+- A convenience subcommand (e.g. `./environment_admin.sh enable --env QA
+  --only work1`) that edits the persistent `config.json` in place, complementing
+  the one-off `--only` run flag from §9.2.
+- Clear, safe messaging so a user does not believe `--only work1` permanently
+  disabled the other workers.
+- Keep dataset-scope producers (`work5`) on their own standalone path; do not let
+  the per-source selection flag claim or skip them implicitly.
+
+### 9.4 Verification
+
+Add focused checks for:
+
+- `--only work1` claims and finishes only work1 tasks, writing only `work1.jsonl`.
+- `--work work1,work3` restricts to the requested subset.
+- An unknown work name errors and lists the valid set.
+- A requested-but-disabled work produces "nothing selected to run" rather than
+  doing no work silently.
+- The one-run flag never modifies `config.json`; the persistent `enabled` flags
+  still take effect on the next run.
+- `--count`, `--until`, and `--wait` still apply under selection.
+- `work5` is unaffected by the per-source selection flag.
+
+Run shell syntax checks and Python compile checks for all affected scripts and modules.
