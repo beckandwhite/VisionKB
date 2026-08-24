@@ -51,6 +51,25 @@
       </div>
     </div>
 
+    <div class="mtime-filter" aria-label="Modification time filter">
+      <div class="mtime-filter-head">
+        <span class="filter-label">modified</span>
+        <span id="mtime-range-label" class="muted">loading…</span>
+      </div>
+      <div class="mtime-track-wrap">
+        <div id="mtime-heatmap" class="mtime-heatmap" aria-hidden="true"></div>
+        <div class="mtime-track"></div>
+        <input id="mtime-from" class="mtime-slider" type="range"
+               min="0" max="1" value="0" aria-label="earliest modification time">
+        <input id="mtime-to" class="mtime-slider" type="range"
+               min="0" max="1" value="1" aria-label="latest modification time">
+      </div>
+      <div class="mtime-endpoints">
+        <span id="mtime-from-label" class="muted">—</span>
+        <span id="mtime-to-label" class="muted">—</span>
+      </div>
+    </div>
+
     <div id="timeline-status" class="timeline-status muted">loading…</div>
     <div id="timeline" class="timeline"></div>
     <div id="load-more-wrap" class="load-more-wrap">
