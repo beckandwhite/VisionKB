@@ -14,7 +14,7 @@ have an LLM write one wiki entry per topic, plus per-day digests.
 ## 0. Decisions / source of truth
 - **Data dir (read-only source):**
   `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`
-- **Working dir (git repo):** `/Users/I778444/git/screenshot_annotation`
+- **Working dir (git repo):** `/Users/t/git/screenshot_annotation`
 - **Pipeline code lives in the git repo.** Runtime data and generated outputs are
   isolated under `.workspace/<env>/`; the root `exports/` directory is not used.
 - **Model config lives in the active environment's `config.json`,** loaded by
@@ -105,8 +105,8 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 ---
 
 ## 3. Storage / artifacts
-- `.workspace/<env>/wiki.db` — environment-specific source of truth, SQLite
-  FTS5 + `embedding_vector` blob.
+- `.workspace/<env>/wiki.db` — environment-specific source of truth, SQLite FTS5 +
+  `embedding_vector` blob.
 - `.workspace/<env>/` — `wiki/` markdown pages+index+timeline, `wiki.ndjson`,
   `tags_index.json` (co-occurrence graph), and `thumbnails/` (optional).
 - `data/manifest.jsonl` — dedup record.
@@ -120,15 +120,13 @@ This is what actually becomes a knowledgebase, not a metadata dump.
   and 3.9-safe (the existing scripts already are — maintain that).
 - **Ollama** hosts: `muse-glimmer:30b-mlx` (vision, slow), `qwen3.8:27b-mlx`
   (active), `nomic-embed-text` (embed). Confirm the model name in the active
-  environment configuration
-  matches an installed one before a run; a wrong name = every call fails silently
-  to `None` and you get empty tags, not an error.
+  environment configuration matches an installed one before a run.
 - **tesseract = eng only.** Vision-model OCR handles English; non-English text won't
   OCR well — note as a known limitation, don't block on it.
 - **HEIC → jpeg** via `/usr/bin/sips` is already handled by the pipeline's classifier module.
   No ImageMagick installed — use `sips` / `ffmpeg` only.
 - **Keep the git checkout as the code source of truth.** Runtime data and generated
-  outputs belong under the selected `.workspace/<env>/` directory.
+  outputs belong under the selected `.workspace/<env>` directory.
 - **iCloud path** can be stale mid-run if synced; run stage scripts from the local
   checkout, copy/`open` the iCloud dir once at start, don't rely on live sync.
 - `.mov` (7 files): skip for v1; optional ffmpeg keyframe extraction is a later
@@ -137,22 +135,251 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 ---
 
 ## 5. Suggested execution order / checkpoints
- 1. Validate `backend.py` against the existing 5 annotations (fast, validates schema).
-2. Write Stage 1 (dedup) → get true unique count; **report it** before any vision run.
-3. Stage 2 embeddings+clusters on uniques → sanity-check cluster sizes.
-4. Stage 3 vision extract via `--count` ramp: 30 → 100 → full, monitoring
-   `_tracker.json` (per-file `vision_latency_s`, `status`, `error`) for latency
-    and empty-tag/error rate.
-5. Stage 4 re-ingest into SQLite (with new wiki tables).
-6. Stage 5 synthesis → markdown wiki; eyeball quality; iterate on the synthesis prompt.
+1. Validate `backend.py` against the existing annotations.
+2. Write Stage 1 dedup and report the true unique count before vision work.
+3. Run the embedding pre-pass and inspect cluster sizes.
+4. Run per-source works in bounded batches, monitoring the generic tracker.
+5. Run Work 5 and inspect duplicate groups before selecting canonical files.
+6. Add clustering and wiki synthesis only after the work/result contract is stable.
 
-Each stage is resumable and verifiable on its own; don't wire Stage 5 until
-Stages 1–3 produce a real `_annotations.jsonl`.
+Each work should be independently runnable and resumable. Dataset-wide producers
+such as Work 5 should write explicit run metadata and remain separate from the
+per-source queue.
 
 ---
 
-## 6. Open questions (decide before coding Stage 5+)
-- Web viewer (`app/`) or CLI-only query for v1? (Recommend CLI-only first.)
-- One source of truth for code: git repo or iCloud? (Recommend git repo.)
-- Vision volume model: cheap model for all uniques vs 30B only on cluster
-  representatives? (Recommend the latter for speed.)
+## 6. Open questions
+- Should duplicate groups be automatically collapsed or only reviewed by a later consumer?
+- Should result JSONL retain all attempts or only the latest result per source version?
+- Should the frontend expose one work at a time or a combined source view?
+- Which vision model is affordable for the full Work 1–3 backlog?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# VisionKB Generic Work Implementation Plan
+
+## Goal
+
+Turn a folder of pictures into a reusable, searchable data lake. Each source picture can be processed by multiple independent works. Analytical results are stored separately from queue state so new work types do not require tracker schema changes.
+
+The current implementation is intentionally breaking: legacy tracker files and frontend assumptions are not compatibility targets. Runtime data belongs under `.workspace/<env>/`; source pictures remain in the configured source directory.
+
+## Architecture
+
+```text
+source folder
+    |
+    +--> tracker.py: sources + independent (source, work) tasks
+    |
+    +--> backend.py: per-source worker runner
+    |       |
+    |       +--> work1.py: generic vision query -> work1.jsonl
+    |       +--> work2.py: OCR -> work2.jsonl
+    |       +--> work3.py: classifier -> work3.jsonl
+    |       +--> work4.py: thumbnails -> thumbnails/*.jpg
+    |
+    +--> work5.py: dataset-wide exact duplicate grouping
+                    -> duplicatefinder.jsonl
+```
+
+`backend_generic.py` is not part of the active architecture. Its vision prompt is synchronized with Work 1, but its legacy tracker/API implementation remains separate.
+
+## Tracker contract
+
+`_tracker.json` uses schema version 2:
+
+```json
+{
+  "schema_version": 2,
+  "sources": {
+    "/absolute/path/image.png": {
+      "source_key": "/absolute/path/image.png",
+      "filename": "image.png",
+      "created_at": "ISO timestamp",
+      "modified_at": "ISO timestamp",
+      "discovered_at": "ISO timestamp",
+      "missing": false
+    }
+  },
+  "tasks": {
+    "stable task id": {
+      "source_key": "/absolute/path/image.png",
+      "work_name": "work1",
+      "input_modified_at": "ISO timestamp",
+      "worker_started_at": "ISO timestamp",
+      "worker_id": "host:pid",
+      "worker_finished_at": "ISO timestamp"
+    }
+  },
+  "runs": {}
+}
+```
+
+The source key is the canonical absolute path. Creation time uses macOS `st_birthtime` when available and falls back to `st_ctime`; modification time uses `st_mtime`. A changed modification time resets the task lifecycle for the new source version.
+
+The tracker stores lifecycle telemetry only. Work-specific output, status, errors, model metadata, and retry details belong in result artifacts.
+
+## Work definitions
+
+Works are configured per environment in `config.json`:
+
+- `name`: stable work identifier.
+- `scope`: `per_source` or `dataset`.
+- `handler`: Python handler name.
+- `output`: `jsonl`, `files`, or `none`.
+- `result_file` or `output_dir`: work artifact location.
+- `enabled`: whether the work is active.
+
+Adding a new per-source work should require a configuration entry and handler, not a tracker change.
+
+## Per-source works
+
+### Work 1: generic vision query
+
+File: `work1.py`
+
+Default prompt:
+
+```text
+What is on this picture? Describe the important visible content.
+```
+
+Output: `.workspace/<env>/work1.jsonl`.
+
+### Work 2: OCR
+
+File: `work2.py`
+
+Asks the vision model to extract visible text and returns a JSON `text` array.
+
+Output: `.workspace/<env>/work2.jsonl`.
+
+### Work 3: classifier
+
+File: `work3.py`
+
+Asks the vision model to classify the picture and return classification data such as class and confidence.
+
+Output: `.workspace/<env>/work3.jsonl`.
+
+### Work 4: thumbnails
+
+File: `work4.py`
+
+Generates a 320px JPEG at:
+
+```text
+.workspace/<env>/thumbnails/<source-stem>.jpg
+```
+
+The JPEG is the result. No Work 4 JSONL file is written. The Work 4 task records only worker start, worker ID, and worker finish timestamps.
+
+## Dataset-wide Work 5
+
+File: `work5.py`
+
+Work 5 is not a per-picture queue task. It scans the complete configured picture set, hashes files with SHA-256, and groups exact duplicates.
+
+```bash
+python3 work5.py -env DEV
+```
+
+Output:
+
+```text
+.workspace/<env>/duplicatefinder.jsonl
+```
+
+Each duplicate group includes a run ID, generation timestamp, algorithm, SHA-256 value, scanned source count, duplicate count, and source records containing absolute-path foreign keys and creation/modification timestamps. A later Python program can consume this artifact.
+
+The operation is named Work 5; `duplicatefinder.jsonl` remains the downstream artifact filename.
+
+## Worker behavior
+
+`backend.py` performs the per-source loop:
+
+1. Acquire the environment writer lock.
+2. Reconcile the source directory into the source manifest.
+3. Create tasks for enabled per-source works.
+4. Select unfinished or stale tasks for the current source version.
+5. Claim each task with worker identity and start timestamp.
+6. Execute the configured handler.
+7. Append analytical JSONL output or create file output.
+8. Record worker completion in the tracker.
+9. Save progress atomically.
+
+`--count` counts work tasks, not pictures. A source with four enabled per-source works consumes four task slots. `--until HH:MM` provides a bounded run for nightly scheduling. The environment lock prevents concurrent writers.
+
+A failed task is reset to unfinished so a later run can retry it. The failure itself belongs in an analytical result record when applicable; Work 4 has only its file output and task lifecycle.
+
+## Dataset storage
+
+```text
+.workspace/<env>/
+  config.json
+  _tracker.json
+  work1.jsonl
+  work2.jsonl
+  work3.jsonl
+  thumbnails/
+  duplicatefinder.jsonl
+```
+
+JSONL analytical results should include at least the source key, filename, source timestamps, work name, input modification timestamp, execution timestamps, output, and result status. Immutable attempts are preferred when retry history matters.
+
+## Operational commands
+
+Per-source processing:
+
+```bash
+python3 backend.py -env DEV --count 5
+python3 backend.py -env DEV --until 06:00
+```
+
+Dataset-wide duplicate scan:
+
+```bash
+python3 work5.py -env DEV
+```
+
+The frontend is read-only and can be run independently, but its broader timeline still needs a separate migration to the generic result model.
+
+## Future work
+
+1. Add focused tests for source reconciliation, timestamp fallback, task IDs, changed-mtime requeueing, stale claims, and atomic tracker writes.
+2. Add explicit result-attempt selection and retry commands.
+3. Add a consumer for `duplicatefinder.jsonl` to choose canonical files or annotate duplicate groups.
+4. Add content hashes to source metadata after the absolute-path contract is stable.
+5. Add optional perceptual similarity or embedding-based near-duplicate grouping to Work 5.
+6. Add clustering and embeddings as separate dataset/per-source works.
+7. Build the wiki synthesis layer from Work 1, Work 2, Work 3, and Work 5 results.
+8. Update the frontend to expose work selection and independent completion.
+
+## Validation completed
+
+- Python compilation passed for the generic tracker, runner, Work 1 through Work 5, shared helpers, frontend, and `backend_generic.py` syntax.
+- Tracker fixture passed with one source and four independent tasks.
+- Mocked dispatcher fixture passed with independent Work 1, Work 2, and Work 3 outputs.
+- Work 4 fixture passed with an existing thumbnail preserved and task completion recorded without JSONL output.
+- Work 5 fixture passed with two identical files producing one duplicate group.
+- `git diff --check` passed.

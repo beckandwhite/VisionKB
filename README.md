@@ -15,7 +15,7 @@ Use cases in mind:
 ## TLDR
 
 ```bash
-# 1. Backend: classify the next N screenshots → build the KB + thumbnails
+# 1. Backend: run the next N configured picture tasks
 python3 backend.py -env PRD-iCloud-Screenshots --count 5
 
 # 2. Frontend: view the results in a browser
@@ -23,7 +23,7 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open   # http://12
 ```
 
 Point both at the same environment with `-env`. The frontend is read-only and
-re-reads the environment's tracker, annotations, exports, and thumbnails on every
+re-reads the environment's tracker and work artifacts on every
 request, so the backend must have produced at least one record first
 (`--count 0` = all remaining; see "Backend options" below).
 
@@ -33,11 +33,12 @@ request, so the backend must have produced at least one record first
 
 
 
-Each image becomes one JSON record: `tags[]`, `OCR_text[]`, `entities[]`,
- `caption`, `quality_score (1-5)` (the vision model's confidence that the
- screenshot is crisp and readable — 5 = clearly readable, 1 = blurry/unusable),
- and a 768-dim embedding. The ingestion step
- builds an FTS5 full-text index, tag co-occurrence graph, and monthly histogram.
+Each configured work runs independently for each source picture. The initial
+works are `work1` (generic vision query), `work2` (OCR), and `work3`
+(classification). `work4` generates thumbnails. Analytical works write separate
+JSONL result files using the canonical absolute path as their foreign key. Work4
+writes only JPEGs
+to `.workspace/<env>/thumbnails/` and records task completion in the tracker.
 
 Every run **also** writes a 320px JPEG thumbnail per annotated image into
 `.workspace/<env>/thumbnails/`, refreshed after each image so the WebUI shows
@@ -46,14 +47,13 @@ live previews. Pass `--no-thumbs` to skip it. See "Backend options" below.
 The read-only **frontend** then serves those same artifacts to a browser:
 
 ```
-                reconcile → classify → ingest → thumbnails → exports
+                reconcile → work1 / work2 / work3 / work4
 
 screenshots ──► backend.py ──► .workspace/<env>/
 
 (images)        (one image at a time, so the KB + UI stay live)
                           
-                          └───► _annotations.jsonl + wiki.db +
-                                wiki.ndjson  + tags_index.json  + thumbnails/
+                            └───► work1.jsonl + work2.jsonl + work3.jsonl + thumbnails/
 
 
  .workspace/<env>/   ──►  frontend.py  ──►  browser (http://127.0.0.1:8000)
@@ -92,10 +92,15 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 
 ```
 Repo/
- ├── tracker.py             # shared tracker module (registry + telemetry + KB stamps)
+ ├── tracker.py             # source manifest + generic task lifecycle
  ├── config_loader.py       # environment configuration and artifact paths
  ├── frontend.py            # read-only WebUI over the tracker + exports
- ├── backend.py            # single entry point: reconcile → classify → ingest → exports
+ ├── backend.py            # generic per-source work runner
+ ├── work1.py              # generic vision query
+ ├── work2.py              # OCR extraction
+ ├── work3.py              # classifier
+ ├── work4.py              # thumbnail generation
+ ├── work5.py              # dataset-wide similarity/duplicate producer
  └── .workspace/<env>/      # config + isolated annotations/tracker/KB artifacts
 ```
 
@@ -113,19 +118,21 @@ Images themselves commonly live in iCloud:
 `backend.py` defaults to the active environment's `source_dir`; point it elsewhere with
 `--screenshot-dir` (see "How to use" below).
 
-The environment's `_tracker.json` is the **single source of truth for progress + telemetry**: it
-holds the per-file registry, a `runs` summary, each file's analysis lifecycle
-(`started_at` / `finished_at` / latency / `status` / `error`), and KB-layer
-progress (`ingested_at` / `thumb_at`). The old standalone `telemetry.log` is gone.
+The environment's `_tracker.json` is the **queue ledger**. It contains a source
+manifest and independent `(source, work)` tasks. Sources store the canonical
+absolute path, filename, creation time, discovery time, and modification time.
+Tasks store only worker lifecycle telemetry: `worker_started_at`, `worker_id`,
+and `worker_finished_at`. Work output, status, and errors belong in that work's
+result artifact rather than in the tracker.
 
 ---
 
 ## How to use
 
-### 1. Run the pipeline (classification + knowledgebase)
+### 1. Run configured works
 
 ```bash
-# classify and ingest the next 5 unprocessed files in PRD-iCloud-Screenshots
+# run up to 5 pending work tasks
 python3 backend.py --count 5
 
 # use the environment's configured limit (QA=100)
@@ -138,57 +145,111 @@ python3 backend.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudD
 python3 backend.py                    # configured limit; --count 0 = all remaining
 ```
 
-`.workspace/<env>/_tracker.json` is a **self-maintaining registry**, not a bare index. Each run:
+`.workspace/<env>/_tracker.json` is a **self-maintaining source/task registry**. Each run:
 
 1. **Reconciles** the source folder into the tracker — every file is stored (keyed
-   by absolute path) with its `filename` and `mtime_iso`; files new since the last
+  by absolute path) with its filename and filesystem timestamps; files new since the last
    run are **appended** automatically.
-2. **Marks progress** with a `processed_at` timestamp the moment each file is done,
-   so an interrupted or crashed run leaves an accurate ledger.
-3. **Classifies the next N unprocessed files** (`--count N`, newest mtime first;
-   `--count 0` = all remaining). `--count` is the per-run limit, not "the first N
-   images ever".
+2. **Creates independent tasks** for each enabled per-source work.
+3. **Claims and finishes tasks** independently. A changed source mtime resets its
+  tasks for the new input version.
 
 - **Re-runs skip what's done.** A re-run with no new files prints *Nothing to do*
   and does no vision work. Add a file (or run with more of them present) and only the
   new/unprocessed ones are picked up.
-- **Existing annotations are auto-seeded.** On the first run after this change,
-  files already present in `_annotations.jsonl` are marked processed (`status:
-  "backfilled"`) so they are not reclassified.
- - **Note on edited files:** a file already in the registry keeps its
-   `finished_at` even if its mtime changes, so an in-place edit is **not**
-  reprocessed by the classifier (keyed by path, not by content/mtime).
-  The KB ingestion stage, though, detects an mtime change and re-ingests that row.
-   Delete a registry entry (and its `_annotations.jsonl` line) to force a full
-   re-process.
- - Checkpointed atomically (`tmp` + `os.replace`) every 25 files and at end of run.
+- **`--count N` counts work tasks**, not pictures. A picture with four enabled
+  works consumes four task slots.
+- Checkpointed atomically (`tmp` + `os.replace`) after task progress and at end of run.
  - `--screenshot-dir` overrides the active environment's configured source folder;
    generated outputs stay inside `.workspace/<env>/`, not in the scanned folder.
  - HEIC files are auto-converted via `sips`; oversized images are downscaled.
- - Latency + `status` (ok/fail/error) live in the tracker now (per-file
-   `vision_latency_s` + `started_at` / `finished_at`); the old `telemetry.log`
-   is retired.
+- Worker lifecycle fields are limited to `input_modified_at`,
+  `worker_started_at`, `worker_id`, and `worker_finished_at`.
 
-Each image is classified and then immediately written to the environment's SQLite
-database, FTS index, thumbnail set, and exported views. The exports are refreshed
-after each image, so the read-only WebUI can be used during a long run.
+Each configured per-source work is independently claimable and resumable. The
+work1, work2, and work3 write their configured JSONL result files. Work4 writes only JPEG files in
+`.workspace/<env>/thumbnails/` and records task completion in the tracker. Other
+analytical works can write their own JSONL result stream without changing the
+tracker schema.
 
-To repair or rebuild the KB from annotations without calling the vision model:
+### 2. Dataset-wide producers
+
+Some operations need the complete source set and are not one task per image.
+Duplicate finding is the first example:
 
 ```bash
-python3 backend.py -env DEV --rebuild-kb --no-thumbs
-python3 backend.py -env DEV --rebuild-kb --force
+python3 work5.py -env DEV
 ```
 
-Produces `.workspace/<env>/wiki.db`, `.workspace/<env>/wiki.ndjson`,
-and `.workspace/<env>/tags_index.json`; thumbnails are stored in
-`.workspace/<env>/thumbnails/`.
+It scans all configured pictures, finds exact SHA-256 duplicates, and atomically
+writes `.workspace/DEV/duplicatefinder.jsonl`. Each group contains the absolute
+path foreign keys plus source creation and modification timestamps, a run ID,
+and the input picture count. A later consumer can process this artifact without
+rerunning the scan or involving the worker queue.
 
-`backend.py` is incremental: completed files are skipped on later runs. A
+### 3. Extending the worker set
+
+To add a new per-picture operation, create the next worker module from
+`new_worker_template.py`:
+
+```bash
+cp new_worker_template.py work6.py
+```
+
+Then update the copy:
+
+1. Set `NAME = "work6"`.
+2. Implement `run(source, config)`. The `source` object contains the canonical
+   `source_key`, display filename, and creation/modification timestamps. Return
+   a JSON-serializable result record, normally using
+   `work_common.result_record(...)`.
+3. Add the handler import and registration in `backend.py`:
+
+```python
+import work6
+
+HANDLERS = {
+    "work1": work1.run,
+    "work2": work2.run,
+    "work3": work3.run,
+    "work4": work4.run,
+    "work6": work6.run,
+}
+```
+
+4. Add the work to the selected environment's `config.json`:
+
+```json
+{
+  "name": "work6",
+  "scope": "per_source",
+  "handler": "work6",
+  "output": "jsonl",
+  "result_file": "work6.jsonl",
+  "enabled": true
+}
+```
+
+The runner creates one Work 6 task for every source, claims it independently,
+and writes results to `.workspace/<env>/work6.jsonl`. A work can be disabled
+without removing its historical task or result data by setting `enabled` to
+`false` for future runs.
+
+For a file-producing worker, use `"output": "files"`, add an `output_dir`, and
+write the derived files from `run()`. Work 4 is the example: its JPEG files are
+the result and the tracker records only worker completion. Dataset-wide
+operations should remain separate producer scripts like Work 5 rather than
+creating one task per source.
+
+`new_worker_template.py` is deliberately a dummy implementation. It returns a
+placeholder result and performs no model call, filesystem scan, or external
+side effect until you replace its `run()` body.
+
+`backend.py` is incremental: completed tasks are skipped on later runs. A
 second writer for the same environment exits cleanly while another run holds
 the environment lock; use `--wait` when waiting is preferred.
 
-For a bounded nightly run, stop before starting another image at the next local
+For a bounded nightly run, stop before starting another task at the next local
 06:00 deadline:
 
 ```bash
@@ -207,9 +268,8 @@ requires about 50 hours of model time before failures or duplicates.
 
 ### Backend options
 
-`backend.py` is the single entry point that consolidated the former multi-stage
-scripts. It interleaves `reconcile → classify → ingest → thumbnails → exports`,
-one image at a time, so the KB (and the WebUI) stay live during a long run.
+`backend.py` is the per-source worker entry point. It interleaves reconciliation,
+task claiming, handler execution, result writing, and tracker checkpoints.
 All options are passed on its command line:
 
 | Flag | Meaning |
@@ -217,9 +277,7 @@ All options are passed on its command line:
 | `-env ENV` | Choose the environment: `DEV`, `QA`, `PRD-iCloud-Screenshots` (default), `PRD-OneDrive-Pictures`. All artifacts are isolated under `.workspace/<env>/`. |
 | `--count N` | Process up to **N** unprocessed files this run (newest `mtime` first). Omit it to use the environment's `processed_limit` (DEV = 5, PRD = 0); `0` = all remaining. |
 | `--screenshot-dir PATH` | Scan a folder other than the environment's configured `source_dir`. Generated outputs still land in `.workspace/<env>/`, not the scanned folder. |
-| `--no-thumbs` | Skip 320px thumbnail generation (used by both the normal run and `--rebuild-kb`). |
-| `--rebuild-kb` | Rebuild `wiki.db` + the exports from an existing `_annotations.jsonl` **without calling the vision model**. Incremental: a record is re-ingested only when its source `mtime` changed. |
-| `--force` | With `--rebuild-kb`: **wipe every existing DB row** and re-ingest from scratch, ignoring the `mtime` change-detection. |
+| `--count N` | Process up to N pending work tasks. |
 | `--until HH:MM` | Stop before starting the next image once the local wall-clock deadline passes (for a bounded nightly/cron run). |
 | `--wait` | Wait for the environment lock instead of exiting cleanly when another run holds it. |
 
@@ -227,13 +285,10 @@ All options are passed on its command line:
   new files prints *Nothing to do* and does no vision work.
 - **One writer per environment.** A second `backend.py` for the same env exits
   cleanly while another run holds the lock; use `--wait` to queue instead.
-- **Companion scripts.** `run.sh` is the thin cron wrapper (`exec backend.py "$@"`,
-  so it takes the same flags). `reset.sh` clears only the cheap, regenerable KB
-  layer — `wiki.db`, `wiki.ndjson`, `tags_index.json`, `thumbnails/` — and is
-  rebuilt with `python3 backend.py -env ENV --rebuild-kb`; raw
-  `_annotations.jsonl` is always kept.
+- **Companion scripts.** `run.sh` is the thin cron wrapper. `work5.py`
+  is a separate dataset-wide producer and writes `duplicatefinder.jsonl`.
 
-### 3. Query (FTS5 full-text)
+### 4. Query (FTS5 full-text)
 
 ```bash
 python3 - <<'PY'

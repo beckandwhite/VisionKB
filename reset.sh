@@ -3,7 +3,7 @@
 # reset.sh — clear generated pipeline artifacts so the project can be rebuilt
 # from scratch. Only the cheap, fast-to-rebuild KB layer is removed.
 #
-# After a reset, rebuild the KB layer with:   python3 backend.py --rebuild-kb
+# After a reset, rerun the configured works with:   python3 backend.py
 #
 # Usage:
 #    ./reset.sh                  reset DEV
@@ -48,8 +48,8 @@ Environments:
     PRD-iCloud-Screenshots
     PRD-OneDrive-Pictures
 
-The reset clears generated KB artifacts in .workspace/ENV. Raw classifier
-output is kept. Use python3 backend.py -env ENV --rebuild-kb to rebuild.
+The reset clears generated work artifacts in .workspace/ENV. The source tracker
+and analytical result files are kept unless removed manually.
 EOF
             exit 0
             ;;
@@ -79,6 +79,7 @@ ALWAYS=""
 [ -e "$ENV_DIR/wiki.db" ]       && ALWAYS="$ALWAYS $ENV_DIR/wiki.db"
 [ -e "$ENV_DIR/wiki.ndjson" ]   && ALWAYS="$ALWAYS $ENV_DIR/wiki.ndjson"
 [ -e "$ENV_DIR/tags_index.json" ] && ALWAYS="$ALWAYS $ENV_DIR/tags_index.json"
+[ -e "$ENV_DIR/duplicatefinder.jsonl" ] && ALWAYS="$ALWAYS $ENV_DIR/duplicatefinder.jsonl"
 [ -d "$ENV_DIR/thumbnails" ]    && ALWAYS="$ALWAYS $ENV_DIR/thumbnails"
 [ -d "kb/__pycache__" ] && ALWAYS="$ALWAYS kb/__pycache__"
 [ -d "__pycache__" ]   && ALWAYS="$ALWAYS __pycache__"
@@ -106,7 +107,7 @@ printf 'Project root: %s\n\n' "$SCRIPT_DIR"
 printf 'Environment: %s\n\n' "$ENV_NAME"
 
 if [ -n "$ALWAYS" ]; then
-    printf 'KB layer (rebuilt with: python3 backend.py --rebuild-kb):\n'
+    printf 'Generated work artifacts:\n'
     for item in $ALWAYS; do printf '  [KB ]  %s\n' "$item"; done
 else
     printf 'KB layer: (nothing present)\n'
@@ -131,4 +132,4 @@ for item in $ALWAYS; do
 done
 
 printf '\nDone. Removed %s path(s).\n' "$deleted"
-printf 'Rebuild the KB layer:  python3 backend.py -env %s --rebuild-kb\n' "$ENV_NAME"
+printf 'Rerun configured works: python3 backend.py -env %s\n' "$ENV_NAME"

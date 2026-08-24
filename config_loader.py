@@ -20,6 +20,48 @@ DEFAULT_CONFIG = {
     "processed_limit": 0,
     "max_dim": 2560,
     "save_every": 25,
+    "works": [
+        {
+            "name": "work1",
+            "scope": "per_source",
+            "handler": "work1",
+            "output": "jsonl",
+            "result_file": "work1.jsonl",
+            "enabled": True,
+        },
+        {
+            "name": "work2",
+            "scope": "per_source",
+            "handler": "work2",
+            "output": "jsonl",
+            "result_file": "work2.jsonl",
+            "enabled": True,
+        },
+        {
+            "name": "work3",
+            "scope": "per_source",
+            "handler": "work3",
+            "output": "jsonl",
+            "result_file": "work3.jsonl",
+            "enabled": True,
+        },
+        {
+            "name": "work4",
+            "scope": "per_source",
+            "handler": "work4",
+            "output": "files",
+            "output_dir": "thumbnails",
+            "enabled": True,
+        },
+        {
+            "name": "work5",
+            "scope": "dataset",
+            "handler": "work5",
+            "output": "jsonl",
+            "result_file": "duplicatefinder.jsonl",
+            "enabled": True,
+        },
+    ],
 }
 
 
@@ -45,12 +87,42 @@ def load_config(env: str) -> tuple[Dict[str, Any], str]:
         raise RuntimeError("Environment config must be a JSON object: %s" % config_path)
     config = dict(DEFAULT_CONFIG)
     config.update(loaded)
+    config["works"] = normalize_works(config.get("works"))
     if "TAG_LIST" not in config and env != "DEV":
         dev_path = WORKSPACE_DIR / "DEV" / "config.json"
         with open(dev_path, encoding="utf-8") as fh:
             dev_config = json.load(fh)
         config["TAG_LIST"] = dev_config.get("TAG_LIST", [])
     return config, env
+
+
+def normalize_works(works):
+    """Validate and normalize configured per-source work definitions."""
+    if works is None:
+        works = DEFAULT_CONFIG["works"]
+    if not isinstance(works, list):
+        raise ValueError("Environment config 'works' must be a list")
+    normalized = []
+    names = set()
+    for work in works:
+        if not isinstance(work, dict):
+            raise ValueError("Each configured work must be an object")
+        name = str(work.get("name", "")).strip()
+        scope = str(work.get("scope", "per_source")).strip()
+        handler = str(work.get("handler", name)).strip()
+        output = str(work.get("output", "jsonl")).strip()
+        if not name or name in names:
+            raise ValueError("Configured work names must be non-empty and unique")
+        if scope not in ("per_source", "dataset"):
+            raise ValueError("Work %s has invalid scope %r" % (name, scope))
+        if output not in ("jsonl", "files", "none"):
+            raise ValueError("Work %s has invalid output %r" % (name, output))
+        item = dict(work)
+        item.update({"name": name, "scope": scope, "handler": handler,
+                     "output": output, "enabled": bool(work.get("enabled", True))})
+        normalized.append(item)
+        names.add(name)
+    return normalized
 
 
 def resolve_environment(env=DEFAULT_ENV):

@@ -64,11 +64,12 @@ TIMELINE_DEFAULT_LIMIT = 150
 # ---------------------------------------------------------------------------
 
 def load_tracker():
-    """Return (files, runs) from _tracker.json.
+    """Return (sources, tasks, runs) from _tracker.json.
     Missing/corrupt/old-schema -> ({}, {}). The registry is read through the
     shared tracker module so the schema stays consistent with the writers."""
     payload = tracker.load_registry(TRACKER_PATH)
-    return payload.get("files", {}), payload.get("runs", {})
+    return (payload.get("sources", {}), payload.get("tasks", {}),
+            payload.get("runs", {}))
 
 
 def load_telemetry():
@@ -77,8 +78,8 @@ def load_telemetry():
     Each processed file yields one row: {timestamp, filename, vision_latency_s,
     tags_count, embedding_dims, status, error}. Backed by the shared tracker.
     """
-    files, _ = load_tracker()
-    return tracker.telemetry_from_tracker(files)
+    sources, tasks, _ = load_tracker()
+    return tracker.telemetry_from_tracker(tasks, sources)
 
 
 def load_annotations():
@@ -208,13 +209,14 @@ def build_overview():
     a file counts as handled when it has a finished_at or processed_at stamp,
     so the backlog reflects the vision queue regardless of KB-layer stages.
     """
-    files, runs = load_tracker()
-    telemetry = tracker.telemetry_from_tracker(files)
+    sources, tasks, runs = load_tracker()
+    telemetry = tracker.telemetry_from_tracker(tasks, sources)
 
-    total = len(files)
+    total = len(sources)
     processed = sum(
-        1 for e in files.values()
-        if e.get("finished_at") or e.get("processed_at")
+        1 for task in tasks.values()
+        if task.get("work_name") == "vision_query"
+        and task.get("worker_finished_at")
     )
     remaining = max(total - processed, 0)
 
@@ -275,11 +277,11 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
                    query=None, mtime_from=None, mtime_to=None):
     """Merge tracker files with annotation detail, newest first."""
     annotations = load_annotations()
-    files, runs = load_tracker()
+    sources, tasks, runs = load_tracker()
     wiki = load_wiki()
 
     telem_by_name = {}
-    for r in tracker.telemetry_from_tracker(files):
+    for r in tracker.telemetry_from_tracker(tasks, sources):
         nm = r.get("filename")
         if nm:
             telem_by_name.setdefault(nm, []).append(r)
@@ -372,7 +374,7 @@ def load_record(filename):
     """Full untruncated record for one annotation, plus tracker telemetry, or None."""
     rec = load_annotations().get(filename)
     if rec is None:
-        files, _ = load_tracker()
+        sources, tasks, _ = load_tracker()
         for path, entry in files.items():
             if entry.get("filename") == filename:
                 rec = {
@@ -390,8 +392,8 @@ def load_record(filename):
             return None
     rec["ocr_text"] = rec.get("OCR_text") or []
     rec["ocr_truncated"] = False
-    files, runs = load_tracker()
-    for r in tracker.telemetry_from_tracker(files):
+    sources, tasks, runs = load_tracker()
+    for r in tracker.telemetry_from_tracker(tasks, sources):
         if r.get("filename") == filename:
             rec["telem_status"] = r.get("status")
             rec["telem_latency_s"] = r.get("vision_latency_s")
