@@ -113,7 +113,15 @@ def _duration_seconds(record):
     return None
 
 
-def load_telemetry():
+def _task_duration_seconds(task):
+    started = _iso_to_epoch(task.get("worker_started_at"))
+    finished = _iso_to_epoch(task.get("worker_finished_at"))
+    if started and finished and finished >= started:
+        return round(finished - started, 2)
+    return None
+
+
+def load_telemetry(work_name="work1"):
     """Reconstruct telemetry rows from the tracker (newest last).
 
     Each processed file yields one row: {timestamp, filename, vision_latency_s,
@@ -121,18 +129,21 @@ def load_telemetry():
     """
     sources, tasks, _ = load_tracker()
     rows = []
-    for source_key, record in (load_work_results().get("work1") or {}).items():
+    for task in tasks.values():
+        if task.get("work_name") != work_name:
+            continue
+        source_key = task.get("source_key")
         source = sources.get(source_key, {})
-        duration = _duration_seconds(record)
+        duration = _task_duration_seconds(task)
         if not source or duration is None:
             continue
         rows.append({
-            "timestamp": record.get("finished_at"),
+            "timestamp": task.get("worker_finished_at"),
             "filename": source.get("filename"),
             "source_key": source_key,
-            "work_name": "work1",
+            "work_name": work_name,
             "vision_latency_s": duration,
-            "status": record.get("status") or "ok",
+            "status": "ok",
         })
     rows.sort(key=lambda row: row.get("timestamp") or "")
     return rows
@@ -261,7 +272,7 @@ def _find_original(filename, source_key=None):
     return None
 
 
-def build_overview():
+def build_overview(work_name="work1"):
     """Backlog status + ETA from the tracker.
 
     Reports how many pictures are still unprocessed and the estimated time
@@ -272,14 +283,16 @@ def build_overview():
     so the backlog reflects the vision queue regardless of KB-layer stages.
     """
     sources, tasks, runs = load_tracker()
-    telemetry = load_telemetry()
+    telemetry = load_telemetry(work_name)
     results = load_work_results()
 
     active_sources = {key for key, source in sources.items()
                       if not source.get("missing")}
     total = len(active_sources)
-    processed = sum(1 for key in (results.get("work1") or {})
-                    if key in active_sources)
+    processed = sum(1 for task in tasks.values()
+                    if task.get("work_name") == work_name
+                    and task.get("worker_finished_at")
+                    and task.get("source_key") in active_sources)
     remaining = max(total - processed, 0)
 
     # Speed = mean vision_latency_s of the most recent 5 processed files.
@@ -512,7 +525,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/overview":
-            self._send_json(build_overview())
+            work_name = qs.get("work", ["work1"])[0]
+            self._send_json(build_overview(work_name))
             return
 
         if path == "/api/tags":
@@ -520,7 +534,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/telemetry":
-            self._send_json(load_telemetry())
+            work_name = qs.get("work", ["work1"])[0]
+            self._send_json(load_telemetry(work_name))
             return
 
         if path == "/api/timeline":

@@ -57,16 +57,23 @@ async function api(path, params) {
 
 // ----- backlog status (page footer) --------------------------------------
 async function renderBacklog() {
-    const [data, telemetry] = await Promise.all([
-        api("/api/overview"),
-        api("/api/telemetry"),
+    const [worker1Data, worker1Telemetry, worker4Data, worker4Telemetry] = await Promise.all([
+        api("/api/overview", { work: "work1" }),
+        api("/api/telemetry", { work: "work1" }),
+        api("/api/overview", { work: "work4" }),
+        api("/api/telemetry", { work: "work4" }),
     ]);
     const environment = $("#data-environment");
-    const l1 = $("#backlog-line1");
-    const l2 = $("#backlog-line2");
     if (environment) {
-        environment.textContent = "data: " + (data.environment || "unknown");
+        environment.textContent = "data: " + (worker1Data.environment || "unknown");
     }
+    renderWorkerBacklog("worker1", worker1Data, worker1Telemetry);
+    renderWorkerBacklog("worker4", worker4Data, worker4Telemetry);
+}
+
+function renderWorkerBacklog(worker, data, telemetry) {
+    const l1 = $("#" + worker + "-backlog-line1");
+    const l2 = $("#" + worker + "-backlog-line2");
     if (!l1 || !l2) return;
 
     l1.textContent = data.processed + "/" + data.total;
@@ -80,18 +87,20 @@ async function renderBacklog() {
         msg = "≈ " + data.eta_human + " left";
      }
     l2.textContent = msg;
-    renderProcessingChart(telemetry);
+    renderProcessingChart(telemetry, worker);
 }
 
-function renderProcessingChart(rows) {
-    const host = $("#backlog-chart");
-    const meta = $("#backlog-chart-meta");
-    if (!host || !meta) return;
+function renderProcessingChart(rows, worker) {
+    const host = $("#" + worker + "-backlog-chart");
+    const axis = $("#" + worker + "-backlog-chart-axis");
+    const meta = $("#" + worker + "-backlog-chart-meta");
+    if (!host || !axis || !meta) return;
 
     const recent = (Array.isArray(rows) ? rows : [])
         .filter((row) => Number.isFinite(Number(row.vision_latency_s)))
         .slice(-20);
     host.innerHTML = "";
+    axis.innerHTML = "";
     meta.textContent = recent.length ? recent.length + " processed" : "no data yet";
 
     if (!recent.length) {
@@ -100,6 +109,11 @@ function renderProcessingChart(rows) {
     }
 
     const max = Math.max(...recent.map((row) => Number(row.vision_latency_s)), 1);
+    for (const seconds of [max, max / 2, 0]) {
+        const label = document.createElement("span");
+        label.textContent = seconds.toFixed(1) + "s";
+        axis.appendChild(label);
+    }
     for (const row of recent) {
         const seconds = Number(row.vision_latency_s);
         const bar = document.createElement("div");

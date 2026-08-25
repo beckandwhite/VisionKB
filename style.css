@@ -177,6 +177,24 @@ html, body {
     color: var(--text);
 }
 .backlog-chart-wrap { min-width: 0; }
+.backlog-chart-area {
+   display: grid;
+   grid-template-columns: 30px minmax(0, 1fr);
+   gap: 6px;
+   align-items: stretch;
+}
+.backlog-chart-axis {
+   height: 104px;
+   padding: 8px 0 0;
+   box-sizing: border-box;
+   display: flex;
+   flex-direction: column;
+   justify-content: space-between;
+   color: var(--muted);
+   font-size: 10px;
+   line-height: 1;
+   text-align: right;
+}
 .backlog-chart-heading {
    display: flex;
    justify-content: space-between;
