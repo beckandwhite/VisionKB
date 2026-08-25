@@ -126,8 +126,10 @@ def run(args):
                       if work.get("enabled", True) and work["scope"] == "per_source"]
         tracker.ensure_tasks(sources, tasks, per_source)
         count_limit = config["processed_limit"] if args.count is None else args.count
+        print("Using environment: %s (pass -env ENV to select another)"
+              % (args.env or ".workspace"), flush=True)
         save_progress(config, sources, tasks, count_limit, len(images), new_count,
-                      0, 0, "reconciled")
+                       0, 0, "reconciled")
         wanted = tracker.pending_tasks(sources, tasks, per_source, stale_after_s=3600)
         wanted_keys = {tracker.task_id(task["source_key"], task["work_name"])
                        for task in wanted}
@@ -144,11 +146,16 @@ def run(args):
                             and tracker.task_id(source_key, task["work_name"]) in wanted_keys]
             for task in source_tasks:
                 work = work_by_name(config, task["work_name"])
-                ok, _elapsed = run_task(sources[source_key], task, work, config, worker_id)
+                filename = sources[source_key].get("filename", source_key)
+                print("[%d/%d] %s: %s"
+                      % (processed + 1, len(wanted), task["work_name"], filename), flush=True)
+                ok, elapsed = run_task(sources[source_key], task, work, config, worker_id)
                 processed += 1
                 errors += int(not ok)
                 save_progress(config, sources, tasks, count_limit, len(images), new_count,
                               processed, errors, "running")
+                print("     %s (%.3fs)"
+                      % ("error" if not ok else "ok", elapsed), flush=True)
         save_progress(config, sources, tasks, count_limit, len(images), new_count,
                       processed, errors,
                       "deadline-reached" if deadline and datetime.now() >= deadline else "completed")
