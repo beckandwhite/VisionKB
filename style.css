@@ -83,7 +83,7 @@ html, body {
 
 /* ----------------------------------------------------------------- layout */
 .layout {
-   max-width: 1100px;
+   max-width: 1480px;
    margin: 0 auto;
    padding: 22px 18px 80px;
    display: flex;
@@ -330,6 +330,7 @@ html, body {
    border-radius: 6px;
    padding: 12px;
    cursor: pointer;
+   align-items: flex-start;
 }
 .tl-row:hover { border-color: var(--accent); }
 .tl-thumb {
@@ -362,9 +363,11 @@ html, body {
 }
 .tl-status-dot.ok   { background: var(--ok); }
 .tl-status-dot.fail { background: var(--fail); }
+.tl-status-dot.pending { background: var(--accent); }
 .tl-status-dot.none { background: var(--muted); }
 .tl-quality { font-size: 11px; color: var(--muted); }
 .tl-caption { font-size: 12px; margin: 4px 0; }
+.result-limit { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .tl-tags { display: flex; gap: 5px; flex-wrap: wrap; margin: 5px 0; }
 .tag-chip {
    font-size: 10px;
@@ -419,6 +422,8 @@ html, body {
    .topbar { align-items: flex-start; gap: 8px; }
    .topbar-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
    #filter-q { min-width: min(240px, 100%); width: 100%; }
+   .tl-row { align-items: stretch; }
+   .tl-thumb { width: 82px; height: 62px; }
    .mtime-filter-head, .mtime-endpoints { font-size: 9px; }
    .backlog-summary { grid-template-columns: 1fr; gap: 18px; }
    .tag-cloud {
@@ -433,8 +438,8 @@ html, body {
 .record-panel {
    position: fixed;
    top: 0; right: 0; bottom: 0;
-   width: 460px;
-   max-width: 92vw;
+   width: 360px;
+   max-width: 78vw;
    background: var(--bg-elev);
    border-left: 1px solid var(--border);
    transform: translateX(100%);

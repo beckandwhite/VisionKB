@@ -50,10 +50,13 @@ ROOT = SCRIPT_DIR
 # environment fails fast with an actionable message instead of a silent copy.
 CURRENT_ENV, TRACKER_PATH = None, None
 ANNOT_PATH = WIKI_PATH = TAGS_PATH = THUMB_DIR = None
+ENV_CONFIG = None
 
 OCR_LINE_MAX = 100
 OCR_LINES_MAX = 8
 TIMELINE_DEFAULT_LIMIT = 150
+TIMELINE_WINDOW_DEFAULT = 50
+TIMELINE_WINDOWS = (50, 100, 150, 200)
 
 
 
@@ -71,6 +74,45 @@ def load_tracker():
             payload.get("runs", {}))
 
 
+def load_work_results():
+    """Return the latest valid configured JSONL result by work and source key."""
+    results = {}
+    if not ENV_CONFIG:
+        return results
+    for work in ENV_CONFIG.get("works", []):
+        result_file = work.get("result_file")
+        if not result_file or work.get("output") != "jsonl":
+            continue
+        path = ENV_CONFIG["env_dir"] / result_file
+        by_source = {}
+        try:
+            with open(path, encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        record = json.loads(line)
+                    except (ValueError, TypeError):
+                        continue
+                    source_key = record.get("source_key")
+                    if source_key:
+                        by_source[source_key] = record
+        except OSError:
+            pass
+        results[work.get("name")] = by_source
+    return results
+
+
+def _work_result(results, work_name, source_key):
+    return (results.get(work_name) or {}).get(source_key) or {}
+
+
+def _duration_seconds(record):
+    started = _iso_to_epoch(record.get("started_at"))
+    finished = _iso_to_epoch(record.get("finished_at"))
+    if started and finished and finished >= started:
+        return round(finished - started, 2)
+    return None
+
+
 def load_telemetry():
     """Reconstruct telemetry rows from the tracker (newest last).
 
@@ -78,7 +120,22 @@ def load_telemetry():
     tags_count, embedding_dims, status, error}. Backed by the shared tracker.
     """
     sources, tasks, _ = load_tracker()
-    return tracker.telemetry_from_tracker(tasks, sources)
+    rows = []
+    for source_key, record in (load_work_results().get("work1") or {}).items():
+        source = sources.get(source_key, {})
+        duration = _duration_seconds(record)
+        if not source or duration is None:
+            continue
+        rows.append({
+            "timestamp": record.get("finished_at"),
+            "filename": source.get("filename"),
+            "source_key": source_key,
+            "work_name": "work1",
+            "vision_latency_s": duration,
+            "status": record.get("status") or "ok",
+        })
+    rows.sort(key=lambda row: row.get("timestamp") or "")
+    return rows
 
 
 def load_annotations():
@@ -182,17 +239,23 @@ def _thumb_path_for(filename):
     return path if os.path.isfile(path) else None
 
 
-def _find_original(filename):
+def _find_original(filename, source_key=None):
     """Absolute path to the full-res original for a thumbnail filename, or None.
 
     Used by /thumb/<file>?original=1 so a thumbnail can be clicked through to
     its source image. Looked up via the annotation record's "filepath"."""
     if not filename:
         return None
+    sources, _, _ = load_tracker()
+    source = sources.get(source_key) if source_key else None
+    if source is None:
+        source = next((item for item in sources.values()
+                       if item.get("filename") == filename), None)
+    path = source.get("source_key") if source else None
+    if path and os.path.isfile(path):
+        return path
     rec = load_annotations().get(filename)
-    if rec is None:
-        return None
-    path = rec.get("filepath")
+    path = rec.get("filepath") if rec else None
     if path and os.path.isfile(path):
         return path
     return None
@@ -209,14 +272,14 @@ def build_overview():
     so the backlog reflects the vision queue regardless of KB-layer stages.
     """
     sources, tasks, runs = load_tracker()
-    telemetry = tracker.telemetry_from_tracker(tasks, sources)
+    telemetry = load_telemetry()
+    results = load_work_results()
 
-    total = len(sources)
-    processed = sum(
-        1 for task in tasks.values()
-        if task.get("work_name") == "vision_query"
-        and task.get("worker_finished_at")
-    )
+    active_sources = {key for key, source in sources.items()
+                      if not source.get("missing")}
+    total = len(active_sources)
+    processed = sum(1 for key in (results.get("work1") or {})
+                    if key in active_sources)
     remaining = max(total - processed, 0)
 
     # Speed = mean vision_latency_s of the most recent 5 processed files.
@@ -273,84 +336,81 @@ def _timeline_histogram(values, bucket_count=48):
 
 
 def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
-                   query=None, mtime_from=None, mtime_to=None):
-    """Merge tracker files with annotation detail, newest first."""
+                   query=None, mtime_from=None, mtime_to=None,
+                   window_limit=TIMELINE_WINDOW_DEFAULT):
+    """Build a newest-first timeline from tracked sources and configured work."""
     annotations = load_annotations()
-    sources, tasks, runs = load_tracker()
+    sources, tasks, _ = load_tracker()
+    results = load_work_results()
+    work1_results = results.get("work1") or {}
     wiki = load_wiki()
-
-    telem_by_name = {}
-    for r in tracker.telemetry_from_tracker(tasks, sources):
-        nm = r.get("filename")
-        if nm:
-            telem_by_name.setdefault(nm, []).append(r)
+    task_by_source = {
+        task.get("source_key"): task for task in tasks.values()
+        if task.get("work_name") == "work1"
+    }
 
     rows = []
-    for path, entry in files.items():
-        name = entry.get("filename") or os.path.basename(path)
-        rec = annotations.get(name, {})
-        telem = telem_by_name.get(name)
-        telem_status = telem_latency = telem_ts = telem_error = None
-        if telem:
-            last = telem[-1]
-            telem_status = last.get("status")
-            telem_latency = last.get("vision_latency_s")
-            telem_ts = last.get("timestamp")
-            telem_error = last.get("error")
-
-        tags = rec.get("tags") or []
-        ocr = rec.get("OCR_text") or []
-        quality = entry.get("quality_score")
-        if quality is None:
-            quality = rec.get("quality_score")
-
-        mtime_iso = entry.get("mtime_iso") or rec.get("mtime_iso") or ""
-
-        status = entry.get("status") or telem_status
-        if status is None:
-            status = "ok" if (rec.get("caption") or tags or ocr) else "none"
-
+    for source_key, entry in sources.items():
+        if entry.get("missing"):
+            continue
+        name = entry.get("filename") or os.path.basename(source_key)
+        legacy = annotations.get(name, {})
+        result = work1_results.get(source_key, {})
+        output = result.get("output") or {}
+        answer = output.get("answer") or legacy.get("caption") or ""
+        task = task_by_source.get(source_key, {})
+        result_status = result.get("status")
+        if result_status == "error":
+            status = "fail"
+        elif result_status == "ok":
+            status = "ok"
+        elif task.get("worker_started_at"):
+            status = "pending"
+        else:
+            status = "none"
+        duration = _duration_seconds(result)
+        tags = legacy.get("tags") or []
+        ocr = legacy.get("OCR_text") or []
+        mtime_iso = entry.get("modified_at") or legacy.get("mtime_iso") or ""
         ocr_trunc, truncated = _truncate_ocr(ocr)
         rows.append({
-             "filename": name,
-             "mtime_iso": mtime_iso,
-             "mtime_epoch": _iso_to_epoch(mtime_iso),
-             "status": status,
-             "quality": quality,
-             "caption": rec.get("caption") or "",
-             "tags": tags,
-             "ocr_text": ocr_trunc,
-             "ocr_truncated": truncated,
-             "entities": rec.get("entities") or [],
-             "telem_latency_s": telem_latency,
-             "telem_status": telem_status,
-             "telem_timestamp": telem_ts,
-             "telem_error": telem_error,
-             "in_wiki": name in wiki,
-             "has_thumb": _thumb_path_for(name) is not None,
-             "original_path": rec.get("filepath") or "",
-         })
+            "source_key": source_key,
+            "filename": name,
+            "mtime_iso": mtime_iso,
+            "mtime_epoch": _iso_to_epoch(mtime_iso),
+            "status": status,
+            "quality": legacy.get("quality_score"),
+            "answer": answer,
+            "caption": answer,
+            "tags": tags,
+            "ocr_text": ocr_trunc,
+            "ocr_truncated": truncated,
+            "entities": legacy.get("entities") or [],
+            "telem_latency_s": duration,
+            "telem_status": result_status,
+            "telem_timestamp": result.get("finished_at"),
+            "telem_error": result.get("error"),
+            "in_wiki": name in wiki,
+            "has_thumb": _thumb_path_for(name) is not None,
+            "original_path": source_key,
+        })
 
+    rows.sort(key=lambda row: row["mtime_epoch"], reverse=True)
+    window_limit = window_limit if window_limit in TIMELINE_WINDOWS else TIMELINE_WINDOW_DEFAULT
+    rows = rows[:window_limit]
     domain_min, domain_max, buckets = _timeline_histogram(
         [row["mtime_epoch"] for row in rows if row["mtime_epoch"] > 0])
-    rows.sort(key=lambda r: r["mtime_epoch"], reverse=True)
     total_rows = len(rows)
 
     if mtime_from is not None and mtime_to is not None:
-        rows = [r for r in rows
-                if r["mtime_epoch"] >= mtime_from
-                and r["mtime_epoch"] <= mtime_to]
+        rows = [r for r in rows if mtime_from <= r["mtime_epoch"] <= mtime_to]
     if tag_filter:
         rows = [r for r in rows if tag_filter in r["tags"]]
     if status_filter and status_filter not in ("all", "", None):
         rows = [r for r in rows if r["status"] == status_filter]
     if query:
         q = query.lower()
-        rows = [r for r in rows
-                if q in (r["caption"] or "").lower()
-                or any(q in (t or "").lower() for t in r["tags"])
-                or any(q in (o or "").lower() for o in r["ocr_text"])
-                or any(q in (e or "").lower() for e in r["entities"])]
+        rows = [r for r in rows if q in (r["answer"] or "").lower()]
 
     shown_total = len(rows)
     if limit is not None:
@@ -369,35 +429,36 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
      }
 
 
-def load_record(filename):
-    """Full untruncated record for one annotation, plus tracker telemetry, or None."""
-    rec = load_annotations().get(filename)
-    if rec is None:
-        sources, tasks, _ = load_tracker()
-        for path, entry in files.items():
-            if entry.get("filename") == filename:
-                rec = {
-                    "filename": filename,
-                    "filepath": path,
-                    "mtime_iso": entry.get("mtime_iso") or "",
-                    "quality_score": entry.get("quality_score"),
-                    "caption": "",
-                    "tags": [],
-                    "OCR_text": [],
-                    "entities": [],
-                }
-                break
-        if rec is None:
-            return None
-    rec["ocr_text"] = rec.get("OCR_text") or []
-    rec["ocr_truncated"] = False
-    sources, tasks, runs = load_tracker()
-    for r in tracker.telemetry_from_tracker(tasks, sources):
-        if r.get("filename") == filename:
-            rec["telem_status"] = r.get("status")
-            rec["telem_latency_s"] = r.get("vision_latency_s")
-            rec["telem_error"] = r.get("error")
-    return rec
+def load_record(filename, source_key=None):
+    """Return a full normalized record for a tracked source."""
+    sources, _, _ = load_tracker()
+    if source_key not in sources:
+        source_key = next((key for key, source in sources.items()
+                           if source.get("filename") == filename), None)
+    if not source_key or sources[source_key].get("missing"):
+        return None
+    source = sources[source_key]
+    legacy = load_annotations().get(source.get("filename"), {})
+    result = _work_result(load_work_results(), "work1", source_key)
+    output = result.get("output") or {}
+    answer = output.get("answer") or legacy.get("caption") or ""
+    return {
+        "source_key": source_key,
+        "filename": source.get("filename") or filename,
+        "original_path": source_key,
+        "mtime_iso": source.get("modified_at") or legacy.get("mtime_iso") or "",
+        "quality_score": legacy.get("quality_score"),
+        "answer": answer,
+        "caption": answer,
+        "tags": legacy.get("tags") or [],
+        "entities": legacy.get("entities") or [],
+        "ocr_text": legacy.get("OCR_text") or [],
+        "ocr_truncated": False,
+        "status": result.get("status") or "none",
+        "telem_status": result.get("status"),
+        "telem_latency_s": _duration_seconds(result),
+        "telem_error": result.get("error"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -478,6 +539,12 @@ class Handler(BaseHTTPRequestHandler):
             status_filter = qs.get("status", [None])[0]
             tag_filter = qs.get("tag", [None])[0]
             query = qs.get("q", [None])[0]
+            try:
+                window_limit = int(qs.get("window", [TIMELINE_WINDOW_DEFAULT])[0])
+            except (TypeError, ValueError):
+                window_limit = TIMELINE_WINDOW_DEFAULT
+            if window_limit not in TIMELINE_WINDOWS:
+                window_limit = TIMELINE_WINDOW_DEFAULT
             mtime_from = _query_float(qs, "mtime_from")
             mtime_to = _query_float(qs, "mtime_to")
             if (mtime_from is None) != (mtime_to is None):
@@ -487,15 +554,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(build_timeline(limit=limit, offset=offset,
                                       status_filter=status_filter,
                                       tag_filter=tag_filter, query=query,
-                                      mtime_from=mtime_from, mtime_to=mtime_to))
+                                      mtime_from=mtime_from, mtime_to=mtime_to,
+                                      window_limit=window_limit))
             return
 
         if path == "/api/record":
             filename = qs.get("filename", [None])[0]
+            source_key = qs.get("source_key", [None])[0]
             if not filename:
                 self._send_json({"error": "filename required"}, 400)
                 return
-            rec = load_record(unquote(filename))
+            rec = load_record(unquote(filename), unquote(source_key) if source_key else None)
             if rec is None:
                 self._send_json({"error": "not found"}, 404)
             else:
@@ -504,9 +573,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.startswith("/thumb/"):
             filename = unquote(path[len("/thumb/"):])
+            source_key = qs.get("source_key", [None])[0]
             serve_original = qs.get("original", [None])[0] == "1"
             if serve_original:
-                orig = _find_original(filename)
+                orig = _find_original(filename, unquote(source_key) if source_key else None)
                 if orig is None:
                     self._send_json({"error": "original not found"}, 404)
                 else:
@@ -523,7 +593,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global CURRENT_ENV, TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR
+    global CURRENT_ENV, TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR, ENV_CONFIG
     parser = argparse.ArgumentParser(description="Screenshot KB WebUI server")
     parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
                         help="environment name; omit for the default (.workspace/). "
@@ -537,6 +607,7 @@ def main():
     try:
         CURRENT_ENV, config = config_loader.resolve_environment(
              args.env, auto_bootstrap=False)
+        ENV_CONFIG = config
     except (RuntimeError, ValueError, OSError) as exc:
         parser.error(str(exc))
     TRACKER_PATH = str(config["tracker_path"])

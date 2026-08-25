@@ -7,6 +7,7 @@ const TL_PAGE = 50;
 // ----- global state ---------------------------------------------------------
 const state = {
     offset: 0,
+    windowLimit: 50,
     hasMore: false,
     rowsShown: 0,
     loading: false,
@@ -117,7 +118,6 @@ function currentFilters() {
     return {
         q: $("#filter-q").value.trim(),
         status: $("#filter-status").value,
-        tag: $("#filter-tag").value,
         mtimeFrom: state.mtimeFrom,
         mtimeTo: state.mtimeTo,
     };
@@ -189,10 +189,10 @@ async function loadTimeline(reset) {
     const params = {
         limit: TL_PAGE,
         offset: state.offset,
+        window: state.windowLimit,
     };
     if (f.q) params.q = f.q;
     if (f.status && f.status !== "all") params.status = f.status;
-    if (f.tag) params.tag = f.tag;
     if (f.mtimeFrom != null && f.mtimeTo != null) {
         params.mtime_from = f.mtimeFrom;
         params.mtime_to = f.mtimeTo;
@@ -222,9 +222,11 @@ async function loadTimeline(reset) {
 function renderRow(row) {
     const el = document.createElement("div");
     el.className = "tl-row";
+    el.dataset.sourceKey = row.source_key || "";
 
-    const thumbUrl    = "/thumb/" + encodeURIComponent(row.filename);
-    const originalUrl = thumbUrl + "?original=1";
+    const thumbUrl = "/thumb/" + encodeURIComponent(row.filename);
+    const originalUrl = thumbUrl + "?original=1&source_key=" +
+        encodeURIComponent(row.source_key || "");
     const openAttr = ' class="tl-thumb-link" data-original="' + originalUrl + '"';
     const thumb = row.has_thumb
            ? '<a' + openAttr + '><img class="tl-thumb" src="' + thumbUrl + '" alt="" loading="lazy"></a>'
@@ -249,13 +251,7 @@ function renderRow(row) {
             '<span class="tl-mtime">' + fmtTime(row.mtime_iso) + "Z</span>" +
             '<span class="tl-quality">' + quality + "</span>" +
           "</div>" +
-          '<div class="tl-caption">' + esc(row.caption || "—") + "</div>" +
-          '<div class="tl-tags">' +
-            row.tags.map((t) =>
-                '<span class="tag-chip" data-tag="' + esc(t) + '">' +
-                esc(t) + "</span>").join("") +
-            inWiki +
-          "</div>" +
+                    '<div class="tl-caption">' + esc(row.answer || "—") + "</div>" +
           '<div class="tl-ocr">' +
             esc(row.ocr_text.join("\n")) +
             (row.ocr_truncated ? " ⋯" : "") +
@@ -267,19 +263,13 @@ function renderRow(row) {
         "</div>";
 
     el.querySelector(".tl-main").addEventListener("click",
-        (e) => openRecord(row.filename));
-    el.querySelectorAll(".tag-chip[data-tag]").forEach((c) =>
-        c.addEventListener("click", (e) => {
-            e.stopPropagation();
-            $("#filter-tag").value = c.getAttribute("data-tag");
-            loadTimeline(true);
-        }));
+        (e) => openRecord(row.filename, row.source_key));
     return el;
 }
 
 // ----- record side-panel ----------------------------------------------------
-async function openRecord(filename) {
-    const rec = await api("/api/record", { filename: filename });
+async function openRecord(filename, sourceKey) {
+    const rec = await api("/api/record", { filename: filename, source_key: sourceKey || "" });
     const body = $("#record-body");
     if (!rec || rec.error) {
         body.innerHTML = "<p class='muted'>not found</p>";
@@ -315,7 +305,7 @@ async function openRecord(filename) {
         '<p class="fname">' + esc(rec.filename) + "</p>" +
         '<p class="muted">mtime ' + fmtTime(rec.mtime_iso) + "Z · " +
           "quality " + (rec.quality_score != null ? rec.quality_score : "—") +
-          " · " + (rec.caption ? esc(rec.caption) : "no caption") + "</p>" +
+        " · " + (rec.answer ? esc(rec.answer) : "no answer") + "</p>" +
         pathBlock + tagsBlock + entitiesBlock + ocrBlock;
 
     openPanel(true);
@@ -325,7 +315,7 @@ function fileLink(path, fallback) {
     if (!path) {
         return '<p class="muted">no original path</p>';
     }
-    const uri = "file://" + encodeURIComponent(path);
+    const uri = "file://" + path.split("/").map(encodeURIComponent).join("/");
     return (
         '<a class="record-path" href="' + uri + '" target="_blank" ' +
         'rel="noopener" title="open original (may be blocked for iCloud ' +
@@ -455,7 +445,6 @@ function setPoll(on) {
 async function refreshAll() {
     await Promise.all([
         renderBacklog().catch((e) => {}),
-        renderTags().catch((e) => {}),
         loadTimeline(state.offset === 0).catch((e) => {}),
     ]);
     $("#last-updated").textContent = "updated " +
@@ -472,7 +461,10 @@ function wireControls() {
         tl = setTimeout(() => loadTimeline(true), 250);
     });
     $("#filter-status").addEventListener("change", () => loadTimeline(true));
-    $("#filter-tag").addEventListener("change", () => loadTimeline(true));
+    $("#result-limit").addEventListener("change", (e) => {
+        state.windowLimit = Number(e.target.value) || 50;
+        loadTimeline(true);
+    });
     let mtimeTimer;
     function updateMtime(which, value) {
         const numeric = Number(value);
@@ -496,7 +488,6 @@ function wireControls() {
     $("#clear-filters").addEventListener("click", () => {
         $("#filter-q").value = "";
         $("#filter-status").value = "all";
-        $("#filter-tag").value = "";
         state.mtimeFrom = state.mtimeMin;
         state.mtimeTo = state.mtimeMax;
         loadTimeline(true);

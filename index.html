@@ -24,29 +24,27 @@
   </header>
 
 <main class="layout">
-  <section id="tag-cloud-section" class="section tag-cloud-section">
-    <div class="section-header">
-      <h1 class="section-title">Tag cloud</h1>
-      <span id="tag-cloud-meta" class="tags-meta muted"></span>
-    </div>
-    <div id="tag-cloud" class="tag-cloud" aria-label="Tags by occurrence"></div>
-  </section>
-
   <section id="timeline-section" class="section">
     <div class="section-header">
       <h1 class="section-title">Search</h1>
       <div class="filters">
         <input type="text" id="filter-q" class="filter-input"
-              placeholder="search caption / tag / ocr / entity">
+            placeholder="search Work 1 answers">
         <select id="filter-status" class="filter-input">
           <option value="all">status: all</option>
           <option value="ok">ok</option>
           <option value="fail">fail</option>
+          <option value="pending">pending</option>
           <option value="none">none</option>
         </select>
-        <select id="filter-tag" class="filter-input">
-          <option value="">tag: all</option>
-        </select>
+        <label class="result-limit">show
+          <select id="result-limit" class="filter-input" aria-label="pictures to show">
+            <option value="50" selected>last 50</option>
+            <option value="100">last 100</option>
+            <option value="150">last 150</option>
+            <option value="200">last 200</option>
+          </select>
+        </label>
         <button id="clear-filters" class="btn muted">clear</button>
       </div>
     </div>
@@ -75,13 +73,6 @@
     <div id="load-more-wrap" class="load-more-wrap">
       <button id="load-more" class="btn">load more</button>
     </div>
-  </section>
-
-  <section id="tags-section" class="section">
-    <h1 class="section-title">Tags</h1>
-    <div id="tags-meta" class="tags-meta muted"></div>
-    <div id="top-tags" class="top-tags"></div>
-    <div id="edges" class="edges"></div>
   </section>
 
   <section id="backlog" class="section backlog">

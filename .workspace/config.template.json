@@ -1,5 +1,5 @@
 {
-  "ollama_base": "http://127.0.0.1:11434",
+  "ollama_base": "http://D72nq7w67l.local:11434",
   "vision_model": "muse-glimmer:30b-mlx",
   "supported_images": [
     "png",
