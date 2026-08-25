@@ -121,6 +121,17 @@ def _task_duration_seconds(task):
     return None
 
 
+def _display_status(task):
+    status = task.get("status")
+    if status == "finished":
+        return "ok"
+    if status == "error":
+        return "fail"
+    if status == "running":
+        return "pending"
+    return "none"
+
+
 def load_telemetry(work_name="work1"):
     """Reconstruct telemetry rows from the tracker (newest last).
 
@@ -131,6 +142,8 @@ def load_telemetry(work_name="work1"):
     rows = []
     for task in tasks.values():
         if task.get("work_name") != work_name:
+            continue
+        if task.get("status") != "finished":
             continue
         source_key = task.get("source_key")
         source = sources.get(source_key, {})
@@ -372,16 +385,8 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
         output = result.get("output") or {}
         answer = output.get("answer") or legacy.get("caption") or ""
         task = task_by_source.get(source_key, {})
-        result_status = result.get("status")
-        if result_status == "error":
-            status = "fail"
-        elif result_status == "ok":
-            status = "ok"
-        elif task.get("worker_started_at"):
-            status = "pending"
-        else:
-            status = "none"
-        duration = _duration_seconds(result)
+        status = _display_status(task)
+        duration = _task_duration_seconds(task)
         tags = legacy.get("tags") or []
         ocr = legacy.get("OCR_text") or []
         mtime_iso = entry.get("modified_at") or legacy.get("mtime_iso") or ""
@@ -400,9 +405,9 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
             "ocr_truncated": truncated,
             "entities": legacy.get("entities") or [],
             "telem_latency_s": duration,
-            "telem_status": result_status,
-            "telem_timestamp": result.get("finished_at"),
-            "telem_error": result.get("error"),
+            "telem_status": task.get("status"),
+            "telem_timestamp": task.get("worker_finished_at"),
+            "telem_error": output.get("error"),
             "in_wiki": name in wiki,
             "has_thumb": _thumb_path_for(name) is not None,
             "original_path": source_key,
@@ -444,13 +449,16 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
 
 def load_record(filename, source_key=None):
     """Return a full normalized record for a tracked source."""
-    sources, _, _ = load_tracker()
+    sources, tasks, _ = load_tracker()
     if source_key not in sources:
         source_key = next((key for key, source in sources.items()
                            if source.get("filename") == filename), None)
     if not source_key or sources[source_key].get("missing"):
         return None
     source = sources[source_key]
+    task = next((item for item in tasks.values()
+                 if item.get("source_key") == source_key
+                 and item.get("work_name") == "work1"), {})
     legacy = load_annotations().get(source.get("filename"), {})
     result = _work_result(load_work_results(), "work1", source_key)
     output = result.get("output") or {}
@@ -467,10 +475,10 @@ def load_record(filename, source_key=None):
         "entities": legacy.get("entities") or [],
         "ocr_text": legacy.get("OCR_text") or [],
         "ocr_truncated": False,
-        "status": result.get("status") or "none",
-        "telem_status": result.get("status"),
-        "telem_latency_s": _duration_seconds(result),
-        "telem_error": result.get("error"),
+        "status": _display_status(task),
+        "telem_status": task.get("status"),
+        "telem_latency_s": _task_duration_seconds(task),
+        "telem_error": (result.get("output") or {}).get("error"),
     }
 
 

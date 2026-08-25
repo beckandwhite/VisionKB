@@ -56,12 +56,6 @@ def similarity_groups(paths):
             continue
         by_hash.setdefault(digest, []).append({
             "source_key": path,
-            "filename": os.path.basename(path),
-            "created_at": datetime.fromtimestamp(
-                getattr(stat_result, "st_birthtime", stat_result.st_ctime),
-                tz=timezone.utc).isoformat(),
-            "modified_at": datetime.fromtimestamp(
-                stat_result.st_mtime, tz=timezone.utc).isoformat(),
             "size_bytes": stat_result.st_size,
         })
     return {digest: members for digest, members in by_hash.items()

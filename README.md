@@ -122,8 +122,9 @@ The environment's `_tracker.json` is the **queue ledger**. It contains a source
 manifest and independent `(source, work)` tasks. Sources store the canonical
 absolute path, filename, creation time, discovery time, and modification time.
 Tasks store only worker lifecycle telemetry: `worker_started_at`, `worker_id`,
-and `worker_finished_at`. Work output, status, and errors belong in that work's
-result artifact rather than in the tracker.
+`worker_finished_at`, and tracker-owned `status` (`pending`, `running`,
+`finished`, or `error`). Work output belongs in that work's result artifact;
+failure details are stored inside its `output`.
 
 ---
 
@@ -164,7 +165,7 @@ python3 backend.py                    # configured limit; --count 0 = all remain
    generated outputs stay inside `.workspace/<env>/`, not in the scanned folder.
  - HEIC files are auto-converted via `sips`; oversized images are downscaled.
 - Worker lifecycle fields are limited to `input_modified_at`,
-  `worker_started_at`, `worker_id`, and `worker_finished_at`.
+  `status`, `worker_started_at`, `worker_id`, and `worker_finished_at`.
 
 Each configured per-source work is independently claimable and resumable. The
 work1, work2, and work3 write their configured JSONL result files. Work4 writes only JPEG files in
@@ -183,8 +184,8 @@ python3 work5.py -env DEV
 
 It scans all configured pictures, finds exact SHA-256 duplicates, and atomically
 writes `.workspace/DEV/duplicatefinder.jsonl`. Each group contains the absolute
-path foreign keys plus source creation and modification timestamps, a run ID,
-and the input picture count. A later consumer can process this artifact without
+path foreign keys plus file sizes, a run ID, and the input picture count. Source
+filenames and dates are joined from the tracker. A later consumer can process this artifact without
 rerunning the scan or involving the worker queue.
 
 ### 3. Extending the worker set
@@ -199,10 +200,9 @@ cp new_worker_template.py work6.py
 Then update the copy:
 
 1. Set `NAME = "work6"`.
-2. Implement `run(source, config)`. The `source` object contains the canonical
-   `source_key`, display filename, and creation/modification timestamps. Return
-   a JSON-serializable result record, normally using
-   `work_common.result_record(...)`.
+2. Implement `run(source, config)`. The in-memory `source` object contains the
+  canonical `source_key`; return a JSON-serializable result record containing
+  only `source_key` and `output`, normally using `work_common.result_record(...)`.
 3. Add the handler import and registration in `backend.py`:
 
 ```python

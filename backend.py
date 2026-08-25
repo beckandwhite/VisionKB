@@ -73,8 +73,10 @@ def run_task(source, task, work, config, worker_id):
     tracker.claim_task(task, worker_id)
     started = time.monotonic()
     try:
+        work_source = dict(source)
+        work_source["source_key"] = task["source_key"]
         if work.get("handler") == "work4":
-            success = HANDLERS["work4"](source, config)
+            success = HANDLERS["work4"](work_source, config)
             result = None
             if not success:
                 raise RuntimeError("thumbnail generation failed")
@@ -82,18 +84,17 @@ def run_task(source, task, work, config, worker_id):
             handler = HANDLERS.get(work.get("handler"))
             if handler is None:
                 raise RuntimeError("unknown work handler: %s" % work.get("handler"))
-            result = handler(source, config)
+            result = handler(work_source, config)
             result_path = config["env_dir"] / work.get(
                 "result_file", "%s.jsonl" % work["name"])
             append_result(result_path, result)
+            if isinstance(result, dict) and isinstance(result.get("output"), dict):
+                if result["output"].get("error"):
+                    raise RuntimeError(result["output"]["error"])
         tracker.finish_task(task, source.get("modified_at"))
         return True, time.monotonic() - started
     except Exception as exc:
-        # Failure is intentionally not serialized in the tracker. Keep the
-        # task unfinished so a later run can retry it after the worker exits.
-        task["worker_started_at"] = None
-        task["worker_id"] = None
-        task["worker_finished_at"] = None
+        tracker.fail_task(task)
         print("    %s: %s" % (work["name"], exc), file=sys.stderr)
         return False, time.monotonic() - started
 

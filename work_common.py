@@ -49,26 +49,8 @@ def parse_json_response(text):
     return json.loads(cleaned.strip())
 
 
-def source_context(source):
-    return {
-        "source_key": source["source_key"],
-        "filename": source["filename"],
-        "created_at": source.get("created_at"),
-        "modified_at": source.get("modified_at"),
-    }
-
-
-def result_record(source, work_name, input_modified_at, started_at, finished_at,
-                  output=None, error=None):
-    record = source_context(source)
-    record.update({
-        "work_name": work_name,
-        "input_modified_at": input_modified_at,
-        "started_at": started_at,
-        "finished_at": finished_at,
-        "status": "error" if error else "ok",
-        "output": output,
-    })
+def result_record(source, output=None, error=None):
+    """Return the minimal per-source work result envelope."""
     if error:
-        record["error"] = str(error)
-    return record
+        output = {"error": str(error)}
+    return {"source_key": source["source_key"], "output": output}

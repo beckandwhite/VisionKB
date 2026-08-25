@@ -21,7 +21,7 @@ import hashlib
 from datetime import datetime, timezone
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 # ---------------------------------------------------------------------------
@@ -53,14 +53,13 @@ def _iso_from_timestamp(timestamp):
 
 
 def source_metadata(path, discovered_at=None):
-    """Return source identity and filesystem metadata for one picture."""
+    """Return filesystem metadata for one picture."""
     path = file_key(path)
     stat_result = os.stat(path)
     birth_timestamp = getattr(stat_result, "st_birthtime", None)
     if birth_timestamp is None:
         birth_timestamp = stat_result.st_ctime
     return {
-        "source_key": path,
         "filename": os.path.basename(path),
         "created_at": _iso_from_timestamp(birth_timestamp),
         "modified_at": _iso_from_timestamp(stat_result.st_mtime),
@@ -88,6 +87,7 @@ def new_task(source_key, work_name, input_modified_at=None):
         "source_key": source_key,
         "work_name": work_name,
         "input_modified_at": input_modified_at,
+        "status": "pending",
         "worker_started_at": None,
         "worker_id": None,
         "worker_finished_at": None,
@@ -110,7 +110,7 @@ def file_key(path):
 def load_registry(path):
     """Load the versioned generic tracker payload.
 
-    Invalid, missing, or legacy payloads return an empty schema-2 registry.
+    Invalid, missing, or legacy payloads return an empty schema-3 registry.
     """
     payload = {"schema_version": SCHEMA_VERSION, "sources": {},
                "tasks": {}, "runs": {}}
@@ -162,6 +162,7 @@ def ensure_tasks(sources, tasks, work_names):
                 source_key, work_name, source.get("modified_at")))
             if task.get("input_modified_at") != source.get("modified_at"):
                 task["input_modified_at"] = source.get("modified_at")
+                task["status"] = "pending"
                 task["worker_started_at"] = None
                 task["worker_id"] = None
                 task["worker_finished_at"] = None
@@ -182,7 +183,7 @@ def pending_tasks(sources, tasks, work_names=None, stale_after_s=None, now=None)
         if task.get("input_modified_at") != source.get("modified_at"):
             result.append(task)
             continue
-        if task.get("worker_finished_at"):
+        if task.get("status") == "finished":
             continue
         started = task.get("worker_started_at")
         if started and stale_after_s is not None:
@@ -198,6 +199,7 @@ def pending_tasks(sources, tasks, work_names=None, stale_after_s=None, now=None)
 
 def claim_task(task, worker_id, when=None):
     """Claim a task; callers must hold the environment writer lock."""
+    task["status"] = "running"
     task["worker_started_at"] = when or _now_iso()
     task["worker_id"] = worker_id
     task["worker_finished_at"] = None
@@ -205,8 +207,16 @@ def claim_task(task, worker_id, when=None):
 
 
 def finish_task(task, input_modified_at, when=None):
-    """Record only worker completion telemetry, never work outcome."""
+    """Record successful worker completion telemetry."""
     task["input_modified_at"] = input_modified_at
+    task["status"] = "finished"
+    task["worker_finished_at"] = when or _now_iso()
+    return task
+
+
+def fail_task(task, when=None):
+    """Record a failed attempt while leaving the task eligible for retry."""
+    task["status"] = "error"
     task["worker_finished_at"] = when or _now_iso()
     return task
 
@@ -259,13 +269,13 @@ def reconcile(directory, img_exts, files):
 def tally(sources, tasks):
     """Count generic task lifecycle states for the run summary."""
     finished = sum(1 for task in tasks.values()
-                   if task.get("worker_finished_at"))
+                   if task.get("status") == "finished")
     pending = len(tasks) - finished
     by_work = {}
     for task in tasks.values():
         work = task.get("work_name", "unknown")
         counts = by_work.setdefault(work, {"finished": 0, "pending": 0})
-        counts["finished" if task.get("worker_finished_at") else "pending"] += 1
+        counts["finished" if task.get("status") == "finished" else "pending"] += 1
     return {"sources": len(sources), "tasks": len(tasks), "finished": finished,
             "pending": pending, "by_work": by_work}
 
@@ -293,6 +303,8 @@ def telemetry_from_tracker(tasks, sources=None):
     sources = sources or {}
     rows = []
     for task in tasks.values():
+        if task.get("status") != "finished":
+            continue
         finished = task.get("worker_finished_at")
         if not finished:
             continue

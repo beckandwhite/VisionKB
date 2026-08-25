@@ -25,14 +25,13 @@ Rework the picture tracker from a fixed screenshot workflow into a generic queue
 
 ## Tracker schema
 
-The tracker uses schema version 2:
+The tracker uses schema version 3:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "sources": {
     "/absolute/path/image.png": {
-      "source_key": "/absolute/path/image.png",
       "filename": "image.png",
       "created_at": "...",
       "modified_at": "...",
@@ -45,6 +44,7 @@ The tracker uses schema version 2:
       "source_key": "/absolute/path/image.png",
       "work_name": "work1",
       "input_modified_at": "...",
+      "status": "pending",
       "worker_started_at": "...",
       "worker_id": "...",
       "worker_finished_at": "..."
@@ -54,7 +54,9 @@ The tracker uses schema version 2:
 }
 ```
 
-The tracker no longer stores work-specific fields such as tags, status, errors, quality, ingestion timestamps, or thumbnail status.
+The source map key is the authoritative `source_key`. Task status is tracker-owned
+and may be `pending`, `running`, `finished`, or `error`. Work-specific output is
+not stored in the tracker.
 
 ## Work layout
 
@@ -66,7 +68,8 @@ Prompt:
 
 > What is on this picture? Describe the important visible content.
 
-The result is written to `work1.jsonl`. Each result contains the source foreign key, source metadata, work name, input modification timestamp, execution timestamps, status, and output answer.
+The result is written to `work1.jsonl`. Each result contains only the source
+foreign key and output answer. Metadata and lifecycle are joined from the tracker.
 
 ### Work 2: OCR
 

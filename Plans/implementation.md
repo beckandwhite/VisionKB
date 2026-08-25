@@ -206,14 +206,13 @@ source folder
 
 ## Tracker contract
 
-`_tracker.json` uses schema version 2:
+`_tracker.json` uses schema version 3:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "sources": {
     "/absolute/path/image.png": {
-      "source_key": "/absolute/path/image.png",
       "filename": "image.png",
       "created_at": "ISO timestamp",
       "modified_at": "ISO timestamp",
@@ -226,6 +225,7 @@ source folder
       "source_key": "/absolute/path/image.png",
       "work_name": "work1",
       "input_modified_at": "ISO timestamp",
+      "status": "pending|running|finished|error",
       "worker_started_at": "ISO timestamp",
       "worker_id": "host:pid",
       "worker_finished_at": "ISO timestamp"
@@ -237,7 +237,9 @@ source folder
 
 The source key is the canonical absolute path. Creation time uses macOS `st_birthtime` when available and falls back to `st_ctime`; modification time uses `st_mtime`. A changed modification time resets the task lifecycle for the new source version.
 
-The tracker stores lifecycle telemetry only. Work-specific output, status, errors, model metadata, and retry details belong in result artifacts.
+The tracker stores source metadata and worker lifecycle telemetry. Work-specific
+output belongs in result artifacts, which contain only `source_key` and `output`.
+Failure details are kept inside `output`; task status remains tracker-owned.
 
 ## Work definitions
 
