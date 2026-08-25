@@ -15,17 +15,12 @@ Use cases in mind:
 ## TLDR
 
 ```bash
-# 1. Backend: run the next N configured picture tasks
-python3 backend.py -env PRD-iCloud-Screenshots --count 5
+# 1. Start the backend (and keep it running) for for you input folder: 
+python3 backend.py --screenshot-dir '~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/'
 
-# 2. Frontend: view the results in a browser
-python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open   # http://127.0.0.1:8000
+# 2. Start the frontend a few minutes later (once you see progress on the backend) to view the results in a browser:
+python3 frontend.py --port 8000 --open  # http://127.0.0.1:8000
 ```
-
-Point both at the same environment with `-env`. The frontend is read-only and
-re-reads the environment's tracker and work artifacts on every
-request, so the backend must have produced at least one record first
-(`--count 0` = all remaining; see "Backend options" below).
 
 ---
 
@@ -304,6 +299,7 @@ All options are passed on its command line:
    `environment_admin.sh` initializes and decommissions environments and is
    documented in "Environment administration" below.
 
+<!---
 ### 4. Query (FTS5 full-text)
 
 ```bash
@@ -318,6 +314,8 @@ PY
 
  (Embedding/semantic search and the clustered **LLM-wiki** layer are planned —
  see [implementation.md](Plans/implementation.md) Stage 5.)
+
+-->
 
  ### 4. WebUI (timeline + backlog dashboard)
 
@@ -380,13 +378,19 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
  ./environment_admin.sh decomm QA --yes              # skip confirmation
  ```
 
- - **Default is the `.workspace/` root.** Omit `-env` everywhere to use it; `init`
-   with no name writes `.workspace/config.json`. A named env is a subfolder.
- - **Auto-creates.** `backend.py -env NEWENV` creates `.workspace/NEWENV/config.json`
-   on first run (inheriting the root's `source_dir`); a typo such as `-env QAl` is
-   allowed. `frontend.py` instead refuses unknown names and lists the available
-   ones. `init` prompts only for **name** and **source folder**; everything else
-   comes from the template. Use `--force` to overwrite an existing config.
+   - **Default is the `.workspace/` root.** Omit `-env` everywhere to use it; its
+    `config.json` is created from the template on first use (see below) or by `init`.
+    A named env is a subfolder.
+   - **First-run initialisation.** The first `backend.py` run without `-env` writes
+    `.workspace/config.json` by copying the template and setting its `source_dir`
+    (from `--screenshot-dir` if given, else prompted on a terminal, else the template
+    default). `backend.py -env NEWENV` likewise creates `.workspace/NEWENV/config.json`
+    (inheriting the root's `source_dir`); a typo such as `-env QAl` is allowed.
+    `frontend.py` never creates a config — it requires one and, if missing, tells you
+    to run `backend.py` first.
+   - **Refresh / create explicitly.** `init` prompts only for **name** and **source
+    folder**; everything else comes from the template. Use `--force` to overwrite an
+    existing config.
  - **Name validation.** Names are `[A-Za-z0-9._-]`; path traversal (`..`, `/`, a
    leading dot) is rejected.
  - **`decomm` is a full nuke** of `.workspace/<NAME>/` (RAW + KB + config +
@@ -403,11 +407,12 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 
 - **`backend.py` defaults to the active environment's source folder**
    (`~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`); pass
-   `--screenshot-dir` to scan elsewhere. Outputs (`_tracker.json`,
-   `_annotations.jsonl`) are written next to the script, not into
-   the scanned folder. The existing `_annotations.jsonl` is real history (5 records);
-   its old flat-index `_tracker.json` is auto-migrated — the registry is rebuilt from
-   the folder + those annotations on the first run.
+   `--screenshot-dir` to scan elsewhere. On the first run without `-env` it also
+   writes `.workspace/config.json` (a copy of the template with this `source_dir`
+   baked in); outputs (`_tracker.json`, `_annotations.jsonl`) are written next to the
+   script, not into the scanned folder. The existing `_annotations.jsonl` is real
+   history (5 records); its old flat-index `_tracker.json` is auto-migrated — the
+   registry is rebuilt from the folder + those annotations on the first run.
 - **Environment selection matters.** Use `-env` consistently for `backend.py`
   and `frontend.py`; all annotations, tracker state, database, exports, and
   thumbnails are isolated under `.workspace/<env>/`.

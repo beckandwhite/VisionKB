@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict
 
@@ -52,8 +53,15 @@ def available_environments() -> list:
     return names
 
 
-def load_config(env: str, auto_bootstrap: bool = False) -> tuple[Dict[str, Any], str]:
-    """Load and validate one complete environment configuration."""
+def load_config(env: str, auto_bootstrap: bool = False,
+                source_dir: str = None) -> tuple[Dict[str, Any], str]:
+    """Load and validate one complete environment configuration.
+
+    The root default is materialised from the template into a real
+    ``.workspace/config.json`` the first time it is needed (only when
+    ``auto_bootstrap`` is set); after that the persisted copy is the source of
+    truth. A *named* env is created from the template with ``auto_bootstrap``.
+    Without ``auto_bootstrap`` a missing config raises an actionable error."""
     defaults = load_defaults()
     env = str(env or ROOT_ENV)
     path = config_path_for(env)
@@ -64,18 +72,20 @@ def load_config(env: str, auto_bootstrap: bool = False) -> tuple[Dict[str, Any],
             raise RuntimeError("Environment config must be a JSON object: %s" % path)
         config = dict(defaults)
         config.update(loaded)
-    elif env == ROOT_ENV:
-        # The root default always falls back to the template in memory; the only
-        # way to persist a root config.json is 'environment_admin.sh init'.
-        config = dict(defaults)
+    elif env == ROOT_ENV and auto_bootstrap:
+        config = bootstrap_root_config(source_dir=source_dir)
     elif auto_bootstrap:
         config = _bootstrap_env(env, defaults)
     else:
+        if env == ROOT_ENV:
+            raise RuntimeError(
+                "Default environment config %s is missing. Run "
+                "'python3 backend.py' to initialise it first." % ROOT_CONFIG_PATH)
         available = ", ".join(available_environments()) or "(none)"
         raise RuntimeError(
-             "No config for environment %r. Create it with "
-             "'environment_admin.sh init %s', or run backend.py to auto-create it. "
-             "Available: %s" % (env, env, available))
+            "No config for environment %r. Create it with "
+            "'environment_admin.sh init %s', or run backend.py to auto-create it. "
+            "Available: %s" % (env, env, available))
     config["works"] = normalize_works(config.get("works"))
     return config, env
 
@@ -91,6 +101,41 @@ def _root_source_dir() -> str:
     return str(load_defaults().get("source_dir"))
 
 
+def _write_config(path, config: Dict[str, Any]) -> None:
+    """Atomically write a config object to disk (temp file + os.replace)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = Path(str(path) + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(config, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    os.replace(tmp, path)
+
+
+def bootstrap_root_config(source_dir: str = None,
+                          interactive=None) -> Dict[str, Any]:
+    """Materialise the default (.workspace/) config from the template.
+
+    The first time the default env is used there is no ``.workspace/config.json``
+    yet, so this copies the template into one (the template stays the canonical
+    source of truth). It is idempotent: an existing config.json is left untouched.
+    The ``source_dir`` is written from the explicit argument, else — on an
+    interactive terminal — prompted for, else left at the template default."""
+    if ROOT_CONFIG_PATH.is_file():
+        with open(ROOT_CONFIG_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    config = load_defaults()
+    template_default = str(config["source_dir"])
+    chosen = (str(source_dir).strip() if source_dir else "")
+    if not chosen and interactive is not False and sys.stdin.isatty():
+        answer = input(
+            "Source folder for the default environment "
+            "(blank = keep %s): " % template_default).strip()
+        chosen = answer
+    config["source_dir"] = chosen or template_default
+    _write_config(ROOT_CONFIG_PATH, config)
+    return config
+
+
 def _bootstrap_env(env: str, defaults: Dict[str, Any]) -> Dict[str, Any]:
     """Create a missing named env's config.json from the template.
 
@@ -98,11 +143,7 @@ def _bootstrap_env(env: str, defaults: Dict[str, Any]) -> Dict[str, Any]:
     points at the usual screenshots folder until it is configured otherwise."""
     config = dict(defaults)
     config["source_dir"] = _root_source_dir()
-    path = config_path_for(env)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(config, fh, indent=2, ensure_ascii=False)
-        fh.write("\n")
+    _write_config(config_path_for(env), config)
     return config
 
 
@@ -135,13 +176,16 @@ def normalize_works(works):
     return normalized
 
 
-def resolve_environment(env=DEFAULT_ENV, auto_bootstrap: bool = True):
+def resolve_environment(env=DEFAULT_ENV, auto_bootstrap: bool = True,
+                       source_dir: str = None):
     """Return config plus all environment-owned artifact paths.
 
-    With ``auto_bootstrap`` a missing *named* env is created from the template
-    (its source_dir inheriting the root default); the root env, when absent, is
-    served from the template in memory without writing a file."""
-    config, env = load_config(env, auto_bootstrap=auto_bootstrap)
+    With ``auto_bootstrap`` a missing env is created from the template: the root
+    default gets its own ``.workspace/config.json`` (writing the ``source_dir``
+    here), and a *named* env inherits the root default's ``source_dir``. Without
+    ``auto_bootstrap`` a missing config raises an actionable error."""
+    config, env = load_config(env, auto_bootstrap=auto_bootstrap,
+                              source_dir=source_dir)
     out_dir = env_dir(env)
     config["env_dir"] = out_dir
     config["tracker_path"] = out_dir / "_tracker.json"
@@ -153,6 +197,3 @@ def resolve_environment(env=DEFAULT_ENV, auto_bootstrap: bool = True):
     config["source_dir"] = os.path.expanduser(str(config["source_dir"]))
     config["temp_dir"] = os.path.expanduser(str(config["temp_dir"]))
     return env, config
-
-
-CURRENT_ENV, CURRENT_CONFIG = resolve_environment()

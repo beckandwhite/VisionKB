@@ -45,12 +45,11 @@ import config_loader
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = SCRIPT_DIR
 
-CURRENT_ENV, _CONFIG = config_loader.resolve_environment()
-TRACKER_PATH = str(_CONFIG["tracker_path"])
-ANNOT_PATH = str(_CONFIG["annotations_path"])
-WIKI_PATH = str(_CONFIG["exports_dir"] / "wiki.ndjson")
-TAGS_PATH = str(_CONFIG["exports_dir"] / "tags_index.json")
-THUMB_DIR = str(_CONFIG["thumbnails_dir"])
+# Resolved in main() via config_loader.resolve_environment(..., auto_bootstrap=False).
+# This module is read-only: it never creates a config, so an uninitialised
+# environment fails fast with an actionable message instead of a silent copy.
+CURRENT_ENV, TRACKER_PATH = None, None
+ANNOT_PATH = WIKI_PATH = TAGS_PATH = THUMB_DIR = None
 
 OCR_LINE_MAX = 100
 OCR_LINES_MAX = 8

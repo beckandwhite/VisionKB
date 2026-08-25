@@ -108,7 +108,8 @@ def save_progress(config, sources, tasks, count_limit, total, new_count,
 
 
 def run(args):
-    _env, config = config_loader.resolve_environment(args.env)
+    _env, config = config_loader.resolve_environment(
+        args.env, source_dir=args.screenshot_dir)
     lock = acquire_lock(config["env_dir"] / LOCK_NAME, args.wait)
     if lock is None:
         print("Another pipeline run is active for %s." % args.env, file=sys.stderr)
