@@ -275,6 +275,12 @@ Cron does not run reliably while the Mac sleeps, and Ollama plus the configured
 source folder must be available. At roughly 90 seconds per image, 2,000 images
 requires about 50 hours of model time before failures or duplicates.
 
+You can also consider [adjusting the powermode on your mac from CLI](https://en.wikipedia.org/wiki/Pmset) (specially if its a notebook):
+
+```zsh
+sudo pmset -a lowpowermode 1 
+```
+
 ### Backend options
 
 `backend.py` is the per-source worker entry point. It interleaves reconciliation,
