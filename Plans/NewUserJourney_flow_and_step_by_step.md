@@ -11,7 +11,7 @@ If you have a folder of images (e.g., `/Users/User1/Screenshots`) and want to se
  ```bash
  ./environment_admin.sh init
  ```
- This seeds `.workspace/config.json` from `.workspace/config.template.json`. It prompts only
+ This seeds `.workspace/config.json` from `config.template.json`. It prompts only
  for the environment name and the source folder; every other value is inherited
  from the template. Pass them instead to skip the prompts:
  ```bash

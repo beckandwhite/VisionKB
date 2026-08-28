@@ -4,7 +4,7 @@
 #
 # The default environment is the .workspace/ directory itself (select it by
 # omitting -env everywhere). Named environments are .workspace/<NAME>/ folders.
-# Every config is seeded from .workspace/config.template.json, the single source of truth.
+# Every config is seeded from config.template.json, the single source of truth.
 #
 # Subcommands:
 #     ./environment_admin.sh init [NAME] [--source PATH] [--force]
@@ -18,7 +18,7 @@ cd "$SCRIPT_DIR"
 
 PROG="$(basename "$0")"
 WORKSPACE=".workspace"
-TEMPLATE="$WORKSPACE/config.template.json"
+TEMPLATE="config.template.json"
 PY="/usr/bin/python3"
 
 usage() {

@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 BASE_DIR = Path(__file__).resolve().parent
 WORKSPACE_DIR = BASE_DIR / ".workspace"
-TEMPLATE_PATH = WORKSPACE_DIR / "config.template.json"
+TEMPLATE_PATH = BASE_DIR / "config.template.json"
 ROOT_CONFIG_PATH = WORKSPACE_DIR / "config.json"
 
 # The default environment is the ``.workspace/`` directory itself. Omitting

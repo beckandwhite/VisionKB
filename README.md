@@ -96,10 +96,11 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
     ├── work2.py                # OCR extraction
     ├── work3.py                # classifier
     ├── work4.py                # thumbnail generation
-    ├── work5.py                # dataset-wide similarity/duplicate producer
-     └── .workspace/           # default env config + isolated per-env folders
-       ├── config.template.json # canonical config + TAG_LIST; seeds every env
-        └── <env>/             # per-env config + annotations/tracker/KB artifacts
+     ├── work5.py                  # dataset-wide similarity/duplicate producer
+      ├── config.template.json     # canonical config + TAG_LIST; seeds every env
+      └── .workspace/              # default env config + isolated per-env folders
+           └── <env>/              # per-env config + annotations/tracker/KB artifacts
+```
  ```
 
  Images themselves live in the configured source folder. Omit `-env` to use the
@@ -371,7 +372,7 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 
  ## Environment administration
 
- Every config is seeded from `.workspace/config.template.json`, the single source of truth
+ Every config is seeded from `config.template.json`, the single source of truth
  for the schema and the canonical `TAG_LIST`. Manage environments with
  `environment_admin.sh`:
 

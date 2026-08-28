@@ -1,4 +1,5 @@
 .DS_Store
-.workspace/config.json
-.workspace/thumbnails/
-.workspace/*/thumbnails/
+.workspace
+
+.venv
+__pycache__
