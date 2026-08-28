@@ -424,8 +424,7 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
         rows = [r for r in rows if mtime_from <= r["mtime_epoch"] <= mtime_to]
     if tag_filter:
         rows = [r for r in rows if tag_filter in r["tags"]]
-    if status_filter and status_filter not in ("all", "", None):
-        rows = [r for r in rows if r["status"] == status_filter]
+    # Status filter removed\n
     if query:
         q = query.lower()
         rows = [r for r in rows if q in (r["answer"] or "").lower()]

@@ -131,7 +131,6 @@ function renderProcessingChart(rows, worker) {
 function currentFilters() {
     return {
         q: $("#filter-q").value.trim(),
-        status: $("#filter-status").value,
         mtimeFrom: state.mtimeFrom,
         mtimeTo: state.mtimeTo,
     };
@@ -206,7 +205,6 @@ async function loadTimeline(reset) {
         window: state.windowLimit,
     };
     if (f.q) params.q = f.q;
-    if (f.status && f.status !== "all") params.status = f.status;
     if (f.mtimeFrom != null && f.mtimeTo != null) {
         params.mtime_from = f.mtimeFrom;
         params.mtime_to = f.mtimeTo;
@@ -474,8 +472,7 @@ function wireControls() {
         clearTimeout(tl);
         tl = setTimeout(() => loadTimeline(true), 250);
     });
-    $("#filter-status").addEventListener("change", () => loadTimeline(true));
-    $("#result-limit").addEventListener("change", (e) => {
+      $("#result-limit").addEventListener("change", (e) => {
         state.windowLimit = Number(e.target.value) || 50;
         loadTimeline(true);
     });
@@ -499,10 +496,9 @@ function wireControls() {
         updateMtime("from", e.target.value));
     $("#mtime-to").addEventListener("input", (e) =>
         updateMtime("to", e.target.value));
-    $("#clear-filters").addEventListener("click", () => {
-        $("#filter-q").value = "";
-        $("#filter-status").value = "all";
-        state.mtimeFrom = state.mtimeMin;
+      $("#clear-filters").addEventListener("click", () => {
+          $("#filter-q").value = "";
+         state.mtimeFrom = state.mtimeMin;
         state.mtimeTo = state.mtimeMax;
         loadTimeline(true);
     });
