@@ -271,13 +271,12 @@ def _find_original(filename, source_key=None):
     if not filename:
         return None
     sources, _, _ = load_tracker()
-    source = sources.get(source_key) if source_key else None
-    if source is None:
-        source = next((item for item in sources.values()
-                       if item.get("filename") == filename), None)
-    path = source.get("source_key") if source else None
-    if path and os.path.isfile(path):
-        return path
+    key = source_key if (source_key and source_key in sources) else None
+    if key is None:
+        key = next((k for k in sources
+                    if sources[k].get("filename") == filename), None)
+    if key and os.path.isfile(key):
+        return key
     rec = load_annotations().get(filename)
     path = rec.get("filepath") if rec else None
     if path and os.path.isfile(path):
