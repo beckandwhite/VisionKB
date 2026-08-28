@@ -99,6 +99,17 @@ def run_task(source, task, work, config, worker_id):
         return False, time.monotonic() - started
 
 
+def print_work_progress(per_source, processed_by_work, to_process_by_work,
+                        all_tracked_by_work):
+    print("Per-work progress:", flush=True)
+    for name in per_source:
+        done = processed_by_work.get(name, 0)
+        remaining = to_process_by_work.get(name, 0)
+        total = all_tracked_by_work.get(name, 0)
+        print("   %s: [%d/%d] of %d"
+              % (name, done, remaining, total), flush=True)
+
+
 def save_progress(config, sources, tasks, count_limit, total, new_count,
                   processed, errors, status):
     runs = tracker.build_summary(
@@ -132,10 +143,21 @@ def run(args):
                        0, 0, "reconciled")
         wanted = tracker.pending_tasks(sources, tasks, per_source, stale_after_s=3600)
         wanted_keys = {tracker.task_id(task["source_key"], task["work_name"])
-                       for task in wanted}
+                        for task in wanted}
+        processed_by_work = {name: 0 for name in per_source}
+        to_process_by_work = {name: 0 for name in per_source}
+        all_tracked_by_work = {name: 0 for name in per_source}
+        wanted_names = set(per_source)
+        for task in tasks.values():
+            if task.get("work_name") in wanted_names:
+                all_tracked_by_work[task["work_name"]] += 1
+        for task in wanted:
+            to_process_by_work[task["work_name"]] += 1
         worker_id = "%s:%s" % (os.uname().nodename, os.getpid())
         processed = errors = 0
         deadline = resolve_deadline(args.until)
+        print_work_progress(per_source, processed_by_work, to_process_by_work,
+                            all_tracked_by_work)
         for source_key in images:
             if count_limit and processed >= count_limit:
                 break
@@ -154,11 +176,16 @@ def run(args):
                 errors += int(not ok)
                 save_progress(config, sources, tasks, count_limit, len(images), new_count,
                               processed, errors, "running")
-                print("     %s (%.3fs)"
-                      % ("error" if not ok else "ok", elapsed), flush=True)
+                processed_by_work[task["work_name"]] += 1
+                print_work_progress(per_source, processed_by_work, to_process_by_work,
+                                    all_tracked_by_work)
+                print("      %s (%.3fs)"
+                       % ("error" if not ok else "ok", elapsed), flush=True)
         save_progress(config, sources, tasks, count_limit, len(images), new_count,
-                      processed, errors,
-                      "deadline-reached" if deadline and datetime.now() >= deadline else "completed")
+                       processed, errors,
+                        "deadline-reached" if deadline and datetime.now() >= deadline else "completed")
+        print_work_progress(per_source, processed_by_work, to_process_by_work,
+                            all_tracked_by_work)
         print("Done. %d task(s), %d error(s)." % (processed, errors))
         return 0
     finally:
