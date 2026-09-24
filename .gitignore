@@ -18,3 +18,9 @@ tag_review_entities.html.entities.jsonl
 tag_review.entity.decisions.json
 # aliases.curated.json is intentionally TRACKED (curated AKA knowledge) unless
 # you prefer gitignored: comment the next line out to keep it out of git.
+
+# model-eval harness (Issue 005): dataset must never be committed (personal
+# screenshots / PII); report + results are regenerated each run.
+eval/dataset/
+eval/report.html
+eval/results.jsonl

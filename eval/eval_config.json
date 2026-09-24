@@ -1,0 +1,29 @@
+{
+  "_comment": "Eval harness config (Issue 005). Stub — fill in real model ids before running. Mirrors config.template.json shape. See eval/README.md.",
+
+  "ollama_base": "http://REPLACE-ollama-host.local:11434",
+
+  "candidate_models": [
+    "muse-glimmer:30b-mlx"
+  ],
+
+  "works": ["work1", "work2", "work3"],
+
+  "dataset_dir": "eval/dataset",
+  "sample": null,
+
+  "judge": {
+    "type": "ollama",
+    "ollama": {
+      "model": "REPLACE-larger-judge-model"
+    },
+    "api": {
+      "provider": "anthropic",
+      "model": "REPLACE-judge-model-id",
+      "api_key_env": "ANTHROPIC_API_KEY"
+    }
+  },
+
+  "report_path": "eval/report.html",
+  "results_path": "eval/results.jsonl"
+}
