@@ -3,3 +3,18 @@
 
 .venv
 __pycache__
+
+tag_review.html
+tag_review.html.candidates.jsonl
+tag_review.decisions.json
+work6_tag_candidates.jsonl
+
+# work7 registry output + review (env-isolated, regenerated each build)
+canonical_tags.json
+tags_resolve.jsonl
+unresolved.log
+tag_review_entities.html
+tag_review_entities.html.entities.jsonl
+tag_review.entity.decisions.json
+# aliases.curated.json is intentionally TRACKED (curated AKA knowledge) unless
+# you prefer gitignored: comment the next line out to keep it out of git.
