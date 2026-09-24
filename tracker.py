@@ -91,6 +91,7 @@ def new_task(source_key, work_name, input_modified_at=None):
         "worker_started_at": None,
         "worker_id": None,
         "worker_finished_at": None,
+        "retry_count": 0,
     }
 
 
@@ -166,6 +167,7 @@ def ensure_tasks(sources, tasks, work_names):
                 task["worker_started_at"] = None
                 task["worker_id"] = None
                 task["worker_finished_at"] = None
+                task["retry_count"] = 0
     return tasks
 
 
@@ -217,6 +219,7 @@ def finish_task(task, input_modified_at, when=None):
 def fail_task(task, when=None):
     """Record a failed attempt while leaving the task eligible for retry."""
     task["status"] = "error"
+    task["retry_count"] = task.get("retry_count", 0) + 1
     task["worker_finished_at"] = when or _now_iso()
     return task
 

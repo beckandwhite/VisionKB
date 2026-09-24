@@ -169,8 +169,10 @@ def run(args):
             for task in source_tasks:
                 work = work_by_name(config, task["work_name"])
                 filename = sources[source_key].get("filename", source_key)
-                print("[%d/%d] %s: %s"
-                      % (processed + 1, len(wanted), task["work_name"], filename), flush=True)
+                retry_count = task.get("retry_count", 0)
+                retry_label = " (retry #%d)" % retry_count if retry_count else ""
+                print("[%d/%d] %s: %s%s"
+                      % (processed + 1, len(wanted), task["work_name"], filename, retry_label), flush=True)
                 ok, elapsed = run_task(sources[source_key], task, work, config, worker_id)
                 processed += 1
                 errors += int(not ok)
