@@ -1,0 +1,11 @@
+# Runtime dependencies for the screenshot annotation pipeline.
+# Install into the project venv:  .venv/bin/python -m pip install -r requirements.txt
+
+# Image handling: HEIC/HEIF transcoding to JPEG before the Ollama vision call
+# (work_common._load_image_bytes). Pillow-HEIF registers itself as a Pillow
+# plugin on import, making Image.open() HEIC-aware.
+pillow>=11
+pillow-heif>=1
+
+# Named-entity extraction (ner.py).
+spacy>=3.8

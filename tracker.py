@@ -213,14 +213,24 @@ def finish_task(task, input_modified_at, when=None):
     task["input_modified_at"] = input_modified_at
     task["status"] = "finished"
     task["worker_finished_at"] = when or _now_iso()
+    task.pop("last_error", None)
+    task.pop("last_error_at", None)
     return task
 
 
-def fail_task(task, when=None):
-    """Record a failed attempt while leaving the task eligible for retry."""
+def fail_task(task, error=None, when=None):
+    """Record a failed attempt while leaving the task eligible for retry.
+
+    ``error`` is stored on the task so failures are diagnosable directly from
+    the tracker instead of only from the per-work JSONL.
+    """
+    finished = when or _now_iso()
     task["status"] = "error"
     task["retry_count"] = task.get("retry_count", 0) + 1
-    task["worker_finished_at"] = when or _now_iso()
+    task["worker_finished_at"] = finished
+    if error is not None:
+        task["last_error"] = str(error)
+        task["last_error_at"] = finished
     return task
 
 

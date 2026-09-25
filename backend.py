@@ -94,7 +94,7 @@ def run_task(source, task, work, config, worker_id):
         tracker.finish_task(task, source.get("modified_at"))
         return True, time.monotonic() - started
     except Exception as exc:
-        tracker.fail_task(task)
+        tracker.fail_task(task, error=exc)
         print("    %s: %s" % (work["name"], exc), file=sys.stderr)
         return False, time.monotonic() - started
 

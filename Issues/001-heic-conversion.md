@@ -1,6 +1,6 @@
 # 001 · HEIC images fail with HTTP 400 at Ollama vision endpoint
 
-**Status:** Open  
+**Status:** Resolved (2026-09-25)
 **Priority:** Medium  
 **Component:** `work_common.py` · `work1.py`  
 **Labels:** `bug` `vision` `image-format`
@@ -29,9 +29,13 @@ The same items appear repeatedly across retries because the retry mechanism
 cause (format rejection) never changes, so they will loop indefinitely without
 a fix.
 
-A smaller secondary class of failures involves Windows-format PNG screenshots
-with unusual colour profiles that also trigger 400 errors (e.g.
-`Screenshot 2024-04-02 131042.png`).
+A smaller secondary class of failures was originally attributed to
+"Windows-format PNG screenshots with unusual colour profiles" (e.g.
+`Screenshot 2024-04-02 131042.png`). On inspection this was **wrong**: those
+files are **0 bytes on disk** — failed/incomplete iCloud or export downloads.
+Pillow re-encoding cannot rescue them (`Image.open` raises
+`UnidentifiedImageError` on empty data); they need an up-front size guard that
+fails with a truthful message instead of an opaque HTTP 400.
 
 ---
 
@@ -53,17 +57,32 @@ parse as JPEG or PNG.
 
 ## Acceptance criteria
 
-- [ ] HEIC files are transparently converted to JPEG in memory before the
+- [x] HEIC files are transparently converted to JPEG in memory before the
       base64 payload is built — no files are written to disk.
-- [ ] The conversion path is exercised only for `.heic` / `.HEIC` extensions;
+- [x] The conversion path is exercised only for `.heic` / `.heif` extensions;
       JPEG and PNG pass through unchanged.
-- [ ] If conversion fails (e.g. `pillow-heif` not installed), the error message
+- [x] If conversion fails (e.g. `pillow-heif` not installed), the error message
       is clear: `"HEIC conversion failed: install pillow-heif"`.
-- [ ] Windows/non-sRGB PNG edge cases are handled by re-encoding to JPEG via
-      Pillow before sending (strips problematic colour profiles).
-- [ ] No new files are created in the source directory or temp dir.
-- [ ] Existing tests (if any) remain green; a brief smoke test for the
-      conversion branch is added if a test file exists.
+- [x] Empty (0-byte) sources are rejected up front with a truthful message
+      (`"source file is empty (0 bytes) ..."`) instead of an opaque HTTP 400.
+      *(Supersedes the original "non-sRGB PNG" acceptance item, which was based
+      on a misdiagnosis — the affected files were empty, not mis-profiled.)*
+- [x] No new files are created in the source directory or temp dir.
+- [x] The failure message is now persisted on the tracker task
+      (`last_error` / `last_error_at`) so errors are diagnosable from
+      `_tracker.json`, not only the per-work JSONL.
+
+## Implementation notes (as shipped)
+
+- `work_common._load_image_bytes()` handles the empty-file guard and HEIC→JPEG
+  transcode; `vision_request()` calls it in place of the raw file read.
+- `pillow` + `pillow-heif` recorded in the new `requirements.txt`.
+- `tracker.fail_task(task, error=...)` stores the message; `finish_task` clears
+  it; `backend.run_task` passes the caught exception through.
+- **Not done (deferred):** classifying permanent vs transient errors so
+  permanent failures (empty file, undecodable format) stop being re-queued by
+  the retry loop. These 14 tasks will still retry until exhausted — tracked
+  separately.
 
 ---
 

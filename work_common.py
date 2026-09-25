@@ -1,11 +1,54 @@
 """Shared Ollama and result helpers for independent picture works."""
 
 import base64
+import io
 import json
 import os
 import time
 import urllib.error
 import urllib.request
+
+try:
+    from PIL import Image
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
+
+# Extensions Ollama's vision loader cannot decode natively and that we
+# therefore transcode to JPEG in memory before sending.
+_REENCODE_EXTS = {".heic", ".heif"}
+
+
+def _load_image_bytes(source_path):
+    """Return sendable image bytes for one source file.
+
+    HEIC/HEIF images are transcoded to JPEG in memory (Ollama's vision
+    endpoint only decodes JPEG/PNG). Everything else is passed through
+    unchanged. Empty (0-byte) files are rejected up front with a clear
+    message instead of producing an opaque HTTP 400 downstream.
+    """
+    if os.path.getsize(source_path) == 0:
+        raise RuntimeError(
+            "source file is empty (0 bytes) -- likely a failed iCloud/export download")
+
+    ext = os.path.splitext(source_path)[1].lower()
+    if ext in _REENCODE_EXTS:
+        if not _PIL_AVAILABLE:
+            raise RuntimeError("HEIC conversion failed: install pillow-heif")
+        try:
+            image = Image.open(source_path).convert("RGB")
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=92)
+            return buffer.getvalue()
+        except Exception as exc:
+            raise RuntimeError("HEIC conversion failed: %s" % exc) from exc
+
+    with open(source_path, "rb") as source:
+        return source.read()
 
 
 def ollama_post_json(base_url, endpoint, payload, timeout=180):
@@ -25,8 +68,7 @@ def ollama_post_json(base_url, endpoint, payload, timeout=180):
 
 def vision_request(source_path, prompt, config):
     """Send one image to Ollama's vision endpoint."""
-    with open(source_path, "rb") as source:
-        encoded = base64.b64encode(source.read()).decode("ascii")
+    encoded = base64.b64encode(_load_image_bytes(source_path)).decode("ascii")
     response = ollama_post_json(config["ollama_base"], "/api/generate", {
         "model": config["vision_model"],
         "prompt": prompt,
