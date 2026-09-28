@@ -1,0 +1,51 @@
+# Self-hosted QA runner smoke check (Issue #34; companion to the manual
+# provisioning in #31). Gated so it NEVER runs fork PRs: it triggers only on
+# a manual dispatch and on push to main (see SECURITY.md "Self-hosted runner policy").
+#
+# This proves the runner itself works and can reach the local Ollama endpoint
+# on the private LAN: `which sips` (the macOS binary the pipeline needs) and a
+# GET against $OLLAMA_BASE (from a repo secret). It runs no project code beyond
+# the two checks -- keep this the minimal "does the runner work?" probe.
+name: self-hosted-runner-smoke
+
+# Quoted so this parses cleanly under plain YAML (unquoted on: coerces to the
+# boolean key true); GitHub Actions accepts both forms.
+"on":
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Optional note for the run"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-hosted-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: "runner + ollama smoke"
+    runs-on: [self-hosted, self-hosted-macos-ollama]
+    steps:
+    - name: "checkout (pinned, credentials not cached)"
+      uses: actions/checkout@v4              # 11d5960a326750d5838078e36cf38b85af677262
+      with:
+        persist-credentials: false
+    - name: "verify sips is on PATH"
+      run: |
+        echo "Resolving sips (macOS image binary the pipeline depends on)..."
+        which sips || {
+          echo "::error::sips not found on PATH -- not a macOS runner, or sips is missing"
+          exit 1
+        }
+    - name: "reach Ollama"
+      run: |
+        : "${OLLAMA_BASE:?OLLAMA_BASE is not set -- provide it as a repository secret (see SECURITY.md)}"
+        echo "Probing Ollama at $OLLAMA_BASE /api/tags ..."
+        curl -sf "$OLLAMA_BASE/api/tags" || {
+          echo "::error::Could not reach Ollama at $OLLAMA_BASE -- check the endpoint, the LAN/mesh path, and the secret value"
+          exit 1
+        }

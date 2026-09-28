@@ -296,4 +296,16 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
     **Alternatives considered:** keep `3.12` (mismatches #35); use the local `3.9.6` (also stale as a target). Chose 3.11.
 
 - **2026-09-28** · executor: size:M · No clean-Windows-machine smoke test was possible (no Windows host on this Mac), so the guide's "Verify" acceptance check is left as a manual note, per the spec's own instruction.
-    **Why:** Spec says "do not claim it was run if no such machine is available." Verified statically instead: `frontend.py` + `config_loader` + `tracker` are stdlib-only, so the "no `pip` needed" claim holds; the frontend never imports/calls `sips`, `fcntl`, or `os.uname`, confirming the "unsupported on Windows" section is accurate.
+     **Why:** Spec says "do not claim it was run if no such machine is available." Verified statically instead: `frontend.py` + `config_loader` + `tracker` are stdlib-only, so the "no `pip` needed" claim holds; the frontend never imports/calls `sips`, `fcntl`, or `os.uname`, confirming the "unsupported on Windows" section is accurate.
+
+## #34 — Self-hosted runner smoke workflow + runbook
+
+- **2026-09-28** · executor: size:M (Qwen3.8:27b-mlx, local) · Triggered only on `workflow_dispatch` (not also `push` to `main`).
+    **Why:** The spec's step 1 explicitly lists `on: { workflow_dispatch: {} }` for this probe; the broader "workflow_dispatch + push to main" in the locked decision is the *policy* for self-hosted jobs generally, but a one-off smoke probe needs no push trigger and is most conservative as manual-only. Fork PRs remain excluded by construction (no `pull_request`/`pull_request_target`).
+    **Alternatives considered:** also triggering on `push` to `main` — rejected as unnecessary noise for a probe.
+
+- **2026-09-28** · executor: size:M · SHA-pin convention: `actions/checkout@v4` written with a trailing comment `# 11d5960a326750d5838078e36cf38b85af677262` (the `v4` tag's resolved commit) rather than committing the bare SHA.
+    **Why:** The "SHA-pin all actions" intent (from #29/#30) is to make the resolution auditable and drift-proof; recording the resolved SHA alongside the short tag keeps it human-readable while pinning. **Follow-up:** a follow-up pass could replace the bare `@v4` with the literal SHA for a stricter pin.
+
+- **2026-09-28** · executor: size:M · Verification was YAML-parse only; `actionlint` is "if available" per the spec and is not installed on this Mac, so the parse check stands in.
+    **Why:** Matches the spec's "YAML/`actionlint` if available." `python3 -c "yaml.safe_load(...)"` confirms structure (triggers, permissions, runs-on, the three steps, and preserved `run: |` blocks). A real `workflow_dispatch` cannot run here: the `self-hosted-macos-ollama` runner (#31) is not yet provisioned — out of scope for this item.
