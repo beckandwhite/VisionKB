@@ -81,6 +81,9 @@ Start the server and confirm it is up:
 ollama serve &                          # or: it may already be running
 curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 ```
+
+> **Windows (read-only frontend only):** see [`windows-dev-setup.md`](windows-dev-setup.md).
+> The backend pipeline is macOS-only (`fcntl`/`os.uname`/`sips`); do not run it on Windows.
 ---
 
 ## Layout

@@ -287,4 +287,13 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
    **Why:** 3.11 is not installed locally; the change is declaration-only and adds no 3.11-only syntax, so a 3.9 compile is a sound proxy. **Follow-up:** re-run the import check after #37 installs 3.11.
 
 - **2026-09-28** · executor: size:M · **Decision:** processed the whole "Ready to be picked up by AI" column in one autonomous pass (#35, #7, #34, #29, #30, #32), committing after each item and moving each to *In Progress*→*Done* on the board.
-   **Why:** The user asked to "pickup all open work … one by one"; local Ollama is single-stream, so subagents would only queue — sequential self-execution is the right model for this host.
+    **Why:** The user asked to "pickup all open work … one by one"; local Ollama is single-stream, so subagents would only queue — sequential self-execution is the right model for this host.
+
+## #7 — Document native Windows frontend setup
+
+- **2026-09-28** · executor: size:M (Qwen3.8:27b-mlx, local) · **Deviation:** used `py -3.11` throughout `windows-dev-setup.md` instead of the spec's `py -3.12`.
+    **Why:** #35 (completed immediately before #7 in this pass) moved the project's declared Python target to **3.11**; the spec's `3.12` was written under the older 3.9-era drafting and is stale. `3.11` matches the current target (`README.md`, `DECISIONS.md`). The runtime is stdlib-only so any 3.9+ interpreter runs the frontend, but the *documented* target should be consistent at 3.11.
+    **Alternatives considered:** keep `3.12` (mismatches #35); use the local `3.9.6` (also stale as a target). Chose 3.11.
+
+- **2026-09-28** · executor: size:M · No clean-Windows-machine smoke test was possible (no Windows host on this Mac), so the guide's "Verify" acceptance check is left as a manual note, per the spec's own instruction.
+    **Why:** Spec says "do not claim it was run if no such machine is available." Verified statically instead: `frontend.py` + `config_loader` + `tracker` are stdlib-only, so the "no `pip` needed" claim holds; the frontend never imports/calls `sips`, `fcntl`, or `os.uname`, confirming the "unsupported on Windows" section is accurate.
