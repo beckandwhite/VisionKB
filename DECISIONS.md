@@ -175,3 +175,15 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 ---
 
 <!-- Entries below this line. -->
+
+## #21 — Improve readability: 8.1 WebUI tab navigation shell
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `refreshAll()` guards **both** `renderBacklog` and `loadTimeline` (the full Search data path), not just the timeline fetch.
+  **Why:** Both calls fetch API endpoints and update DOM nodes that live inside `#tab-search`; skipping both when the tab is inactive avoids wasted network requests while still updating `#last-updated` each poll tick.
+  **Alternatives considered:** Guard only `loadTimeline` as a literal reading of the spec; chose the broader guard as more consistent with the stated intent.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `activateTab` sets and clears both the `active` CSS class and the `hidden` class on `.tab-view` sections.
+  **Why:** Initial HTML uses `active` on `#tab-search` (no `hidden`); after the first `activateTab` call the function normalises all views to `active`/`hidden` semantics consistently.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Stub comment text refers to the filling issue (e.g. `/* filled by issue 8.3 */`).
+  **Why:** Makes the dependency visible at a glance when future issues open the file; purely informational, zero functional impact.

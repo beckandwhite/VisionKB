@@ -342,6 +342,29 @@ function openPanel(open) {
     $("#record-panel").classList.toggle("open", open);
 }
 
+// ----- tab navigation -------------------------------------------------------
+function activateTab(name) {
+    document.querySelectorAll(".tab").forEach(btn => {
+        const on = btn.dataset.tab === name;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", String(on));
+    });
+    document.querySelectorAll(".tab-view").forEach(v => {
+        v.classList.add("hidden");
+        v.classList.remove("active");
+    });
+    const target = document.querySelector("#tab-" + name);
+    if (target) {
+        target.classList.remove("hidden");
+        target.classList.add("active");
+    }
+    location.hash = name;
+    if (name === "tagforge" && typeof initTagforge === "function") initTagforge();
+    if (name === "telemetry" && typeof initTelemetry === "function") initTelemetry();
+    if (name === "setup" && typeof initSetup === "function") initSetup();
+    if (name === "feedback" && typeof initFeedback === "function") initFeedback();
+}
+
 // ----- section 3: tags ------------------------------------------------------
 async function renderTags() {
     const data = await api("/api/tags");
@@ -455,10 +478,12 @@ function setPoll(on) {
 }
 
 async function refreshAll() {
-    await Promise.all([
-        renderBacklog().catch((e) => {}),
-        loadTimeline(state.offset === 0).catch((e) => {}),
-    ]);
+    if (document.querySelector('#tab-search').classList.contains('active')) {
+        await Promise.all([
+            renderBacklog().catch((e) => {}),
+            loadTimeline(state.offset === 0).catch((e) => {}),
+        ]);
+    }
     $("#last-updated").textContent = "updated " +
         new Date().toLocaleTimeString();
 }
@@ -523,6 +548,26 @@ function wireControls() {
             closeOriginal();
         }
      });
+
+    document.querySelectorAll(".tab").forEach(btn => {
+        btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+    });
+    const tablist = document.querySelector(".tabs");
+    if (tablist) {
+        tablist.addEventListener("keydown", (e) => {
+            const tabs = Array.from(document.querySelectorAll(".tab"));
+            const idx = tabs.indexOf(document.activeElement);
+            if (e.key === "ArrowRight" && idx >= 0 && idx < tabs.length - 1) {
+                e.preventDefault();
+                tabs[idx + 1].focus();
+                activateTab(tabs[idx + 1].dataset.tab);
+            } else if (e.key === "ArrowLeft" && idx > 0) {
+                e.preventDefault();
+                tabs[idx - 1].focus();
+                activateTab(tabs[idx - 1].dataset.tab);
+            }
+        });
+    }
  }
 
  // ----- full-res original lightbox ----------------------------------------
@@ -548,6 +593,8 @@ function wireControls() {
 // ----- boot -----------------------------------------------------------------
 async function main() {
     wireControls();
+    activateTab(location.hash.slice(1) || "search");
+    window.onhashchange = () => activateTab(location.hash.slice(1) || "search");
     setPoll(true);
     await refreshAll();
 }

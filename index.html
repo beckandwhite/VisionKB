@@ -23,6 +23,15 @@
     </div>
   </header>
 
+  <nav class="tabs" role="tablist">
+    <button class="tab active" role="tab" data-tab="search" aria-selected="true">Search</button>
+    <button class="tab" role="tab" data-tab="tagforge" aria-selected="false">Tag Forge</button>
+    <button class="tab" role="tab" data-tab="telemetry" aria-selected="false">Telemetry &amp; Logs</button>
+    <button class="tab" role="tab" data-tab="setup" aria-selected="false">Setup</button>
+    <button class="tab" role="tab" data-tab="feedback" aria-selected="false">Feedback</button>
+  </nav>
+
+<section id="tab-search" class="tab-view active">
 <main class="layout">
   <section id="timeline-section" class="section">
     <div class="section-header">
@@ -108,6 +117,12 @@
     </div>
   </section>
 </main>
+</section>
+
+<section id="tab-tagforge" class="tab-view hidden"></section>
+<section id="tab-telemetry" class="tab-view hidden"></section>
+<section id="tab-setup" class="tab-view hidden"></section>
+<section id="tab-feedback" class="tab-view hidden"></section>
 
    <div id="record-panel" class="record-panel">
      <div class="record-panel-inner">
@@ -122,6 +137,10 @@
       <button id="original-close" class="btn original-close">×</button>
     </div>
 
+    <script src="tagforge.js"></script>
+    <script src="telemetry.js"></script>
+    <script src="setup.js"></script>
+    <script src="feedback.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
