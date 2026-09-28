@@ -1,5 +1,7 @@
 # Lock Implementation
 
+> 📓 The locking decisions here are consolidated in the canonical [DECISIONS.md](../DECISIONS.md).
+
 The `.pipeline.lock` file is maintained to ensure serial execution of pipeline tasks. Even with a serial file-by-file processing strategy, the lock is necessary to:
 
 - **Prevent Race Conditions**: Protect shared state (e.g., `config.json`, shared databases) from concurrent writes if multiple instances are triggered simultaneously.

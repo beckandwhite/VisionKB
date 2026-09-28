@@ -30,6 +30,8 @@ append-only registry, not a per-run dump.
 
 ## Decisions (locked)
 
+> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) — update that log when these change.
+
 | # | Decision | Choice |
 |---|---|---|
 | 1 | Registry scope | **Per-environment** `.workspace/<env>/canonical_tags.json`. |

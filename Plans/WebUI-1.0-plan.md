@@ -4,6 +4,8 @@ A simple, extensible single-page web UI to visualize the screenshot-knowledgebas
 pipeline: a **backlog dashboard**, a **timeline**, and a **tags panel**.
 
 ## Confirmed decisions
+> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) — update that log when these change. (Original one-page layout superseded by the 4-tab UI, board #8/#21.)
+
 - **Stack:** stdlib `http.server` backend + vanilla JS/HTML/CSS. Zero deps, no
   build step, Python 3.9-safe.
 - **Progress model:** a **funnel of pipeline stages**, each shown as a % of the

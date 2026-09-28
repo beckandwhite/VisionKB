@@ -57,6 +57,8 @@ run locally *or* on B's runner.
 
 ## Decisions (locked at kickoff)
 
+> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) (numbering preserved) — update that log when these change.
+
 | # | Decision | Choice |
 |---|---|---|
 | 1 | First shippable slice | **Baseline CI + security** (Track A), hosted runners. |

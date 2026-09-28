@@ -12,6 +12,8 @@ have an LLM write one wiki entry per topic, plus per-day digests.
 ---
 
 ## 0. Decisions / source of truth
+> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) — update that log when these change.
+
 - **Data dir (read-only source):**
   `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`
 - **Working dir (git repo):** `/Users/t/git/screenshot_annotation`
