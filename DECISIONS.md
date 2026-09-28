@@ -251,3 +251,8 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `telemetry.js` defines `_escTel` (local HTML escaper) rather than reusing `esc` from `app.js`.
   **Why:** Same reason as `setup.js` / `_escHtml`: `telemetry.js` loads before `app.js`. Self-contained module is safer.
+
+## #4 — Feedback tab: static project page
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · No judgment calls or deviations from the spec. All steps followed exactly as written.
+  **Why:** Spec was unambiguous; all three files (`feedback.js`, `style.css`, `.github/ISSUE_TEMPLATE/bug_report.md`) were created/modified exactly as specified. No backend changes, no other files touched.
