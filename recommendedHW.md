@@ -72,7 +72,7 @@ under ~2.5 GB on-GPU.
 - Tok/s are for text generation only; image encoding adds ~0.2–2 s per image
   (faster on Apple Silicon Neural Engine, slower on Pascal-era CUDA).
 - HEIC images must be converted to JPEG/PNG before sending to any model — see
-  [Issues/001-heic-conversion.md](Issues/001-heic-conversion.md).
+  [#33](https://github.com/beckandwhite/VisionKB/issues/33).
 
 ---
 

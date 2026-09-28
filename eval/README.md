@@ -1,6 +1,6 @@
 # Vision-model eval harness
 
-Scaffold for [Issue 005](../Issues/005-model-eval-harness.md) — compare vision
+Scaffold for [#32](https://github.com/beckandwhite/VisionKB/issues/32) — compare vision
 models over a fixed image set, scored by an LLM-as-judge, and produce an HTML
 report. **These are stubs**: the config and rubrics are here; the orchestrator
 (`compare_models.py`) and judges (`judges.py`) are still to be implemented per
