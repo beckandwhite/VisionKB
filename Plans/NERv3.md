@@ -30,21 +30,7 @@ append-only registry, not a per-run dump.
 
 ## Decisions (locked)
 
-> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) — update that log when these change.
-
-| # | Decision | Choice |
-|---|---|---|
-| 1 | Registry scope | **Per-environment** `.workspace/<env>/canonical_tags.json`. |
-| 2 | Alias approval | **`orthographic` auto** (case / diacritic / HU-vs-EN word order); **`aka` human-confirmed**. |
-| 3 | "Unclassified" / types | **7-type taxonomy** (Option A), engine-recommended, human-overridable. `Other` is the universal catch-all. |
-| 4 | AKA relations | **Relations supported**: `alias.relation ∈ {identity, member, team, aka, part-of}`. |
-| 5 | Deliverable | This doc + a runnable `work7.py` prototype + a `tag_review.py` `entities` mode. |
-
-> **Stored tradeoff (conscious):** per-env-only means curated AKA is gitignored
-> (`.workspace/` is in `.gitignore:2`) and lost on `decomm`. **Opt-in
-> mitigation:** `work7 build --backup` copies just the `kind:aka` subset to a
-> git-tracked `aliases.curated.json` at the repo root so knowledge can be
-> versioned. Not created unless asked.
+> 📓 Moved to the canonical [DECISIONS.md](../DECISIONS.md) — see *NER / canonical tags* (registry scope, alias approval, 7-type taxonomy, alias relations, and the per-env AKA tradeoff).
 
 ## Background: what already exists
 

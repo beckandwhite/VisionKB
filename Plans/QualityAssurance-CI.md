@@ -57,17 +57,7 @@ run locally *or* on B's runner.
 
 ## Decisions (locked at kickoff)
 
-> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) (numbering preserved) — update that log when these change.
-
-| # | Decision | Choice |
-|---|---|---|
-| 1 | First shippable slice | **Baseline CI + security** (Track A), hosted runners. |
-| 2 | Model scoring method | **LLM-as-judge** (a stronger reference model grades candidates per rubric). |
-| 3 | Image-ops portability | **Keep Mac-only**; native macOS self-hosted runner (`sips` stays). |
-| 4 | Runner topology | **Option 2**: native macOS runner → Ollama on a separate LAN Mac (Option 1, co-located, is the documented fallback). |
-| 5 | Eval dataset privacy | Eval images are **sanitized/synthetic or stored outside git** — never commit personal screenshots. |
-| 6 | Judge implementation | **Both, config-selectable** — local Ollama judge *and* frontier API judge behind one interface; pick per run. |
-| 7 | Repo visibility | **Public.** Self-hosted runner requires hard fork-PR gating; secret-scanning + eval-dataset exclusion are critical, not optional. |
+> 📓 Moved to the canonical [DECISIONS.md](../DECISIONS.md) — see *QA / CI / security* (Decisions 1–7, numbering preserved).
 
 ---
 

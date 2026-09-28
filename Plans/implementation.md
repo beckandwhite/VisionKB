@@ -12,16 +12,8 @@ have an LLM write one wiki entry per topic, plus per-day digests.
 ---
 
 ## 0. Decisions / source of truth
-> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) — update that log when these change.
 
-- **Data dir (read-only source):**
-  `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`
-- **Working dir (git repo):** `/Users/t/git/screenshot_annotation`
-- **Pipeline code lives in the git repo.** Runtime data and generated outputs are
-  isolated under `.workspace/<env>/`; the root `exports/` directory is not used.
-- **Model config lives in the active environment's `config.json`,** loaded by
-  `config_loader.py`. Current active vision model
-  `muse-glimmer:30b-mlx` is slow (~90 s/img). See §1 cost.
+> 📓 Moved to the canonical [DECISIONS.md](../DECISIONS.md) — see *Platform & runtime* and *Data / pipeline*.
 
 ---
 

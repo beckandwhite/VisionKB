@@ -30,6 +30,9 @@ date the doc entered git. `→` names the source doc.
 - **2026-08-20 · Pipeline code lives in the git repo; runtime data and generated
   outputs are isolated under `.workspace/<env>/`.** Root `exports/` is not used.
   Git checkout stays the code source of truth. → `implementation.md §0/§4`.
+- **2026-08-20 · Source images are read-only from
+  `~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/`; the working dir
+  is the git checkout.** → `implementation.md §0`.
 - **2026-08-20 · Model config lives in the active environment's `config.json`,**
   loaded by `config_loader.py`; all paths come from there — never hardcoded in
   stage modules. → `implementation.md §0/§3`.
@@ -43,8 +46,10 @@ date the doc entered git. `→` names the source doc.
   near-dup perceptual hash / embedding cosine < 0.98; collapse `..._n 1/2` dupes.
   Run vision on the deduplicated set (~1200–1600), not all 2028. → `implementation.md §1/§2`.
 - **2026-08-20 · Tiered models: cheap/small model for the volume pass, reserve
-  the 30B model for cluster representatives.** Ollama is single-stream; Python
-  "concurrency" does not speed up vision. → `implementation.md §1/§3`.
+  the 30B model for cluster representatives.** The active vision model
+  `muse-glimmer:30b-mlx` runs ~90 s/img (~50 h for 2028 images), which forces
+  dedup + tiering. Ollama is single-stream; Python "concurrency" does not speed
+  up vision. → `implementation.md §1/§3`.
 - **2026-08-20 · Embedding pre-pass with `nomic-embed-text`; hierarchical
   clustering, `min_cluster_size=3`; loners fold into "misc".** → `implementation.md §2`.
 - **2026-08-25 · `_tracker.json` is the single source of truth for progress +
@@ -54,9 +59,11 @@ date the doc entered git. `→` names the source doc.
 
 ## Concurrency & environment safety
 
-- **2026-08-25 · `.pipeline.lock` enforces serial execution.** Writer tasks
-  acquire/release; a PID is recorded for stale-run detection; protects shared
-  state (`config.json`, DBs) from concurrent writers. → `lock.md`.
+- **2026-08-25 · `.pipeline.lock` enforces serial, single-writer execution.** It
+  (a) prevents race conditions on shared state (`config.json`, DBs), (b) guards
+  against accidental double-triggers processing the same file, and (c) records a
+  PID for stale-run detection. Writer tasks acquire it and release on completion.
+  → `lock.md`.
 - **2026-08-28 · `decomm`/`reset` refuse to run while an environment's
   `.pipeline.lock` is actively held; the default workspace is forbidden as a
   decomm target.** → `README.md`.
@@ -72,6 +79,9 @@ date the doc entered git. `→` names the source doc.
 - **Original layout = one scrolling page (Backlog → Timeline → Tags).**
   *Superseded 2026-09-27 by the 4-tab UI* — board #8 / #21 (Search · Tag Forge ·
   Telemetry & Logs · Setup).
+- **Image display = placeholder tile + `file://` "open original" link,**
+  degrading to a copyable mono path if the browser blocks `file://`.
+- **README gets a short `## WebUI` run section** after building.
 
 ## NER / canonical tags (2026-08-30, `NERv3.md`)
 

@@ -4,20 +4,8 @@ A simple, extensible single-page web UI to visualize the screenshot-knowledgebas
 pipeline: a **backlog dashboard**, a **timeline**, and a **tags panel**.
 
 ## Confirmed decisions
-> 📓 Consolidated in the canonical [DECISIONS.md](../DECISIONS.md) — update that log when these change. (Original one-page layout superseded by the 4-tab UI, board #8/#21.)
 
-- **Stack:** stdlib `http.server` backend + vanilla JS/HTML/CSS. Zero deps, no
-  build step, Python 3.9-safe.
-- **Progress model:** a **funnel of pipeline stages**, each shown as a % of the
-  total (`TOTAL = _tracker.json` total_images, 2027). Stages read live from their
-  source files.
-- **ETA / time-equivalent backlog:** `avg_latency` over **ok** tracker rows
-  (`vision_latency_s`) × `(TOTAL − max ok count)` → hours + projected finish; a
-  latency sparkline shows per-run latency (incl. the 663 s outlier).
-- **Layout:** one scrolling page, top→bottom: Backlog → Timeline → Tags.
-- **Images:** placeholder tile + `file://` "open original" link, degrading to a
-  copyable mono path if the browser blocks `file://`.
-- **README:** add a short `## WebUI` run section after building.
+> 📓 Moved to the canonical [DECISIONS.md](../DECISIONS.md) — see *WebUI*. (Original one-page layout superseded by the 4-tab UI, board #8/#21.)
 
 ## Data sources → what each drives
 | File | State | Feed |
