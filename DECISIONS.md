@@ -24,9 +24,15 @@ date the doc entered git. `→` names the source doc.
 
 ## Platform & runtime
 
+- **2026-09-28 · Python 3.11, stdlib-only for pipeline/stage/scripts.** Target moved
+  from 3.9 → 3.11 (board #35); the "no `match` / no PEP 604 `X | Y` / no runtime
+  `list[...]`/`dict[...]` generics" 3.9-era constraints are dropped. Runtime remains
+  stdlib-only. Supersedes the 2026-08-20 3.9 bullet below (kept as history).
+   → board #35.
 - **2026-08-20 · Python 3.9, stdlib-only for pipeline/stage scripts.** No `match`,
   no PEP 604 `X | Y` at runtime, no runtime `list[...]`/`dict[...]` generics.
-  → `implementation.md §4`, `README.md`, `WebUI-1.0-plan.md`.
+  *Superseded 2026-09-28 by the 3.11 move (board #35); retained for history.*
+   → `implementation.md §4`, `README.md`, `WebUI-1.0-plan.md`.
 - **2026-08-20 · Pipeline code lives in the git repo; runtime data and generated
   outputs are isolated under `.workspace/<env>/`.** Root `exports/` is not used.
   Git checkout stays the code source of truth. → `implementation.md §0/§4`.
@@ -71,7 +77,7 @@ date the doc entered git. `→` names the source doc.
 ## WebUI (2026-08-20, `WebUI-1.0-plan.md`)
 
 - **Stack = stdlib `http.server` backend + vanilla JS/HTML/CSS.** Zero deps, no
-  build step, 3.9-safe.
+  build step, 3.11-safe.
 - **Progress model = funnel of pipeline stages**, each a % of `TOTAL` (tracker
   `total_images`); stages read live from their source files fresh per request.
 - **ETA = `avg_latency` over `ok` tracker rows × remaining**, with a latency
@@ -269,4 +275,16 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 ## #4 — Feedback tab: static project page
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · No judgment calls or deviations from the spec. All steps followed exactly as written.
-  **Why:** Spec was unambiguous; all three files (`feedback.js`, `style.css`, `.github/ISSUE_TEMPLATE/bug_report.md`) were created/modified exactly as specified. No backend changes, no other files touched.
+   **Why:** Spec was unambiguous; all three files (`feedback.js`, `style.css`, `.github/ISSUE_TEMPLATE/bug_report.md`) were created/modified exactly as specified. No backend changes, no other files touched.
+
+## #35 — Adopt Python 3.11 as the project target
+
+- **2026-09-28** · executor: size:M (Qwen3.8:27b-mlx, local) · Declaration-only change: updated every "3.9-safe / no `match` / no `X|Y`" claim in `frontend.py`, `tracker.py`, `work7.py`, `README.md`, `DECISIONS.md`, and the 3.9 restatements in `Plans/*.md`. Dropped the 3.9-era constraint parentheticals since 3.11 permits them. No runtime logic touched.
+   **Why:** The target move is metadata/docs; the 3.9 constraints were the reason older prose forbade `match`/`X|Y`, and 3.11 removes that reason. Kept "stdlib-only" everywhere (that constraint is unchanged).
+   **Alternatives considered:** rewriting each plan's rationale vs. annotating in place — chose annotation to preserve historical rationale while flagging the move.
+
+- **2026-09-28** · executor: size:M · **Deviation/assumption:** the verify step "Core modules import under Python 3.11" could not be executed locally — this Mac's `python3` is 3.9.6 (#37 not done). Modules were compile-checked under 3.9 (which also passes, since no 3.11-only syntax was introduced) instead.
+   **Why:** 3.11 is not installed locally; the change is declaration-only and adds no 3.11-only syntax, so a 3.9 compile is a sound proxy. **Follow-up:** re-run the import check after #37 installs 3.11.
+
+- **2026-09-28** · executor: size:M · **Decision:** processed the whole "Ready to be picked up by AI" column in one autonomous pass (#35, #7, #34, #29, #30, #32), committing after each item and moving each to *In Progress*→*Done* on the board.
+   **Why:** The user asked to "pickup all open work … one by one"; local Ollama is single-stream, so subagents would only queue — sequential self-execution is the right model for this host.

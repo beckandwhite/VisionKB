@@ -75,7 +75,7 @@ Do not redesign prompts, model behavior, thumbnail naming, visual WebUI design, 
 
 ## Verification
 
-- Compile all touched Python modules using the repository's Python 3.9-compatible command.
+- Compile all touched Python modules using the repository's Python 3.11-compatible command (was 3.9; moved 2026-09-28, board #35).
 - Assert schema 3 persistence has no nested source `source_key`.
 - Assert task status transitions and retry behavior.
 - Assert work1/work2/work3 output records contain only `source_key` and `output`.

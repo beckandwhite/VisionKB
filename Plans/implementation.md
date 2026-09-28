@@ -109,9 +109,10 @@ This is what actually becomes a knowledgebase, not a metadata dump.
 ---
 
 ## 4. Environment / gotchas
-- **python3 is 3.9** (system): no `match`, no PEP 604 `X | Y` unions at runtime,
-  no `list[...]`/`dict[...]` generics evaluated at runtime. Keep stage scripts stdlib-only
-  and 3.9-safe (the existing scripts already are — maintain that).
+- **python3 is 3.11** (moved from 3.9 on 2026-09-28, board #35): the 3.9-era
+   constraints (no `match`, no PEP 604 `X | Y` unions, no runtime
+   `list[...]`/`dict[...]` generics) are **dropped** — 3.11 may use them. Keep
+   stage scripts **stdlib-only** (that constraint is unchanged).
 - **Ollama** hosts: `muse-glimmer:30b-mlx` (vision, slow), `qwen3.8:27b-mlx`
   (active), `nomic-embed-text` (embed). Confirm the model name in the active
   environment configuration matches an installed one before a run.

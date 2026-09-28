@@ -17,7 +17,7 @@ is unreliable. This work builds a per-environment canonical registry
       ``relation`` (identity / member / team / aka / part-of), and
     * carries the occurrence ``count`` so the list stays dense yet faithful.
 
-Subcommands (all stdlib-only, Python 3.9, atomic tempfile+os.replace writes):
+Subcommands (all stdlib-only, Python 3.11, atomic tempfile+os.replace writes):
 
   build   ingest named_entities.jsonl (+ optional work6 candidates) -> build an
           ortho-merged, typed, AKA-proposed canonical_tags.json.
@@ -92,7 +92,7 @@ _STOP = {"the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "or",
 
 # ----------------------------------------------------------------------------
 # Folding / canonical keys (copied from ner.py). ner.py imports spacy at module
-# top, so work7 (stdlib/3.9) cannot import it; the ortho-merge logic is copied.
+# top, so work7 (stdlib/3.11) cannot import it; the ortho-merge logic is copied.
 # ----------------------------------------------------------------------------
 
 def fold(text):

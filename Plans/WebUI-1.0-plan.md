@@ -34,7 +34,7 @@ different latencies.
 
 Status chips: `ok · fail · pending = TOTAL − max ok`.
 
-## Backend — `frontend.py` (stdlib, 3.9-safe)
+## Backend — `frontend.py` (stdlib, 3.11-safe; was 3.9, moved 2026-09-28 board #35)
 - `http.server.ThreadingHTTPServer` + `BaseHTTPRequestHandler`.
 - Re-parses all source files **fresh per request** (tracks a live run, no restart).
 - Resolves JSON/JSONL via absolute paths from `__file__` (CWD-independent).

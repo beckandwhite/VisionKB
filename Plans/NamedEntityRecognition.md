@@ -46,8 +46,9 @@ entity written to `named_entities.jsonl`:
   clean and degrades with count.
 
 ## Environment
-System `/usr/bin/python3` is 3.9, which cannot build current `spacy`/`thinc`.
-Run inside the repo `.venv` (created with `uv venv --python 3.11 .venv`,
+System `/usr/bin/python3` is 3.11 (was 3.9; moved 2026-09-28, board #35), but
+   still cannot build current `spacy`/`thinc` without a venv.
+   Run inside the repo `.venv` (created with `uv venv --python 3.11 .venv`,
 `uv pip install --python .venv/bin/python spacy`).
 
 ## Usage

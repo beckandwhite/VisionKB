@@ -45,7 +45,8 @@ append-only registry, not a per-run dump.
   (`conference-call`, `coding-dev`, …) — the seed `Scene` set.
 
 `ner.py` imports `spacy` at module top, so it **cannot** be imported by a
-stdlib-only 3.9 producer. `work7` therefore **replicates** `fold` /
+stdlib-only 3.11 producer (was 3.9; moved on 2026-09-28, board #35). `work7`
+therefore **replicates** `fold` /
 `norm_key` / `pick_display` locally (the orthographic-merge logic already
 exists; we copy it, not re-derive it).
 
@@ -131,8 +132,9 @@ overridable** — it never deletes.
 
 ## `work7.py` spec (mirrors `work5.py` / `work6.py`)
 
-`import config_loader`; `resolve_environment(env)`; **stdlib-only, Python 3.9**
-(no `spacy`); atomic `tempfile` + `os.replace` writes. Subcommands:
+`import config_loader`; `resolve_environment(env)`; **stdlib-only, Python 3.11**
+(was 3.9; moved 2026-09-28, board #35) (no `spacy`); atomic `tempfile` +
+`os.replace` writes. Subcommands:
 
 ### `build`
 Ingest `named_entities.jsonl` (re-derive type; **ignore** its `type`) and

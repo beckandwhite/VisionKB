@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WebUI backend for the screenshot knowledgebase (stdlib only, Python 3.9-safe).
+WebUI backend for the screenshot knowledgebase (stdlib only, Python 3.11-safe).
 
 Serves a single-page viewer over the pipeline artifacts. All source files are
 re-parsed *fresh per request* so the UI tracks a live pipeline run without a

@@ -65,7 +65,7 @@ On macOS, no `pip` install required — the scripts are **stdlib-only**.
 
 | Requirement | Where | Needed for |
 |---|---|---|
-| **Python 3.9+** (3.9.6 verified) | `/usr/bin/python3` | everything |
+| **Python 3.11+** (3.11 verified) | `/usr/bin/python3` | everything |
 | **sips** | `/usr/bin/sips` (preinstalled) | HEIC→JPEG, thumbnails — the only binary the code calls |
 | **Ollama** + models below | homebrew | vision + embeddings |
 ### Ollama models (must be pulled)
@@ -426,7 +426,7 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
 - **Cost: ~90 s/image with muse-glimmer:30b.** Ollama is effectively single-stream,
   so Python "concurrency" won't speed up vision. For the full ~2,000 images, see the
    dedup + cheaper-model strategy in see [implementation.md](Plans/implementation.md).
- - **python3 is 3.9**: no `match`, no runtime `X | Y` unions. Keep scripts stdlib-only.
+  - **python3 is 3.11**: scripts remain stdlib-only.
  - **OCR is the vision model's, English-leaning:** non-English text won't be read
    well (there is no separate tesseract/ffmpeg in the pipeline — `sips` is the
    only external binary, used for HEIC→JPEG + thumbnails).

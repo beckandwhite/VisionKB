@@ -12,7 +12,7 @@ Producers that mutate the registry:
 Consumers:
     frontend.py         -- load_registry + telemetry_from_tracker
 
-Stdlib-only and Python 3.9-safe (no match, no runtime X | Y unions).
+Stdlib-only and Python 3.11-safe.
 """
 
 import json

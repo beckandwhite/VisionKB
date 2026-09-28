@@ -24,7 +24,7 @@ Both read the same source field and share the same fold/clean helpers
 (`unicodedata` NFD, drop `Mn`, lowercase), so a phrase like `boardroom` and a
 proper noun like `Boardroom` count together. This miner is **not** wired into
 `ner.py` (which imports `spacy` at module load); it reimplements the small
-loader so it stays stdlib-only and runnable under system Python 3.9.
+loader so it stays stdlib-only and runnable under system Python 3.11 (was 3.9; moved 2026-09-28, board #35).
 
 ## Pipeline
 1. **Load.** Reuse `ner.py`'s `load_answers(path)`: read each JSONL line, yield
@@ -66,8 +66,8 @@ written.
   Overridable via `--stopwords-file`.
 - **`--min-count 2`** default suppresses singletons; `--min-count 1` returns
   everything for full review.
-- **Stdlib-only**, no `spacy`; runs under system `/usr/bin/python3` (3.9),
-  matching `work5.py`.
+- **Stdlib-only**, no `spacy`; runs under system `/usr/bin/python3` (3.11; was
+   3.9, moved 2026-09-28 board #35), matching `work5.py`.
 
 ## Architecture
 `work6.py` is a **dataset-scoped** producer, mirroring `work5.py`: it imports
