@@ -332,67 +332,88 @@ function renderRow(row) {
     return el;
 }
 
-// ----- record side-panel ----------------------------------------------------
+// ----- detail split view ----------------------------------------------------
 async function openRecord(filename, sourceKey) {
+    const split = document.getElementById("detail-split");
+    const imgEl = document.getElementById("detail-img");
+    const msgEl = document.getElementById("detail-img-msg");
+    const content = document.getElementById("detail-content");
+
+    const originalUrl = "/thumb/" + encodeURIComponent(filename) +
+        "?original=1&source_key=" + encodeURIComponent(sourceKey || "");
+    if (imgEl) {
+        imgEl.style.display = "none";
+        if (msgEl) { msgEl.textContent = "loading…"; msgEl.style.display = "block"; }
+        imgEl.onload = () => {
+            imgEl.style.display = "block";
+            if (msgEl) msgEl.style.display = "none";
+        };
+        imgEl.onerror = () => {
+            if (msgEl) { msgEl.textContent = "image unavailable"; }
+        };
+        imgEl.src = originalUrl + "&t=" + Date.now();
+    }
+
+    if (content) content.innerHTML = "<p class='muted'>loading…</p>";
+    if (split) split.style.display = "grid";
+
     const rec = await api("/api/record", { filename: filename, source_key: sourceKey || "" });
-    const body = $("#record-body");
+    if (!content) return;
     if (!rec || rec.error) {
-        body.innerHTML = "<p class='muted'>not found</p>";
-        openPanel(true);
+        content.innerHTML = "<p class='muted'>not found</p>";
         return;
     }
 
-    const pathBlock =
-        '<h3>original</h3>' +
-        fileLink(rec.original_path, rec.filename);
-
-    const ocrBlock =
-        '<h3>OCR text (' + rec.ocr_text.length + " lines)</h3>" +
-        "<pre>" + esc((rec.ocr_text || []).join("\n") || "—") + "</pre>";
-
     const tagsBlock =
-        '<h3>tags</h3>' +
+        "<h3>Tags</h3>" +
         (rec.tags && rec.tags.length
             ? '<div class="tl-tags">' +
-                rec.tags.map((t) =>
-                    '<span class="tag-chip">' + esc(t) + "</span>").join("") +
+                rec.tags.map((t) => '<span class="tag-chip">' + esc(t) + "</span>").join("") +
               "</div>"
             : '<p class="muted">—</p>');
-
-    const entitiesBlock =
-        '<h3>entities</h3>' +
-        (rec.entities && rec.entities.length
-            ? "<pre>" + esc(rec.entities.join("\n")) + "</pre>"
-            : '<p class="muted">—</p>');
-
-    body.innerHTML =
-        '<h3>record</h3>' +
-        '<p class="fname">' + esc(rec.filename) + "</p>" +
-        '<p class="muted">mtime ' + fmtTime(rec.mtime_iso) + "Z · " +
-          "quality " + (rec.quality_score != null ? rec.quality_score : "—") +
-        " · " + (rec.answer ? esc(rec.answer) : "no answer") + "</p>" +
-        pathBlock + tagsBlock + entitiesBlock + ocrBlock;
-
-    openPanel(true);
+    const summaryBlock =
+        "<h3>Summary</h3>" +
+        '<p class="detail-summary">' + esc(rec.answer || "—") + "</p>";
+    const ocrBlock =
+        "<h3>Full OCR (" + (rec.ocr_text || []).length + " lines)</h3>" +
+        "<pre>" + esc((rec.ocr_text || []).join("\n") || "—") + "</pre>";
+    content.innerHTML = tagsBlock + summaryBlock + ocrBlock;
 }
 
-function fileLink(path, fallback) {
-    if (!path) {
-        return '<p class="muted">no original path</p>';
-    }
-    const uri = "file://" + path.split("/").map(encodeURIComponent).join("/");
-    return (
-        '<a class="record-path" href="' + uri + '" target="_blank" ' +
-        'rel="noopener" title="open original (may be blocked for iCloud ' +
-        'file:// paths)">' + esc(path) + "</a>" +
-        '<p class="muted" style="margin-top:4px;font-size:10px;">' +
-        "open-original may be blocked by the browser; select + copy the path." +
-        "</p>"
-    );
+function closeDetail() {
+    const split = document.getElementById("detail-split");
+    if (split) split.style.display = "none";
 }
 
-function openPanel(open) {
-    $("#record-panel").classList.toggle("open", open);
+function initSplitDrag() {
+    const split = document.getElementById("detail-split");
+    const divider = document.getElementById("split-divider");
+    if (!split || !divider) return;
+
+    const STORAGE_KEY = "detail-split-ratio";
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) split.style.setProperty("--split", saved);
+
+    divider.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        divider.classList.add("dragging");
+        divider.setPointerCapture(e.pointerId);
+        function onMove(ev) {
+            const rect = split.getBoundingClientRect();
+            let ratio = (ev.clientX - rect.left) / rect.width;
+            ratio = Math.max(0.25, Math.min(0.75, ratio));
+            const pct = (ratio * 100).toFixed(1) + "%";
+            split.style.setProperty("--split", pct);
+            localStorage.setItem(STORAGE_KEY, pct);
+        }
+        function onUp() {
+            divider.classList.remove("dragging");
+            divider.removeEventListener("pointermove", onMove);
+            divider.removeEventListener("pointerup", onUp);
+        }
+        divider.addEventListener("pointermove", onMove);
+        divider.addEventListener("pointerup", onUp);
+    });
 }
 
 // ----- tab navigation -------------------------------------------------------
@@ -580,23 +601,11 @@ function wireControls() {
     });
 
     $("#load-more").addEventListener("click", () => loadTimeline(false));
-     $("#record-close").addEventListener("click", () => openPanel(false));
-      $("#original-close").addEventListener("click", () => closeOriginal());
-
-
-      // Thumbnail -> full-res original lightbox.
-      $("#timeline").addEventListener("click", (e) => {
-           const link = e.target.closest(".tl-thumb-link");
-           if (link && link.dataset.original) {
-               e.stopPropagation();
-               openOriginal(link.dataset.original);
-           }
-      });
+    $("#detail-close").addEventListener("click", closeDetail);
 
      document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
-            openPanel(false);
-            closeOriginal();
+            closeDetail();
         }
      });
 
@@ -621,29 +630,10 @@ function wireControls() {
     }
  }
 
- // ----- full-res original lightbox ----------------------------------------
- async function openOriginal(originalUrl) {
-     const box = $("#original-box");
-     const img = $("#original-img");
-     box.style.display = "flex";
-     img.style.display = "none";
-     $("#original-msg").textContent = "loading original…";
-     $("#original-msg").style.display = "block";
-     img.onload = () => {
-         img.style.display = "block";
-         $("#original-msg").style.display = "none";
-      };
-     img.src = originalUrl + "&t=" + Date.now();
- }
-
- function closeOriginal() {
-     const box = $("#original-box");
-     if (box) box.style.display = "none";
- }
-
 // ----- boot -----------------------------------------------------------------
 async function main() {
     wireControls();
+    initSplitDrag();
     activateTab(location.hash.slice(1) || "search");
     window.onhashchange = () => activateTab(location.hash.slice(1) || "search");
     setPoll(true);

@@ -212,3 +212,17 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Panel IDs use the work name directly (e.g. `work2-backlog`) rather than a "Worker N" label.
   **Why:** Work names are stable identifiers from config; display labels (e.g. "Worker 2") are derived from them at render time via a regex replace. This keeps IDs stable if display labels ever change.
+
+## #22 — Improve readability: 8.2 Search tab split-view
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Mobile thumbnail bumped to 120×90 px (75% of 160×120) rather than the strict proportional value (~137×103).
+  **Why:** 75% gives clean numbers and is close enough to the original ratio (82/96 ≈ 85%).
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `#detail-split` shown with `style.display = "grid"` rather than toggling a CSS class.
+  **Why:** The overlay grid layout requires `display:grid`; toggling `hidden` (which sets `display:none !important`) would conflict. Inline style override is the simplest approach.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Image starts loading immediately when `openRecord` is called, before the `/api/record` fetch completes.
+  **Why:** Image and record metadata are independent; loading them in parallel shaves perceived latency.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `fileLink` / `openPanel` dead code left in place — only the call sites and `openOriginal`/`closeOriginal` were removed.
+  **Why:** `fileLink` is no longer called from `openRecord`. Deleting it was not listed as a step; left for a cleanup pass.

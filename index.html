@@ -104,18 +104,17 @@
 <section id="tab-setup" class="tab-view hidden"></section>
 <section id="tab-feedback" class="tab-view hidden"></section>
 
-   <div id="record-panel" class="record-panel">
-     <div class="record-panel-inner">
-       <button id="record-close" class="btn record-close">×</button>
-       <div id="record-body" class="record-body"></div>
+   <div id="detail-split" class="detail-split" style="display:none">
+     <div id="detail-image" class="detail-image">
+       <img id="detail-img" class="detail-img" alt="full-res image" style="display:none">
+       <div id="detail-img-msg" class="detail-img-msg">loading…</div>
+     </div>
+     <div id="split-divider" class="split-divider"></div>
+     <div id="detail-body" class="detail-body">
+       <button id="detail-close" class="btn detail-close">×</button>
+       <div id="detail-content"></div>
      </div>
    </div>
-
-    <div id="original-box" class="original-box" style="display:none">
-      <img id="original-img" class="original-img" alt="full-res original">
-      <div id="original-msg" class="original-msg"></div>
-      <button id="original-close" class="btn original-close">×</button>
-    </div>
 
     <script src="tagforge.js"></script>
     <script src="telemetry.js"></script>

@@ -352,7 +352,7 @@ html, body {
 }
 .tl-row:hover { border-color: var(--accent); }
 .tl-thumb {
-   width: 96px; height: 72px;
+   width: 160px; height: 120px;
    flex-shrink: 0;
    background: var(--bg-elev);
    border: 1px solid var(--border);
@@ -441,7 +441,7 @@ html, body {
    .topbar-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
    #filter-q { min-width: min(240px, 100%); width: 100%; }
    .tl-row { align-items: stretch; }
-   .tl-thumb { width: 82px; height: 62px; }
+   .tl-thumb { width: 120px; height: 90px; }
    .mtime-filter-head, .mtime-endpoints { font-size: 9px; }
    .backlog-summary { grid-template-columns: 1fr; gap: 18px; }
    .tag-cloud {
@@ -558,3 +558,75 @@ html, body {
    min-height: 100px;
 }
 .tab-view.hidden { display: none; }
+
+/* --------------------------------------------------------- detail split view */
+.detail-split {
+   position: fixed;
+   inset: 0;
+   z-index: 40;
+   display: grid;
+   grid-template-columns: var(--split, 50%) 6px 1fr;
+}
+.detail-image {
+   overflow: hidden;
+   background: #000;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   position: relative;
+}
+.detail-img {
+   max-width: 100%;
+   max-height: 100%;
+   object-fit: contain;
+}
+.detail-img-msg {
+   position: absolute;
+   color: var(--muted);
+   font-size: 11px;
+}
+.split-divider {
+   background: var(--border);
+   cursor: col-resize;
+   transition: background .15s;
+}
+.split-divider:hover,
+.split-divider.dragging { background: var(--accent); }
+.detail-body {
+   overflow-y: auto;
+   padding: 18px;
+   background: var(--bg-elev);
+   border-left: 1px solid var(--border);
+}
+.detail-close {
+   position: sticky;
+   top: 0;
+   float: right;
+}
+.detail-body h3 {
+   margin: 14px 0 4px;
+   font-size: 12px;
+   text-transform: uppercase;
+   letter-spacing: 1px;
+   color: var(--muted);
+}
+.detail-body h3:first-child { margin-top: 0; }
+.detail-summary { font-size: 12px; margin: 4px 0; }
+.detail-body pre {
+   white-space: pre-wrap;
+   word-break: break-word;
+   font-size: 11px;
+   background: var(--bg);
+   border: 1px solid var(--border);
+   border-radius: 4px;
+   padding: 8px;
+   max-height: none;
+}
+
+@media (max-width: 600px) {
+   .detail-split {
+      grid-template-columns: 1fr !important;
+      grid-template-rows: 40vh 0 1fr;
+   }
+   .split-divider { display: none; }
+}
