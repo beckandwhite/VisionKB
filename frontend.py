@@ -59,6 +59,40 @@ TIMELINE_WINDOW_DEFAULT = 50
 TIMELINE_WINDOWS = (50, 100, 150, 200)
 
 
+# ---------------------------------------------------------------------------
+# Per-work metric registry
+# Keys are work names; absence means fall back to latency (vision_latency_s).
+# Each entry: chart_value(result) -> number, chart_unit: str,
+#             overview_extras: bool (compute empty_result_rate + error_rate).
+# ---------------------------------------------------------------------------
+
+def _work2_lines(result):
+    output = (result or {}).get("output") or {}
+    text = output.get("text") or []
+    if isinstance(text, list):
+        return len(text)
+    if isinstance(text, str):
+        return len([ln for ln in text.splitlines() if ln.strip()])
+    return 0
+
+
+WORK_METRIC_REGISTRY = {
+    "work2": {
+        "chart_value": _work2_lines,
+        "chart_unit": "lines",
+        "overview_extras": True,
+    },
+}
+
+
+def list_per_source_works():
+    """Return names of enabled per_source works from the active config."""
+    if not ENV_CONFIG:
+        return []
+    return [w["name"] for w in ENV_CONFIG.get("works", [])
+            if w.get("enabled") and w.get("scope") == "per_source"]
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -135,10 +169,17 @@ def _display_status(task):
 def load_telemetry(work_name="work1"):
     """Reconstruct telemetry rows from the tracker (newest last).
 
-    Each processed file yields one row: {timestamp, filename, vision_latency_s,
-    tags_count, embedding_dims, status, error}. Backed by the shared tracker.
+    Each processed file yields one row: {timestamp, filename, source_key,
+    work_name, vision_latency_s, chart_value, chart_unit, status}.
+    chart_value / chart_unit come from WORK_METRIC_REGISTRY when an entry
+    exists for work_name (joined with the work's result JSONL on source_key);
+    otherwise chart_value == vision_latency_s and chart_unit == "s".
     """
     sources, tasks, _ = load_tracker()
+    registry_entry = WORK_METRIC_REGISTRY.get(work_name)
+    work_results = {}
+    if registry_entry:
+        work_results = load_work_results().get(work_name) or {}
     rows = []
     for task in tasks.values():
         if task.get("work_name") != work_name:
@@ -150,12 +191,21 @@ def load_telemetry(work_name="work1"):
         duration = _task_duration_seconds(task)
         if not source or duration is None:
             continue
+        if registry_entry:
+            result = work_results.get(source_key) or {}
+            chart_value = registry_entry["chart_value"](result)
+            chart_unit = registry_entry["chart_unit"]
+        else:
+            chart_value = duration
+            chart_unit = "s"
         rows.append({
             "timestamp": task.get("worker_finished_at"),
             "filename": source.get("filename"),
             "source_key": source_key,
             "work_name": work_name,
             "vision_latency_s": duration,
+            "chart_value": chart_value,
+            "chart_unit": chart_unit,
             "status": "ok",
         })
     rows.sort(key=lambda row: row.get("timestamp") or "")
@@ -326,6 +376,28 @@ def build_overview(work_name="work1"):
         (datetime.now(tz=timezone.utc) + timedelta(seconds=eta_seconds)).isoformat()
         if (remaining and has_speed) else "")
 
+    extra = {}
+    registry_entry = WORK_METRIC_REGISTRY.get(work_name)
+    if registry_entry and registry_entry.get("overview_extras"):
+        work_results = results.get(work_name) or {}
+        chart_fn = registry_entry["chart_value"]
+        ok_source_keys = [t.get("source_key") for t in tasks.values()
+                          if t.get("work_name") == work_name
+                          and t.get("status") == "finished"
+                          and t.get("source_key") in active_sources]
+        total_ok = len(ok_source_keys)
+        empty = sum(1 for sk in ok_source_keys
+                    if chart_fn(work_results.get(sk) or {}) == 0)
+        error_count = sum(1 for t in tasks.values()
+                          if t.get("work_name") == work_name
+                          and t.get("status") == "error"
+                          and t.get("source_key") in active_sources)
+        total_attempted = total_ok + error_count
+        extra["empty_result_rate"] = (round(empty / total_ok, 3)
+                                      if total_ok else None)
+        extra["error_rate"] = (round(error_count / total_attempted, 3)
+                               if total_attempted else None)
+
     return {
         "environment": CURRENT_ENV,
         "total": total,
@@ -337,6 +409,7 @@ def build_overview(work_name="work1"):
         "eta_seconds": int(eta_seconds),
         "eta_human": eta_human,
         "projected_finish_iso": projected_finish,
+        **extra,
     }
 
 
@@ -533,6 +606,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/overview":
             work_name = qs.get("work", ["work1"])[0]
             self._send_json(build_overview(work_name))
+            return
+
+        if path == "/api/works":
+            self._send_json(list_per_source_works())
             return
 
         if path == "/api/tags":

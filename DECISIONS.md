@@ -198,3 +198,17 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Tag-click handlers call `activateTab("search")` then `loadTimeline(true)` without `scrollIntoView`.
   **Why:** `activateTab` switches the visible tab and the search content is at the top of that view; a `scrollIntoView` would be redundant and could scroll past the tab bar.
+
+## #5 — Same telemetry for work2 as for work1
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Added `/api/works` endpoint to expose enabled per_source work names to the frontend.
+  **Why:** The frontend needs a config-driven list of works to loop over; embedding it in the overview response would conflate two concerns. A dedicated endpoint is the minimal addition.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Chart heading label changed from "processing time" to "per-file metric" for all works (not just work2).
+  **Why:** Work2 shows lines-extracted count, not time; a generic label is accurate for all works and avoids a branch. The bar tooltip still shows the exact value with its unit.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `renderBacklog` fetches `/api/works` on every poll tick (every 5 s).
+  **Why:** The works list is tiny and cheap; caching it would add state. No perf concern at this scale.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Panel IDs use the work name directly (e.g. `work2-backlog`) rather than a "Worker N" label.
+  **Why:** Work names are stable identifiers from config; display labels (e.g. "Worker 2") are derived from them at render time via a regex replace. This keeps IDs stable if display labels ever change.

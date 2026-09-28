@@ -57,23 +57,63 @@ async function api(path, params) {
 
 // ----- backlog status (page footer) --------------------------------------
 async function renderBacklog() {
-    const [worker1Data, worker1Telemetry, worker4Data, worker4Telemetry] = await Promise.all([
-        api("/api/overview", { work: "work1" }),
-        api("/api/telemetry", { work: "work1" }),
-        api("/api/overview", { work: "work4" }),
-        api("/api/telemetry", { work: "work4" }),
-    ]);
+    const works = await api("/api/works");
+    if (!Array.isArray(works) || !works.length) return;
+
     const environment = $("#data-environment");
-    if (environment) {
-        environment.textContent = "data: " + (worker1Data.environment || "unknown");
-    }
-    renderWorkerBacklog("worker1", worker1Data, worker1Telemetry);
-    renderWorkerBacklog("worker4", worker4Data, worker4Telemetry);
+    const requests = works.flatMap(w => [
+        api("/api/overview", { work: w }),
+        api("/api/telemetry", { work: w }),
+    ]);
+    const results = await Promise.all(requests);
+
+    works.forEach((w, i) => {
+        const data = results[i * 2];
+        const telemetry = results[i * 2 + 1];
+        if (i === 0 && environment) {
+            environment.textContent = "data: " + (data.environment || "unknown");
+        }
+        renderWorkerBacklog(w, data, telemetry);
+    });
 }
 
-function renderWorkerBacklog(worker, data, telemetry) {
-    const l1 = $("#" + worker + "-backlog-line1");
-    const l2 = $("#" + worker + "-backlog-line2");
+function createBacklogPanel(workName) {
+    const label = workName.replace(/^work(\d+)$/, "Worker $1");
+    const panel = document.createElement("section");
+    panel.id = workName + "-backlog";
+    panel.className = "section backlog";
+    panel.innerHTML =
+        '<h1 class="section-title">' + esc(label) + " — Backlog</h1>" +
+        '<div class="backlog-summary">' +
+          "<div>" +
+            '<div id="' + workName + '-backlog-line1" class="backlog-line primary">—</div>' +
+            '<div id="' + workName + '-backlog-line2" class="backlog-line muted">—</div>' +
+            '<div id="' + workName + '-backlog-extras" class="muted" style="font-size:11px"></div>' +
+          "</div>" +
+          '<div class="backlog-chart-wrap">' +
+            '<div class="backlog-chart-heading">' +
+              "<span>per-file metric</span>" +
+              '<span id="' + workName + '-backlog-chart-meta" class="muted">last 20</span>' +
+            "</div>" +
+            '<div class="backlog-chart-area">' +
+              '<div id="' + workName + '-backlog-chart-axis" class="backlog-chart-axis" aria-hidden="true"></div>' +
+              '<div id="' + workName + '-backlog-chart" class="backlog-chart" ' +
+                'aria-label="' + esc(label) + ' per-file metric for last 20 processed pictures"></div>' +
+            "</div>" +
+          "</div>" +
+        "</div>";
+    const container = document.getElementById("backlog-panels");
+    if (container) container.appendChild(panel);
+    return panel;
+}
+
+function renderWorkerBacklog(workName, data, telemetry) {
+    if (!document.getElementById(workName + "-backlog")) {
+        createBacklogPanel(workName);
+    }
+    const l1 = document.getElementById(workName + "-backlog-line1");
+    const l2 = document.getElementById(workName + "-backlog-line2");
+    const extras = document.getElementById(workName + "-backlog-extras");
     if (!l1 || !l2) return;
 
     l1.textContent = data.processed + "/" + data.total;
@@ -81,23 +121,34 @@ function renderWorkerBacklog(worker, data, telemetry) {
     let msg;
     if (data.remaining === 0) {
         msg = "all caught up";
-     } else if (!data.has_speed) {
+    } else if (!data.has_speed) {
         msg = "no speed data yet";
-     } else {
+    } else {
         msg = "≈ " + data.eta_human + " left";
-     }
+    }
     l2.textContent = msg;
-    renderProcessingChart(telemetry, worker);
+
+    if (extras) {
+        const parts = [];
+        if (data.empty_result_rate != null)
+            parts.push("empty: " + (data.empty_result_rate * 100).toFixed(1) + "%");
+        if (data.error_rate != null)
+            parts.push("errors: " + (data.error_rate * 100).toFixed(1) + "%");
+        extras.textContent = parts.join(" · ");
+    }
+
+    renderProcessingChart(telemetry, workName);
 }
 
 function renderProcessingChart(rows, worker) {
-    const host = $("#" + worker + "-backlog-chart");
-    const axis = $("#" + worker + "-backlog-chart-axis");
-    const meta = $("#" + worker + "-backlog-chart-meta");
+    const host = document.getElementById(worker + "-backlog-chart");
+    const axis = document.getElementById(worker + "-backlog-chart-axis");
+    const meta = document.getElementById(worker + "-backlog-chart-meta");
     if (!host || !axis || !meta) return;
 
+    const getValue = (row) => Number(row.chart_value != null ? row.chart_value : row.vision_latency_s);
     const recent = (Array.isArray(rows) ? rows : [])
-        .filter((row) => Number.isFinite(Number(row.vision_latency_s)))
+        .filter((row) => Number.isFinite(getValue(row)))
         .slice(-20);
     host.innerHTML = "";
     axis.innerHTML = "";
@@ -108,20 +159,22 @@ function renderProcessingChart(rows, worker) {
         return;
     }
 
-    const max = Math.max(...recent.map((row) => Number(row.vision_latency_s)), 1);
-    for (const seconds of [max, max / 2, 0]) {
+    const unit = (recent[0] && recent[0].chart_unit) || "s";
+    const fmtTick = (v) => unit === "s" ? v.toFixed(1) + "s" : Math.round(v) + " " + unit;
+    const max = Math.max(...recent.map(getValue), 1);
+    for (const tick of [max, max / 2, 0]) {
         const label = document.createElement("span");
-        label.textContent = seconds.toFixed(1) + "s";
+        label.textContent = fmtTick(tick);
         axis.appendChild(label);
     }
     for (const row of recent) {
-        const seconds = Number(row.vision_latency_s);
+        const value = getValue(row);
         const bar = document.createElement("div");
         bar.className = "backlog-bar";
-        bar.style.height = Math.max((seconds / max) * 100, 3) + "%";
+        bar.style.height = Math.max((value / max) * 100, 3) + "%";
         bar.title = (row.filename || "processed picture") + "\n" +
             "Processed: " + (row.timestamp ? fmtTime(row.timestamp) : "—") + "\n" +
-            "Duration: " + seconds.toFixed(2) + "s";
+            (unit === "s" ? "Duration: " + value.toFixed(2) + "s" : "Lines: " + Math.round(value));
         bar.setAttribute("aria-label", bar.title);
         host.appendChild(bar);
     }

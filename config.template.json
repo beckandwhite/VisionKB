@@ -28,7 +28,7 @@
       "handler": "work2",
       "output": "jsonl",
       "result_file": "work2_ocr.jsonl",
-      "enabled": false
+      "enabled": true
     },
     {
       "name": "work3",
