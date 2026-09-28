@@ -226,3 +226,14 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `fileLink` / `openPanel` dead code left in place — only the call sites and `openOriginal`/`closeOriginal` were removed.
   **Why:** `fileLink` is no longer called from `openRecord`. Deleting it was not listed as a step; left for a cleanup pass.
+
+## #25 — Improve readability: 8.5a Setup tab (read-only config viewer)
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `_json_safe` uses `os.PathLike` (not `Path`) for the isinstance check.
+  **Why:** `os` is already imported; `os.PathLike` covers all path-like objects without needing `from pathlib import PurePath`.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `initSetup` is not idempotency-guarded — it re-fetches and re-renders on every tab visit.
+  **Why:** Config rarely changes; showing fresh data on each visit is more correct than a stale cache. The fetch is cheap (in-process dict copy).
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `setup.js` defines its own `_escHtml` rather than reusing `esc` from `app.js`.
+  **Why:** `setup.js` is loaded before `app.js`; `esc` is not yet defined at definition time. When `initSetup` is called, `esc` is available, but a local copy is safer and keeps the module self-contained.

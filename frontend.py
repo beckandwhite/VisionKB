@@ -93,6 +93,39 @@ def list_per_source_works():
             if w.get("enabled") and w.get("scope") == "per_source"]
 
 
+def _json_safe(v):
+    """Recursively convert non-JSON-serialisable values (Path, etc.) to strings."""
+    if isinstance(v, os.PathLike):
+        return str(v)
+    if isinstance(v, dict):
+        return {k: _json_safe(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_json_safe(item) for item in v]
+    return v
+
+
+def _redact_config():
+    """Return a JSON-safe, redacted copy of ENV_CONFIG.
+
+    - Keys whose name contains 'key', 'token', or 'secret' are replaced with '***'.
+    - TAG_LIST is replaced with a count string to avoid sending thousands of tags.
+    - Path objects are serialised as strings.
+    """
+    if not ENV_CONFIG:
+        return {}
+    secret_substrings = ("key", "token", "secret")
+    out = {}
+    for k, v in ENV_CONFIG.items():
+        if any(s in k.lower() for s in secret_substrings):
+            out[k] = "***"
+        elif k == "TAG_LIST":
+            tag_count = len(str(v).split()) if v else 0
+            out[k] = "<%d tags>" % tag_count
+        else:
+            out[k] = _json_safe(v)
+    return out
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -610,6 +643,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/works":
             self._send_json(list_per_source_works())
+            return
+
+        if path == "/api/config":
+            self._send_json({"environment": CURRENT_ENV, "config": _redact_config()})
             return
 
         if path == "/api/tags":

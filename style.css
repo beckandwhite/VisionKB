@@ -630,3 +630,27 @@ html, body {
    }
    .split-divider { display: none; }
 }
+
+/* -------------------------------------------------------- setup / config table */
+.setup-section { padding: 18px; max-width: 800px; }
+.config-table {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 12px;
+}
+.config-table th,
+.config-table td {
+   text-align: left;
+   padding: 7px 12px;
+   border-bottom: 1px solid var(--border);
+   vertical-align: top;
+}
+.config-table th {
+   width: 200px;
+   color: var(--muted);
+   font-weight: 600;
+   white-space: nowrap;
+}
+.config-table td { word-break: break-all; }
+.config-table tr:hover th,
+.config-table tr:hover td { background: var(--bg-elev2); }
