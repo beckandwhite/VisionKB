@@ -180,10 +180,21 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `refreshAll()` guards **both** `renderBacklog` and `loadTimeline` (the full Search data path), not just the timeline fetch.
   **Why:** Both calls fetch API endpoints and update DOM nodes that live inside `#tab-search`; skipping both when the tab is inactive avoids wasted network requests while still updating `#last-updated` each poll tick.
-  **Alternatives considered:** Guard only `loadTimeline` as a literal reading of the spec; chose the broader guard as more consistent with the stated intent.
+  **Alternatives considered:** Guard only `loadTimeline`; chose the broader guard as more consistent with the stated intent.
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `activateTab` sets and clears both the `active` CSS class and the `hidden` class on `.tab-view` sections.
   **Why:** Initial HTML uses `active` on `#tab-search` (no `hidden`); after the first `activateTab` call the function normalises all views to `active`/`hidden` semantics consistently.
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Stub comment text refers to the filling issue (e.g. `/* filled by issue 8.3 */`).
-  **Why:** Makes the dependency visible at a glance when future issues open the file; purely informational, zero functional impact.
+  **Why:** Makes the dependency visible at a glance; purely informational, zero functional impact.
+
+## #23 — Improve readability: 8.3 Tag Forge tab
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `initTagforge()` calls `renderTags()` on every invocation (no idempotency guard).
+  **Why:** `renderTags()` clears all mount points before re-rendering (`innerHTML = ""`), so repeated calls are safe and give fresh data. A one-shot guard would stale the view if the user navigates away and back.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `populateTagFilter()` function definition left in place; only the call in `renderTags()` was removed.
+  **Why:** The spec says "Remove the dead `populateTagFilter` call" — the call site only. Deleting the definition would touch code outside the listed scope; left for a future cleanup pass.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Tag-click handlers call `activateTab("search")` then `loadTimeline(true)` without `scrollIntoView`.
+  **Why:** `activateTab` switches the visible tab and the search content is at the top of that view; a `scrollIntoView` would be redundant and could scroll past the tab bar.

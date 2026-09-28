@@ -377,8 +377,6 @@ async function renderTags() {
         " · unique tags: " + humanBytes(data.unique_tags || 0) +
         " · edges: " + humanBytes((data.edges || []).length);
 
-    populateTagFilter(tags);
-
     const host = $("#top-tags");
     host.innerHTML = "";
     const max = tags.length ? tags[0].count : 1;
@@ -394,9 +392,9 @@ async function renderTags() {
             "</div>" +
             '<div class="top-tag-count">' + humanBytes(t.count) + "</div>";
         row.querySelector(".top-tag-name").addEventListener("click", () => {
-            $("#filter-tag").value = t.tag;
+            $("#filter-q").value = t.tag;
+            activateTab("search");
             loadTimeline(true);
-            document.querySelector("#timeline-section").scrollIntoView({ block: "start" });
         });
         host.appendChild(row);
     }
@@ -446,9 +444,9 @@ function renderTagCloud(tags) {
         button.innerHTML = esc(tag.tag) +
             '<span class="cloud-tag-count">' + count + "</span>";
         button.addEventListener("click", () => {
-            $("#filter-tag").value = tag.tag;
+            $("#filter-q").value = tag.tag;
+            activateTab("search");
             loadTimeline(true);
-            document.querySelector("#timeline-section").scrollIntoView({ block: "start" });
         });
         host.appendChild(button);
     }
