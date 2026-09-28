@@ -52,3 +52,33 @@ security report (above).
 ## Supported versions
 
 This is an experimental project; only the latest `main` is supported.
+
+## Setup tab write route
+
+The Setup tab's **Edit Configuration** form (`POST /api/config`) writes changes to the
+active environment's `config.json`. Security properties:
+
+- **Localhost-only.** The server binds to `127.0.0.1` by default — this route is not
+  reachable from the network without an explicit `--host` override.
+- **No authentication.** This is a single-operator tool; the WebUI has no auth layer.
+- **Allowlisted fields only.** The endpoint rejects unknown keys and wrong types
+  (HTTP 400). `works[]` and `TAG_LIST` are not writable. Secrets (keys whose name
+  contains `key`, `token`, or `secret`) are redacted in the GET response and cannot
+  be written via this route.
+- **Atomic write.** Changes are written via a temp-file + `os.replace` (same path as
+  other config writes) and the current config is backed up as
+  `config.json.<UTC-timestamp>.bak` before each save (5 newest kept).
+- **Restart required.** The running server never hot-reloads `ENV_CONFIG`; changes
+  take effect only after restarting `frontend.py`.
+
+Example usage (with the server running on port 8000):
+
+```bash
+# Read the active config (secrets redacted)
+curl http://localhost:8000/api/config
+
+# Update the vision model
+curl -X POST http://localhost:8000/api/config \
+     -H "Content-Type: application/json" \
+     -d '{"vision_model": "muse-glimmer:30b-mlx"}'
+```

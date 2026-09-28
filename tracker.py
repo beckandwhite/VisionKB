@@ -243,22 +243,25 @@ def reconcile(directory, img_exts, files):
 
     Returns ``(new_count, source_count)``. Existing source records retain their
     identity and discovery time while filesystem timestamps are refreshed.
+    ``directory`` may be a single path string or a list of path strings.
     """
+    dirs = [directory] if isinstance(directory, str) else list(directory)
     all_files = []
-    for root, _dirs, names in os.walk(directory):
-        for name in names:
-            path = os.path.join(root, name)
-            if not os.path.isfile(path):
-                continue
-            name_lower = name.lower()
-            if name_lower.startswith("."):
-                continue
-            if is_temp_artifact(name):
-                continue
-            if "." in name_lower:
-                ext = name_lower.rsplit(".", 1)[-1]
-                if ext in img_exts:
-                    all_files.append(path)
+    for d in dirs:
+        for root, _dirs, names in os.walk(d):
+            for name in names:
+                path = os.path.join(root, name)
+                if not os.path.isfile(path):
+                    continue
+                name_lower = name.lower()
+                if name_lower.startswith("."):
+                    continue
+                if is_temp_artifact(name):
+                    continue
+                if "." in name_lower:
+                    ext = name_lower.rsplit(".", 1)[-1]
+                    if ext in img_exts:
+                        all_files.append(path)
     all_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
 
     new_count = 0

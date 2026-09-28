@@ -252,6 +252,20 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `telemetry.js` defines `_escTel` (local HTML escaper) rather than reusing `esc` from `app.js`.
   **Why:** Same reason as `setup.js` / `_escHtml`: `telemetry.js` loads before `app.js`. Self-contained module is safer.
 
+## #26 — Improve readability: 8.5b Setup tab (editable config, write path)
+
+- **2026-09-28** · executor: size:L (Claude Sonnet 4.6) · `_root_source_dir()` updated to return the first list element when `source_dir` is already a list, rather than calling `str(list)`.
+  **Why:** Phase A normalises `source_dir` to a list in `resolve_environment`. If a config file already stores a list (written by Phase B), `str(["a","b"])` would produce `"['a', 'b']"` — an unparseable value in a new named env's config. The spec only mentions line 197, but this adjacent helper needed the same fix to avoid a latent bootstrap bug. **Alternatives considered:** leaving `_root_source_dir` unchanged and only fixing line 197 — rejected because it would break new-env bootstrap when the root config has multiple source folders.
+
+- **2026-09-28** · executor: size:L (Claude Sonnet 4.6) · `index.html` not changed for Phase C despite step 12 mentioning it.
+  **Why:** The spec says "form markup inside `#tab-setup`". `#tab-setup` already contains `<div id="setup-config"></div>`, and `initSetup()` injects all markup dynamically into that element. No static HTML change is needed. The mention of `index.html` in step 12 was written for a potential static-markup approach; the existing JS-rendered architecture makes it unnecessary.
+
+- **2026-09-28** · executor: size:L (Claude Sonnet 4.6) · `POST /api/config` reads the config file fresh from disk (rather than from the in-memory `ENV_CONFIG`) before merging the update.
+  **Why:** `ENV_CONFIG` has runtime-only keys (`env_dir`, `tracker_path`, etc.) that are Path objects and must not be written to disk. Reading from the file at write time ensures only the on-disk fields are preserved and merged, with no runtime cruft.
+
+- **2026-09-28** · executor: size:L (Claude Sonnet 4.6) · Number fields (`max_dim`, `save_every`) are omitted from the POST payload when empty or non-numeric; other fields are sent as-is (including empty strings).
+  **Why:** `parseInt("", 10)` returns `NaN`; `JSON.stringify({max_dim: NaN})` serialises to `null`, which the backend rejects. Skipping empty number fields preserves the existing config value silently, which is better UX than a confusing 400. Text/list fields intentionally send empty values — the operator can clear them if desired.
+
 ## #4 — Feedback tab: static project page
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · No judgment calls or deviations from the spec. All steps followed exactly as written.

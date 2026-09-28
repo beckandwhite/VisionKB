@@ -30,16 +30,18 @@ HANDLERS = {"work1": work1.run, "work2": work2.run, "work3": work3.run,
 
 
 def list_images(directory, extensions):
+    dirs = [directory] if isinstance(directory, str) else list(directory)
     paths = []
-    for root, _dirs, names in os.walk(directory):
-        for name in names:
-            path = os.path.join(root, name)
-            if not os.path.isfile(path) or name.startswith("."):
-                continue
-            if tracker.is_temp_artifact(name):
-                continue
-            if "." in name and name.lower().rsplit(".", 1)[-1] in extensions:
-                paths.append(tracker.file_key(path))
+    for d in dirs:
+        for root, _dirs, names in os.walk(d):
+            for name in names:
+                path = os.path.join(root, name)
+                if not os.path.isfile(path) or name.startswith("."):
+                    continue
+                if tracker.is_temp_artifact(name):
+                    continue
+                if "." in name and name.lower().rsplit(".", 1)[-1] in extensions:
+                    paths.append(tracker.file_key(path))
     return sorted(paths, key=lambda path: os.path.getmtime(path), reverse=True)
 
 
@@ -127,7 +129,8 @@ def run(args):
         print("Another pipeline run is active for %s." % args.env, file=sys.stderr)
         return 0
     try:
-        source_dir = os.path.expanduser(args.screenshot_dir or config["source_dir"])
+        source_dir = ([os.path.expanduser(args.screenshot_dir)]
+                      if args.screenshot_dir else config["source_dir"])
         images = list_images(source_dir, set(config["supported_images"]))
         payload = tracker.load_registry(config["tracker_path"])
         sources, tasks = payload["sources"], payload["tasks"]

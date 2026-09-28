@@ -4,7 +4,9 @@ WebUI backend for the screenshot knowledgebase (stdlib only, Python 3.9-safe).
 
 Serves a single-page viewer over the pipeline artifacts. All source files are
 re-parsed *fresh per request* so the UI tracks a live pipeline run without a
-restart. Read-only: nothing here is written, never touches the pipeline scripts.
+restart. Primarily read-only; the single write route (POST /api/config) saves
+editable config fields to the resolved config.json (localhost-only, no auth;
+restart required to apply changes).
 
 Telemetry and per-file progress now live in the shared tracker (_tracker.json);
 this server reconstructs telemetry rows from it via tracker.telemetry_from_tracker().
@@ -17,6 +19,8 @@ Endpoints:
                                      newest first, capped with has_more
     GET /api/record?filename=     -> full untruncated record for one row
     GET /api/tags                 -> passthrough of the environment's tags_index.json
+    GET /api/config               -> redacted active config as JSON object
+    POST /api/config              -> validate and save editable config fields
     GET /api/telemetry            -> reconstructed telemetry rows (from the tracker)
     GET /api/logs                 -> error tasks newest-first {filename, work_name, last_error, last_error_at}
     GET /thumb/<file>             -> 320px thumbnail; ?original=1 -> full-res original
@@ -49,7 +53,7 @@ ROOT = SCRIPT_DIR
 # Resolved in main() via config_loader.resolve_environment(..., auto_bootstrap=False).
 # This module is read-only: it never creates a config, so an uninitialised
 # environment fails fast with an actionable message instead of a silent copy.
-CURRENT_ENV, TRACKER_PATH = None, None
+CURRENT_ENV, TRACKER_PATH, CONFIG_PATH = None, None, None
 ANNOT_PATH = WIKI_PATH = TAGS_PATH = THUMB_DIR = None
 ENV_CONFIG = None
 
@@ -58,6 +62,7 @@ OCR_LINES_MAX = 8
 TIMELINE_DEFAULT_LIMIT = 150
 TIMELINE_WINDOW_DEFAULT = 50
 TIMELINE_WINDOWS = (50, 100, 150, 200)
+MAX_POST_BODY = 65536  # 64 KB — ample for a config JSON
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +268,21 @@ def load_logs():
         })
     rows.sort(key=lambda r: r.get("last_error_at") or "", reverse=True)
     return rows
+
+
+def _backup_and_prune(config_path):
+    """Copy config_path to a timestamped .bak then prune to the 5 newest backups."""
+    path = Path(config_path)
+    if not path.is_file():
+        return
+    ts = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    bak = path.parent / (path.name + "." + ts + ".bak")
+    with open(path, "rb") as src:
+        bak.write_bytes(src.read())
+    baks = sorted(path.parent.glob(path.name + ".*.bak"),
+                  key=lambda p: p.stat().st_mtime)
+    for old_bak in baks[:-5]:
+        old_bak.unlink()
 
 
 def load_annotations():
@@ -638,6 +658,62 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/config":
+            self._send_json({"error": "unknown route"}, 404)
+            return
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except (ValueError, TypeError):
+            n = 0
+        if n > MAX_POST_BODY:
+            self._send_json({"error": "body too large"}, 413)
+            return
+        try:
+            body = self.rfile.read(n) if n else b""
+            data = json.loads(body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            self._send_json({"error": "invalid JSON body"}, 400)
+            return
+        if not isinstance(data, dict):
+            self._send_json({"error": "body must be a JSON object"}, 400)
+            return
+
+        ALLOWED = {
+            "ollama_base": str, "vision_model": str, "embed_model": str,
+            "max_dim": int, "save_every": int,
+            "supported_images": list, "source_dir": list,
+        }
+        for key in data:
+            if key not in ALLOWED:
+                self._send_json({"error": "unknown field: %s" % key}, 400)
+                return
+            val = data[key]
+            exp = ALLOWED[key]
+            if isinstance(val, bool) or not isinstance(val, exp):
+                self._send_json(
+                    {"error": "field %s must be %s" % (key, exp.__name__)}, 400)
+                return
+            if exp is list:
+                if not all(isinstance(item, str) for item in val):
+                    self._send_json(
+                        {"error": "field %s must be a list of strings" % key}, 400)
+                    return
+
+        cfg_path = Path(CONFIG_PATH)
+        try:
+            with open(cfg_path, encoding="utf-8") as fh:
+                current = json.load(fh)
+        except (OSError, ValueError):
+            self._send_json({"error": "could not read current config"}, 500)
+            return
+
+        _backup_and_prune(cfg_path)
+        current.update(data)
+        config_loader._write_config(cfg_path, current)
+        self._send_json({"saved": True, "restart_required": True})
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -752,7 +828,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global CURRENT_ENV, TRACKER_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR, ENV_CONFIG
+    global CURRENT_ENV, TRACKER_PATH, CONFIG_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR, ENV_CONFIG
     parser = argparse.ArgumentParser(description="Screenshot KB WebUI server")
     parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
                         help="environment name; omit for the default (.workspace/). "
@@ -770,6 +846,7 @@ def main():
     except (RuntimeError, ValueError, OSError) as exc:
         parser.error(str(exc))
     TRACKER_PATH = str(config["tracker_path"])
+    CONFIG_PATH = str(config_loader.config_path_for(CURRENT_ENV))
     ANNOT_PATH = str(config["annotations_path"])
     WIKI_PATH = str(config["exports_dir"] / "wiki.ndjson")
     TAGS_PATH = str(config["exports_dir"] / "tags_index.json")

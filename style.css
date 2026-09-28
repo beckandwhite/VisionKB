@@ -676,6 +676,50 @@ html, body {
 .err-msg { color: var(--fail); word-break: break-word; }
 .err-time { white-space: nowrap; color: var(--muted); }
 
+/* setup edit form */
+.setup-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.setup-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.setup-input {
+  background: var(--bg-elev2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  width: 100%;
+  max-width: 500px;
+}
+.setup-input:focus { outline: 1px solid var(--accent); }
+.setup-textarea { resize: vertical; }
+.setup-hint {
+  font-size: 10px;
+  color: var(--muted);
+}
+.setup-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.setup-save-btn { font-weight: 600; }
+.setup-status { font-size: 11px; }
+.setup-status--ok { color: var(--ok); }
+.setup-status--err { color: var(--fail); }
+
 /* feedback tab */
 .feedback-content {
   max-width: 640px;

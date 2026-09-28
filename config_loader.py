@@ -91,14 +91,20 @@ def load_config(env: str, auto_bootstrap: bool = False,
 
 
 def _root_source_dir() -> str:
-    """The root default's source_dir, inherited by a newly created named env."""
+    """The root default's source_dir (first entry if list), inherited by a new named env."""
     root_path = ROOT_CONFIG_PATH
     if root_path.is_file():
         with open(root_path, encoding="utf-8") as fh:
             loaded = json.load(fh)
         if isinstance(loaded, dict) and loaded.get("source_dir"):
-            return str(loaded["source_dir"])
-    return str(load_defaults().get("source_dir"))
+            sd = loaded["source_dir"]
+            if isinstance(sd, list):
+                return sd[0] if sd else ""
+            return str(sd)
+    sd = load_defaults().get("source_dir")
+    if isinstance(sd, list):
+        return sd[0] if sd else ""
+    return str(sd)
 
 
 def _write_config(path, config: Dict[str, Any]) -> None:
@@ -194,6 +200,10 @@ def resolve_environment(env=DEFAULT_ENV, auto_bootstrap: bool = True,
     config["db_path"] = out_dir / "wiki.db"
     config["exports_dir"] = out_dir
     config["thumbnails_dir"] = out_dir / "thumbnails"
-    config["source_dir"] = os.path.expanduser(str(config["source_dir"]))
+    _sd = config["source_dir"]
+    if isinstance(_sd, list):
+        config["source_dir"] = [os.path.expanduser(str(d)) for d in _sd]
+    else:
+        config["source_dir"] = [os.path.expanduser(str(_sd))]
     config["temp_dir"] = os.path.expanduser(str(config["temp_dir"]))
     return env, config
