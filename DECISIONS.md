@@ -95,7 +95,7 @@ date the doc entered git. `→` names the source doc.
   lost on `decomm`; opt-in `work7 build --backup` copies the `kind:aka` subset to
   a git-tracked `aliases.curated.json` (not created unless asked).
 
-## Image format handling (2026-09-25, `Issues/001` — resolved)
+## Image format handling (2026-09-25, #33 — resolved)
 
 - **HEIC/HEIF → JPEG transcoded in memory via `pillow-heif`; no files written to
   disk.** JPEG/PNG pass through unchanged.
@@ -126,8 +126,14 @@ Numbering preserved so existing "Decision N" references resolve here.
    gating; secret-scanning + eval-dataset exclusion are critical.
 - **Grooming (2026-09-24):** CI quality gating starts **informational**
   (report-only) until scores are trusted.
+- **Scanning strategy for a stdlib-only runtime (#30):** the high-value signal is
+  SAST (bandit/CodeQL) + secret-scanning + GitHub-Actions hardening — **not**
+  dependency-CVE scanning. The expected bandit finding on `work_common`'s
+  plain-HTTP `urllib` call is an **accepted, documented** finding (not broadly
+  suppressed); `pip-audit` is deferred until the runtime takes a third-party dep
+  (e.g. Pillow from #33).
 
-## Self-hosted runner & secrets policy (2026-09-24, `SECURITY.md`, `Issues/004`)
+## Self-hosted runner & secrets policy (2026-09-24, `SECURITY.md`, #31)
 
 - **Self-hosted jobs trigger only on `workflow_dispatch` and `push` to `main`** —
   never fork `pull_request`, never `pull_request_target`. "Require approval for

@@ -15,9 +15,9 @@ Three independent tracks, sequenced so each ships value on its own:
 
 | Track | What | Runner needed | Groomed? | Workitem |
 |---|---|---|---|---|
-| **A. Baseline CI + supply-chain security** | Lint, SAST, secret scan, CodeQL, Dependabot, GHA hardening | GitHub-hosted | ✅ ready | [002](../Issues/002-baseline-ci.md), [003](../Issues/003-security-supply-chain.md) |
-| **B. Private self-hosted runner** | Native macOS runner that can reach Ollama for QA jobs | self-hosted | ✅ ready | [004](../Issues/004-private-runner.md) |
-| **C. Vision-model eval (LLM-as-judge)** | Compare models over a fixed image set, scored by a judge model, HTML report | local first, then B | ✅ ready | [005](../Issues/005-model-eval-harness.md) |
+| **A. Baseline CI + supply-chain security** | Lint, SAST, secret scan, CodeQL, Dependabot, GHA hardening | GitHub-hosted | ✅ ready | [#29](https://github.com/beckandwhite/VisionKB/issues/29), [#30](https://github.com/beckandwhite/VisionKB/issues/30) |
+| **B. Private self-hosted runner** | Native macOS runner that can reach Ollama for QA jobs | self-hosted | ✅ ready | [#31](https://github.com/beckandwhite/VisionKB/issues/31) |
+| **C. Vision-model eval (LLM-as-judge)** | Compare models over a fixed image set, scored by a judge model, HTML report | local first, then B | ✅ ready | [#32](https://github.com/beckandwhite/VisionKB/issues/32) |
 
 Sequencing: **A first** (cheap, no hardware, immediate security value) → **C as
 a local script** (proves the QA value with no infra) → **B** (moves C into CI on
@@ -93,11 +93,11 @@ steps if we ever split them out.
 execute untrusted fork-PR code (RCE against your LAN). Keep the repo private, or
 gate `pull_request` from forks behind manual approval and restrict the
 self-hosted job to `push`/`workflow_dispatch` on trusted branches. Detailed in
-[004](../Issues/004-private-runner.md).
+[#31](https://github.com/beckandwhite/VisionKB/issues/31).
 
 ---
 
-## Track C — vision-model eval, shape of it (detail in [005](../Issues/005-model-eval-harness.md))
+## Track C — vision-model eval, shape of it (detail in [#32](https://github.com/beckandwhite/VisionKB/issues/32))
 
 ```
  fixed image set (sanitized)          candidate models (config list)

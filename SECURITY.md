@@ -3,7 +3,7 @@
 This repository is **public**. It also integrates with a **self-hosted CI runner**
 that can reach a local Ollama vision endpoint on a private network. Both facts
 shape the policy below. See [Plans/QualityAssurance-CI.md](Plans/QualityAssurance-CI.md)
-and [Issues/003](Issues/003-security-supply-chain.md) / [Issues/004](Issues/004-private-runner.md)
+and [#30](https://github.com/beckandwhite/VisionKB/issues/30) / [#31](https://github.com/beckandwhite/VisionKB/issues/31)
 for the full rationale.
 
 ## Reporting a vulnerability
@@ -45,7 +45,7 @@ security report (above).
   never committed.
 - **Personal images are never committed.** Source screenshots live outside the
   repo; the model-eval dataset (`eval/dataset/`) is gitignored and must be
-  sanitized or synthetic. See [Issues/005](Issues/005-model-eval-harness.md).
+  sanitized or synthetic. See [#32](https://github.com/beckandwhite/VisionKB/issues/32).
 - The eval **API judge** receives derived **text only** (candidate model outputs
   + rubric), never images.
 
