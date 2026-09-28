@@ -654,3 +654,24 @@ html, body {
 .config-table td { word-break: break-all; }
 .config-table tr:hover th,
 .config-table tr:hover td { background: var(--bg-elev2); }
+
+/* --------------------------------------------------------------- error table */
+.err-table-wrap { overflow-x: auto; }
+.err-table {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 12px;
+}
+.err-table th,
+.err-table td {
+   text-align: left;
+   padding: 6px 10px;
+   border-bottom: 1px solid var(--border);
+   vertical-align: top;
+}
+.err-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.err-table tr:hover td { background: var(--bg-elev2); }
+.err-filename { word-break: break-all; }
+.err-work { white-space: nowrap; }
+.err-msg { color: var(--fail); word-break: break-word; }
+.err-time { white-space: nowrap; color: var(--muted); }

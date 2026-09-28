@@ -237,3 +237,17 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 
 - **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `setup.js` defines its own `_escHtml` rather than reusing `esc` from `app.js`.
   **Why:** `setup.js` is loaded before `app.js`; `esc` is not yet defined at definition time. When `initSetup` is called, `esc` is available, but a local copy is safer and keeps the module self-contained.
+
+## #24 — Improve readability: 8.4 Telemetry & Logs tab
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · Issue spec refers to `#worker1-backlog` / `#worker4-backlog` sections, but those static sections no longer exist; issue #5 replaced them with a single `<div id="backlog-panels">` populated dynamically by `createBacklogPanel()`.
+  **Why:** Issue #5 was implemented before #24; the spec was written when the static sections still existed. Moved `#backlog-panels` container to `#tab-telemetry` instead, which has the same visible effect — backlog charts appear under Telemetry & Logs.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `refreshAll()` now gates `renderBacklog()` + `renderErrors()` to Telemetry tab active, and `loadTimeline()` to Search tab active (two separate guards, not one combined guard).
+  **Why:** The spec says "gate polling to the active tab" — backlog and timeline each live in a different tab, so each needs its own guard. An `await Promise.all(jobs)` is skipped entirely when both tabs are inactive, still updating the timestamp.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `renderErrors()` is defined in `telemetry.js` (not `app.js`) to keep it collocated with `initTelemetry()`.
+  **Why:** The spec says to "add error-table render" in app.js/telemetry.js and describes `initTelemetry()` calling `renderErrors()`. Placing `renderErrors` in `telemetry.js` keeps the telemetry module self-contained; `refreshAll()` in `app.js` calls `renderErrors()` through the same `typeof fn === "function"` pattern would work, but since `renderErrors` is always available via `telemetry.js`, a direct call is simpler.
+
+- **2026-09-28** · executor: size:S (Claude Sonnet 4.6) · `telemetry.js` defines `_escTel` (local HTML escaper) rather than reusing `esc` from `app.js`.
+  **Why:** Same reason as `setup.js` / `_escHtml`: `telemetry.js` loads before `app.js`. Self-contained module is safer.

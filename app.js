@@ -550,12 +550,15 @@ function setPoll(on) {
 }
 
 async function refreshAll() {
-    if (document.querySelector('#tab-search').classList.contains('active')) {
-        await Promise.all([
-            renderBacklog().catch((e) => {}),
-            loadTimeline(state.offset === 0).catch((e) => {}),
-        ]);
+    const jobs = [];
+    if (document.querySelector('#tab-telemetry').classList.contains('active')) {
+        jobs.push(renderBacklog().catch(() => {}));
+        jobs.push(renderErrors().catch(() => {}));
     }
+    if (document.querySelector('#tab-search').classList.contains('active')) {
+        jobs.push(loadTimeline(state.offset === 0).catch(() => {}));
+    }
+    if (jobs.length) await Promise.all(jobs);
     $("#last-updated").textContent = "updated " +
         new Date().toLocaleTimeString();
 }

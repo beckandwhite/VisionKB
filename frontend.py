@@ -18,6 +18,7 @@ Endpoints:
     GET /api/record?filename=     -> full untruncated record for one row
     GET /api/tags                 -> passthrough of the environment's tags_index.json
     GET /api/telemetry            -> reconstructed telemetry rows (from the tracker)
+    GET /api/logs                 -> error tasks newest-first {filename, work_name, last_error, last_error_at}
     GET /thumb/<file>             -> 320px thumbnail; ?original=1 -> full-res original
 
 Usage:
@@ -242,6 +243,25 @@ def load_telemetry(work_name="work1"):
             "status": "ok",
         })
     rows.sort(key=lambda row: row.get("timestamp") or "")
+    return rows
+
+
+def load_logs():
+    """Return error tasks newest-first as [{filename, work_name, last_error, last_error_at}]."""
+    sources, tasks, _ = load_tracker()
+    rows = []
+    for task in tasks.values():
+        if task.get("status") != "error":
+            continue
+        source_key = task.get("source_key")
+        source = sources.get(source_key, {})
+        rows.append({
+            "filename": source.get("filename"),
+            "work_name": task.get("work_name"),
+            "last_error": task.get("last_error"),
+            "last_error_at": task.get("last_error_at"),
+        })
+    rows.sort(key=lambda r: r.get("last_error_at") or "", reverse=True)
     return rows
 
 
@@ -651,6 +671,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/tags":
             self._send_json(load_tags_index())
+            return
+
+        if path == "/api/logs":
+            self._send_json(load_logs())
             return
 
         if path == "/api/telemetry":
