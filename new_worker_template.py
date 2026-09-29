@@ -11,6 +11,6 @@ NAME = "workN"
 def run(source, config):
     """Process one source and return a JSON-serializable result record."""
     output = {
-        "message": "TODO: implement %s" % NAME,
+        "message": f"TODO: implement {NAME}",
     }
     return work_common.result_record(source, output)

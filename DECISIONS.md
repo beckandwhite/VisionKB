@@ -309,3 +309,41 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 
 - **2026-09-28** · executor: size:M · Verification was YAML-parse only; `actionlint` is "if available" per the spec and is not installed on this Mac, so the parse check stands in.
     **Why:** Matches the spec's "YAML/`actionlint` if available." `python3 -c "yaml.safe_load(...)"` confirms structure (triggers, permissions, runs-on, the three steps, and preserved `run: |` blocks). A real `workflow_dispatch` cannot run here: the `self-hosted-macos-ollama` runner (#31) is not yet provisioned — out of scope for this item.
+
+## #29 — Baseline CI pipeline (lint, format, smoke)
+
+- **2026-09-29** · executor: size:M (continuation of an interrupted autonomous run; Claude Opus 4.8) · Full ruff cleanup completed as specified (Q5b) — all findings resolved (incl. `UP031` `%`→f-string conversions), not rule-ignored. `ruff check .` and `ruff format --check .` are clean; `python -m unittest discover -s tests` passes on the local interpreter.
+  **Why:** The locked grooming decision was a real green baseline, not a suppressed subset. Changes are style-only, no behaviour change.
+
+- **2026-09-29** · executor: size:M · `ci.yml` quotes the trigger key as `"on":`.
+  **Why:** Under YAML 1.1 a bare `on:` is parsed as the boolean `true`, silently dropping the trigger block. Quoting keeps the key literal. The same guard is applied to `codeql.yml`/`security.yml` (#30).
+
+- **2026-09-29** · executor: size:M · **Assumption/deviation:** `ner.py`'s top-level `import spacy` is now wrapped in `try/except ImportError` (`spacy = None`, resolved lazily in `iter_spacy_long`) so the module imports without the `spacy` runtime dep installed.
+  **Why:** Step 3 requires every core module (incl. `ner`) to import cleanly in the smoke test, but `spacy` is a runtime dep and is deliberately absent from `requirements-dev.txt` (CI installs dev tooling only). Guarding the import is the minimal change that satisfies "import every core module" without pulling a heavy model dep into CI — the same spirit as the "guard import-time side effects behind `main()`" instruction. Runtime behaviour is unchanged when `spacy` is present.
+
+## #30 — Security scanning & supply-chain hardening
+
+- **2026-09-29** · executor: size:M (continuation of an interrupted autonomous run; Claude Opus 4.8) · **Repair:** the interrupted run left `codeql.yml` and `security.yml` with malformed YAML (list-item `- name:` keys mis-indented against their sibling `uses:`/`run:` keys, so the files did not parse). Rewrote both with consistent 6/8-space step indentation; both now `yaml.safe_load` cleanly.
+  **Why:** The prior pass was cut off mid-write; broken workflow YAML would fail every PR before any scan ran.
+
+- **2026-09-29** · executor: size:M · `codeql.yml` analyses `python`/`javascript` via a `strategy.matrix.language` with the `languages: ${{ matrix.language }}` input (plural, the real action input) and an `analyze` `category`, rather than a single init with a `language: [..]` list.
+  **Why:** The matrix is the canonical CodeQL pattern and the correct input key; the interrupted draft used the non-existent singular `language:` input with a YAML list, which CodeQL would not honour. **Alternatives considered:** single init with `languages: python,javascript` (comma string) — the matrix gives per-language SARIF categories and parallel analysis.
+
+- **2026-09-29** · executor: size:M · **Deviation from the "single accepted finding" expectation:** grooming anticipated only the `work_common` plain-HTTP `urlopen` (B310) finding, but bandit 1.7.10 also flags `work4.py`'s thumbnail path — `import subprocess` (B404) and the `/usr/bin/sips` `subprocess.run` (B603). Annotated all three with targeted inline `# nosec <id>` + reason (not a broad suppression), so the bandit job exits clean.
+  **Why:** The `work4` sips call post-dates the grooming (added with the #33 HEIC handling); it is a fixed local binary with literal argv, no shell, so it is a legitimate accepted finding under the same "annotate, don't broadly suppress" decision as B310. **Alternatives considered:** `bandit --exit-zero` (would hide *future* real findings too) — rejected in favour of per-line annotation.
+
+- **2026-09-29** · executor: size:M · `security.yml`: the SARIF upload step carries `if: always()` and the gitleaks checkout uses `fetch-depth: 0`.
+  **Why:** `if: always()` still publishes findings to the Security tab even if `bandit` exits non-zero on a future finding; `fetch-depth: 0` gives gitleaks full history for commit traversal (`GITLEAKS_ENABLE_COMMIT_TRAVERSAL`).
+
+## #32 — Vision-model eval harness (LLM-as-judge)
+
+- **2026-09-29** · executor: size:M (Claude Opus 4.8) · Imported the candidate prompts as the module-level `work{1,2,3}.DEFAULT_PROMPT` constants and drive the vision call with `work_common.vision_request` directly, rather than calling each work's `run()`.
+  **Why:** The prompts are module-level constants (not inline in `main()`), so the spec's "import, don't copy" is satisfied cleanly; calling `vision_request` directly lets the harness capture raw output text + wall-clock latency per cell, whereas `run()` swallows errors into a result envelope and post-processes work2/3 JSON. `vision_request(source_path, prompt, config)` reads `config["ollama_base"]` + `config["vision_model"]`, so each cell builds a per-model `{"ollama_base", "vision_model"}` config.
+- **2026-09-29** · executor: size:M · `--dry-run` stubs BOTH the model and judge calls with no network: `run_cell` returns a deterministic fake output per work and `build_judge(cfg, dry_run=True)` returns a new `DryRunJudge` (fixed `{"score":3,...}`) instead of selecting by `cfg["judge"]["type"]`. If the dataset dir is empty under `--dry-run`, synthetic image names (`dry-image-N.png`) are generated so aggregation + report emission run end-to-end without images or a live Ollama/API endpoint.
+  **Why:** The spec requires the smoke path to exercise aggregation + report generation without a live model. **Alternatives considered:** shipping a tiny real dummy image — rejected as it still needs a live endpoint to produce output.
+- **2026-09-29** · executor: size:M · Operator `expected_notes` are read from an optional text-only sidecar `eval/dataset/expected_notes.json` (basename → note string); absent file means the judge is told "(none provided)".
+  **Why:** The rubrics and README reference `expected_notes` but no storage format was specified; a JSON sidecar in the (gitignored) dataset dir keeps ground-truth text next to the images without inventing a new config surface. It is text-only and never carries image bytes.
+- **2026-09-29** · executor: size:M · `.gitignore` was NOT modified: `eval/dataset/`, `eval/report.html`, `eval/results.jsonl` were already present (lines 24-26). `ApiJudge` implements the `anthropic` provider (matching the config default) over stdlib `urllib`; other providers raise. Added a `--config` CLI flag (superset of the documented usage) so the config is found regardless of cwd; README left as-is since documented commands still work.
+  **Why:** No duplicate ignore entries; stdlib-only HTTP with the API key read from the env var named in config and never logged (error messages deliberately exclude the key).
+- **2026-09-29** · executor: size:M · `ApiJudge`'s `urllib.urlopen` carries an inline `# nosec B310` + reason, consistent with the `work_common` annotation.
+  **Why:** The repo-wide bandit job (#30) scans `eval/`, so the harness's text-only HTTPS judge call would otherwise be a new B310 finding that fails the job; the URL is config-built, not untrusted input, so it is annotated the same way as the accepted `work_common` finding rather than broadly suppressed.

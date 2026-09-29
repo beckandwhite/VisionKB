@@ -22,7 +22,8 @@ Endpoints:
     GET /api/config               -> redacted active config as JSON object
     POST /api/config              -> validate and save editable config fields
     GET /api/telemetry            -> reconstructed telemetry rows (from the tracker)
-    GET /api/logs                 -> error tasks newest-first {filename, work_name, last_error, last_error_at}
+    GET /api/logs                  -> error tasks newest-first
+                                     {filename, work_name, last_error, last_error_at}
     GET /thumb/<file>             -> 320px thumbnail; ?original=1 -> full-res original
 
 Usage:
@@ -37,15 +38,17 @@ import mimetypes
 import os
 import sys
 import webbrowser
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-import tracker
+import contextlib
+
 import config_loader
+import tracker
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = SCRIPT_DIR
@@ -72,6 +75,7 @@ MAX_POST_BODY = 65536  # 64 KB — ample for a config JSON
 #             overview_extras: bool (compute empty_result_rate + error_rate).
 # ---------------------------------------------------------------------------
 
+
 def _work2_lines(result):
     output = (result or {}).get("output") or {}
     text = output.get("text") or []
@@ -95,8 +99,11 @@ def list_per_source_works():
     """Return names of enabled per_source works from the active config."""
     if not ENV_CONFIG:
         return []
-    return [w["name"] for w in ENV_CONFIG.get("works", [])
-            if w.get("enabled") and w.get("scope") == "per_source"]
+    return [
+        w["name"]
+        for w in ENV_CONFIG.get("works", [])
+        if w.get("enabled") and w.get("scope") == "per_source"
+    ]
 
 
 def _json_safe(v):
@@ -126,25 +133,23 @@ def _redact_config():
             out[k] = "***"
         elif k == "TAG_LIST":
             tag_count = len(str(v).split()) if v else 0
-            out[k] = "<%d tags>" % tag_count
+            out[k] = f"<{tag_count} tags>"
         else:
             out[k] = _json_safe(v)
     return out
-
-
 
 
 # ---------------------------------------------------------------------------
 # Loaders (fresh per request; defensive)
 # ---------------------------------------------------------------------------
 
+
 def load_tracker():
     """Return (sources, tasks, runs) from _tracker.json.
     Missing/corrupt/old-schema -> ({}, {}). The registry is read through the
     shared tracker module so the schema stays consistent with the writers."""
     payload = tracker.load_registry(TRACKER_PATH)
-    return (payload.get("sources", {}), payload.get("tasks", {}),
-            payload.get("runs", {}))
+    return (payload.get("sources", {}), payload.get("tasks", {}), payload.get("runs", {}))
 
 
 def load_work_results():
@@ -237,16 +242,18 @@ def load_telemetry(work_name="work1"):
         else:
             chart_value = duration
             chart_unit = "s"
-        rows.append({
-            "timestamp": task.get("worker_finished_at"),
-            "filename": source.get("filename"),
-            "source_key": source_key,
-            "work_name": work_name,
-            "vision_latency_s": duration,
-            "chart_value": chart_value,
-            "chart_unit": chart_unit,
-            "status": "ok",
-        })
+        rows.append(
+            {
+                "timestamp": task.get("worker_finished_at"),
+                "filename": source.get("filename"),
+                "source_key": source_key,
+                "work_name": work_name,
+                "vision_latency_s": duration,
+                "chart_value": chart_value,
+                "chart_unit": chart_unit,
+                "status": "ok",
+            }
+        )
     rows.sort(key=lambda row: row.get("timestamp") or "")
     return rows
 
@@ -260,12 +267,14 @@ def load_logs():
             continue
         source_key = task.get("source_key")
         source = sources.get(source_key, {})
-        rows.append({
-            "filename": source.get("filename"),
-            "work_name": task.get("work_name"),
-            "last_error": task.get("last_error"),
-            "last_error_at": task.get("last_error_at"),
-        })
+        rows.append(
+            {
+                "filename": source.get("filename"),
+                "work_name": task.get("work_name"),
+                "last_error": task.get("last_error"),
+                "last_error_at": task.get("last_error_at"),
+            }
+        )
     rows.sort(key=lambda r: r.get("last_error_at") or "", reverse=True)
     return rows
 
@@ -275,12 +284,11 @@ def _backup_and_prune(config_path):
     path = Path(config_path)
     if not path.is_file():
         return
-    ts = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
     bak = path.parent / (path.name + "." + ts + ".bak")
     with open(path, "rb") as src:
         bak.write_bytes(src.read())
-    baks = sorted(path.parent.glob(path.name + ".*.bak"),
-                  key=lambda p: p.stat().st_mtime)
+    baks = sorted(path.parent.glob(path.name + ".*.bak"), key=lambda p: p.stat().st_mtime)
     for old_bak in baks[:-5]:
         old_bak.unlink()
 
@@ -319,7 +327,7 @@ def load_wiki():
                     rec = json.loads(line)
                 except (ValueError, TypeError):
                     continue
-                name = rec.get("filename") or "unknown-%s" % rec.get("sid", "")
+                name = rec.get("filename") or "unknown-{}".format(rec.get("sid", ""))
                 by_name[name] = rec
     except OSError:
         pass
@@ -338,6 +346,7 @@ def load_tags_index():
 # ---------------------------------------------------------------------------
 # Derived views
 # ---------------------------------------------------------------------------
+
 
 def _iso_to_epoch(iso_str):
     if not iso_str:
@@ -363,10 +372,10 @@ def _human_duration(seconds):
     h, rem = divmod(rem, 3600)
     m, _ = divmod(rem, 60)
     if d > 0:
-        return "%dd %dh" % (d, h)
+        return f"{d}d {h}h"
     if h > 0:
-        return "%dh %dm" % (h, m)
-    return "%dm" % m
+        return f"{h}h {m}m"
+    return f"{m}m"
 
 
 def _truncate_ocr(ocr_text):
@@ -396,8 +405,7 @@ def _find_original(filename, source_key=None):
     sources, _, _ = load_tracker()
     key = source_key if (source_key and source_key in sources) else None
     if key is None:
-        key = next((k for k in sources
-                    if sources[k].get("filename") == filename), None)
+        key = next((k for k in sources if sources[k].get("filename") == filename), None)
     if key and os.path.isfile(key):
         return key
     rec = load_annotations().get(filename)
@@ -421,13 +429,15 @@ def build_overview(work_name="work1"):
     telemetry = load_telemetry(work_name)
     results = load_work_results()
 
-    active_sources = {key for key, source in sources.items()
-                      if not source.get("missing")}
+    active_sources = {key for key, source in sources.items() if not source.get("missing")}
     total = len(active_sources)
-    processed = sum(1 for task in tasks.values()
-                    if task.get("work_name") == work_name
-                    and task.get("worker_finished_at")
-                    and task.get("source_key") in active_sources)
+    processed = sum(
+        1
+        for task in tasks.values()
+        if task.get("work_name") == work_name
+        and task.get("worker_finished_at")
+        and task.get("source_key") in active_sources
+    )
     remaining = max(total - processed, 0)
 
     # Speed = mean vision_latency_s of the most recent 5 processed files.
@@ -446,30 +456,35 @@ def build_overview(work_name="work1"):
     eta_seconds = remaining * avg_latency
     eta_human = _human_duration(eta_seconds) if remaining else "0m"
     projected_finish = (
-        (datetime.now(tz=timezone.utc) + timedelta(seconds=eta_seconds)).isoformat()
-        if (remaining and has_speed) else "")
+        (datetime.now(tz=UTC) + timedelta(seconds=eta_seconds)).isoformat()
+        if (remaining and has_speed)
+        else ""
+    )
 
     extra = {}
     registry_entry = WORK_METRIC_REGISTRY.get(work_name)
     if registry_entry and registry_entry.get("overview_extras"):
         work_results = results.get(work_name) or {}
         chart_fn = registry_entry["chart_value"]
-        ok_source_keys = [t.get("source_key") for t in tasks.values()
-                          if t.get("work_name") == work_name
-                          and t.get("status") == "finished"
-                          and t.get("source_key") in active_sources]
+        ok_source_keys = [
+            t.get("source_key")
+            for t in tasks.values()
+            if t.get("work_name") == work_name
+            and t.get("status") == "finished"
+            and t.get("source_key") in active_sources
+        ]
         total_ok = len(ok_source_keys)
-        empty = sum(1 for sk in ok_source_keys
-                    if chart_fn(work_results.get(sk) or {}) == 0)
-        error_count = sum(1 for t in tasks.values()
-                          if t.get("work_name") == work_name
-                          and t.get("status") == "error"
-                          and t.get("source_key") in active_sources)
+        empty = sum(1 for sk in ok_source_keys if chart_fn(work_results.get(sk) or {}) == 0)
+        error_count = sum(
+            1
+            for t in tasks.values()
+            if t.get("work_name") == work_name
+            and t.get("status") == "error"
+            and t.get("source_key") in active_sources
+        )
         total_attempted = total_ok + error_count
-        extra["empty_result_rate"] = (round(empty / total_ok, 3)
-                                      if total_ok else None)
-        extra["error_rate"] = (round(error_count / total_attempted, 3)
-                               if total_attempted else None)
+        extra["empty_result_rate"] = round(empty / total_ok, 3) if total_ok else None
+        extra["error_rate"] = round(error_count / total_attempted, 3) if total_attempted else None
 
     return {
         "environment": CURRENT_ENV,
@@ -493,22 +508,29 @@ def _timeline_histogram(values, bucket_count=48):
         return None, None, []
     minimum, maximum = valid[0], valid[-1]
     if minimum == maximum:
-        return minimum, maximum, [{"start": minimum, "end": minimum,
-                                   "count": len(valid)}]
+        return minimum, maximum, [{"start": minimum, "end": minimum, "count": len(valid)}]
 
     width = (maximum - minimum) / bucket_count
-    buckets = [{"start": minimum + i * width,
-                "end": minimum + (i + 1) * width,
-                "count": 0} for i in range(bucket_count)]
+    buckets = [
+        {"start": minimum + i * width, "end": minimum + (i + 1) * width, "count": 0}
+        for i in range(bucket_count)
+    ]
     for value in valid:
         index = min(int((value - minimum) / width), bucket_count - 1)
         buckets[index]["count"] += 1
     return minimum, maximum, buckets
 
 
-def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
-                   query=None, mtime_from=None, mtime_to=None,
-                   window_limit=TIMELINE_WINDOW_DEFAULT):
+def build_timeline(
+    limit=None,
+    offset=0,
+    status_filter=None,
+    tag_filter=None,
+    query=None,
+    mtime_from=None,
+    mtime_to=None,
+    window_limit=TIMELINE_WINDOW_DEFAULT,
+):
     """Build a newest-first timeline from tracked sources and configured work."""
     annotations = load_annotations()
     sources, tasks, _ = load_tracker()
@@ -516,8 +538,7 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
     work1_results = results.get("work1") or {}
     wiki = load_wiki()
     task_by_source = {
-        task.get("source_key"): task for task in tasks.values()
-        if task.get("work_name") == "work1"
+        task.get("source_key"): task for task in tasks.values() if task.get("work_name") == "work1"
     }
 
     rows = []
@@ -536,33 +557,36 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
         ocr = legacy.get("OCR_text") or []
         mtime_iso = entry.get("modified_at") or legacy.get("mtime_iso") or ""
         ocr_trunc, truncated = _truncate_ocr(ocr)
-        rows.append({
-            "source_key": source_key,
-            "filename": name,
-            "mtime_iso": mtime_iso,
-            "mtime_epoch": _iso_to_epoch(mtime_iso),
-            "status": status,
-            "quality": legacy.get("quality_score"),
-            "answer": answer,
-            "caption": answer,
-            "tags": tags,
-            "ocr_text": ocr_trunc,
-            "ocr_truncated": truncated,
-            "entities": legacy.get("entities") or [],
-            "telem_latency_s": duration,
-            "telem_status": task.get("status"),
-            "telem_timestamp": task.get("worker_finished_at"),
-            "telem_error": output.get("error"),
-            "in_wiki": name in wiki,
-            "has_thumb": _thumb_path_for(name) is not None,
-            "original_path": source_key,
-        })
+        rows.append(
+            {
+                "source_key": source_key,
+                "filename": name,
+                "mtime_iso": mtime_iso,
+                "mtime_epoch": _iso_to_epoch(mtime_iso),
+                "status": status,
+                "quality": legacy.get("quality_score"),
+                "answer": answer,
+                "caption": answer,
+                "tags": tags,
+                "ocr_text": ocr_trunc,
+                "ocr_truncated": truncated,
+                "entities": legacy.get("entities") or [],
+                "telem_latency_s": duration,
+                "telem_status": task.get("status"),
+                "telem_timestamp": task.get("worker_finished_at"),
+                "telem_error": output.get("error"),
+                "in_wiki": name in wiki,
+                "has_thumb": _thumb_path_for(name) is not None,
+                "original_path": source_key,
+            }
+        )
 
     rows.sort(key=lambda row: row["mtime_epoch"], reverse=True)
     window_limit = window_limit if window_limit in TIMELINE_WINDOWS else TIMELINE_WINDOW_DEFAULT
     rows = rows[:window_limit]
     domain_min, domain_max, buckets = _timeline_histogram(
-        [row["mtime_epoch"] for row in rows if row["mtime_epoch"] > 0])
+        [row["mtime_epoch"] for row in rows if row["mtime_epoch"] > 0]
+    )
     total_rows = len(rows)
 
     if mtime_from is not None and mtime_to is not None:
@@ -575,34 +599,37 @@ def build_timeline(limit=None, offset=0, status_filter=None, tag_filter=None,
         rows = [r for r in rows if q in (r["answer"] or "").lower()]
 
     shown_total = len(rows)
-    if limit is not None:
-        page = rows[offset:offset + limit]
-    else:
-        page = rows
+    page = rows[offset : offset + limit] if limit is not None else rows
     return {
-         "rows": page,
-         "shown": len(page),
-         "shown_total": shown_total,
-         "total_rows": total_rows,
-         "has_more": (offset + len(page)) < shown_total,
-         "mtime_min_epoch": domain_min,
-         "mtime_max_epoch": domain_max,
-         "mtime_buckets": buckets,
-     }
+        "rows": page,
+        "shown": len(page),
+        "shown_total": shown_total,
+        "total_rows": total_rows,
+        "has_more": (offset + len(page)) < shown_total,
+        "mtime_min_epoch": domain_min,
+        "mtime_max_epoch": domain_max,
+        "mtime_buckets": buckets,
+    }
 
 
 def load_record(filename, source_key=None):
     """Return a full normalized record for a tracked source."""
     sources, tasks, _ = load_tracker()
     if source_key not in sources:
-        source_key = next((key for key, source in sources.items()
-                           if source.get("filename") == filename), None)
+        source_key = next(
+            (key for key, source in sources.items() if source.get("filename") == filename), None
+        )
     if not source_key or sources[source_key].get("missing"):
         return None
     source = sources[source_key]
-    task = next((item for item in tasks.values()
-                 if item.get("source_key") == source_key
-                 and item.get("work_name") == "work1"), {})
+    task = next(
+        (
+            item
+            for item in tasks.values()
+            if item.get("source_key") == source_key and item.get("work_name") == "work1"
+        ),
+        {},
+    )
     legacy = load_annotations().get(source.get("filename"), {})
     result = _work_result(load_work_results(), "work1", source_key)
     output = result.get("output") or {}
@@ -630,8 +657,8 @@ def load_record(filename, source_key=None):
 # HTTP layer
 # ---------------------------------------------------------------------------
 
-class Handler(BaseHTTPRequestHandler):
 
+class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
@@ -681,25 +708,26 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         ALLOWED = {
-            "ollama_base": str, "vision_model": str, "embed_model": str,
-            "max_dim": int, "save_every": int,
-            "supported_images": list, "source_dir": list,
+            "ollama_base": str,
+            "vision_model": str,
+            "embed_model": str,
+            "max_dim": int,
+            "save_every": int,
+            "supported_images": list,
+            "source_dir": list,
         }
         for key in data:
             if key not in ALLOWED:
-                self._send_json({"error": "unknown field: %s" % key}, 400)
+                self._send_json({"error": f"unknown field: {key}"}, 400)
                 return
             val = data[key]
             exp = ALLOWED[key]
             if isinstance(val, bool) or not isinstance(val, exp):
-                self._send_json(
-                    {"error": "field %s must be %s" % (key, exp.__name__)}, 400)
+                self._send_json({"error": f"field {key} must be {exp.__name__}"}, 400)
                 return
-            if exp is list:
-                if not all(isinstance(item, str) for item in val):
-                    self._send_json(
-                        {"error": "field %s must be a list of strings" % key}, 400)
-                    return
+            if exp is list and not all(isinstance(item, str) for item in val):
+                self._send_json({"error": f"field {key} must be a list of strings"}, 400)
+                return
 
         cfg_path = Path(CONFIG_PATH)
         try:
@@ -720,16 +748,15 @@ class Handler(BaseHTTPRequestHandler):
         qs = parse_qs(parsed.query)
 
         if path in ("/", "/index.html"):
-            self._send_file(os.path.join(SCRIPT_DIR, "index.html"),
-                             "text/html; charset=utf-8")
+            self._send_file(os.path.join(SCRIPT_DIR, "index.html"), "text/html; charset=utf-8")
             return
         if path == "/app.js":
-            self._send_file(os.path.join(SCRIPT_DIR, "app.js"),
-                             "application/javascript; charset=utf-8")
+            self._send_file(
+                os.path.join(SCRIPT_DIR, "app.js"), "application/javascript; charset=utf-8"
+            )
             return
         if path == "/style.css":
-            self._send_file(os.path.join(SCRIPT_DIR, "style.css"),
-                             "text/css; charset=utf-8")
+            self._send_file(os.path.join(SCRIPT_DIR, "style.css"), "text/css; charset=utf-8")
             return
 
         if path == "/api/overview":
@@ -786,11 +813,18 @@ class Handler(BaseHTTPRequestHandler):
                 mtime_from = mtime_to = None
             elif mtime_from is not None and mtime_from > mtime_to:
                 mtime_from, mtime_to = mtime_to, mtime_from
-            self._send_json(build_timeline(limit=limit, offset=offset,
-                                      status_filter=status_filter,
-                                      tag_filter=tag_filter, query=query,
-                                      mtime_from=mtime_from, mtime_to=mtime_to,
-                                      window_limit=window_limit))
+            self._send_json(
+                build_timeline(
+                    limit=limit,
+                    offset=offset,
+                    status_filter=status_filter,
+                    tag_filter=tag_filter,
+                    query=query,
+                    mtime_from=mtime_from,
+                    mtime_to=mtime_to,
+                    window_limit=window_limit,
+                )
+            )
             return
 
         if path == "/api/record":
@@ -807,7 +841,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path.startswith("/thumb/"):
-            filename = unquote(path[len("/thumb/"):])
+            filename = unquote(path[len("/thumb/") :])
             source_key = qs.get("source_key", [None])[0]
             serve_original = qs.get("original", [None])[0] == "1"
             if serve_original:
@@ -828,20 +862,29 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global CURRENT_ENV, TRACKER_PATH, CONFIG_PATH, ANNOT_PATH, WIKI_PATH, TAGS_PATH, THUMB_DIR, ENV_CONFIG
+    global \
+        CURRENT_ENV, \
+        TRACKER_PATH, \
+        CONFIG_PATH, \
+        ANNOT_PATH, \
+        WIKI_PATH, \
+        TAGS_PATH, \
+        THUMB_DIR, \
+        ENV_CONFIG
     parser = argparse.ArgumentParser(description="Screenshot KB WebUI server")
-    parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
-                        help="environment name; omit for the default (.workspace/). "
-                              "Unknown names are refused — list via "
-                              "'environment_admin.sh init' or backend.py auto-create.")
+    parser.add_argument(
+        "-env",
+        default=config_loader.DEFAULT_ENV,
+        help="environment name; omit for the default (.workspace/). "
+        "Unknown names are refused — list via "
+        "'environment_admin.sh init' or backend.py auto-create.",
+    )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--open", action="store_true",
-                        help="open the UI in the default browser")
+    parser.add_argument("--open", action="store_true", help="open the UI in the default browser")
     args = parser.parse_args()
     try:
-        CURRENT_ENV, config = config_loader.resolve_environment(
-             args.env, auto_bootstrap=False)
+        CURRENT_ENV, config = config_loader.resolve_environment(args.env, auto_bootstrap=False)
         ENV_CONFIG = config
     except (RuntimeError, ValueError, OSError) as exc:
         parser.error(str(exc))
@@ -853,20 +896,18 @@ def main():
     THUMB_DIR = str(config["thumbnails_dir"])
 
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
-    url = "http://%s:%d/" % (args.host, args.port)
-    print("WebUI running at %s" % url, flush=True)
-    print("Serving from %s" % ROOT, flush=True)
+    url = f"http://{args.host}:{args.port}/"
+    print(f"WebUI running at {url}", flush=True)
+    print(f"Serving from {ROOT}", flush=True)
     print("Sources:", flush=True)
-    print("  tracker=%s" % TRACKER_PATH, flush=True)
-    print("  annotations=%s" % ANNOT_PATH, flush=True)
-    print("  wiki=%s" % WIKI_PATH, flush=True)
-    print("  tags=%s" % TAGS_PATH, flush=True)
-    print("  thumbs=%s" % THUMB_DIR, flush=True)
+    print(f"  tracker={TRACKER_PATH}", flush=True)
+    print(f"  annotations={ANNOT_PATH}", flush=True)
+    print(f"  wiki={WIKI_PATH}", flush=True)
+    print(f"  tags={TAGS_PATH}", flush=True)
+    print(f"  thumbs={THUMB_DIR}", flush=True)
     if args.open:
-        try:
+        with contextlib.suppress(Exception):
             webbrowser.open(url)
-        except Exception:
-            pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

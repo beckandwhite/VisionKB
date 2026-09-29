@@ -1,0 +1,3 @@
+# Dev-only tooling for CI (lint/format + SAST). The runtime stays stdlib-only.
+ruff==0.16.9
+bandit==1.7.10

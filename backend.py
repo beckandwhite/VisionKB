@@ -10,10 +10,9 @@ import argparse
 import fcntl
 import json
 import os
-import subprocess
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import config_loader
@@ -25,8 +24,7 @@ import work4
 
 ROOT = Path(__file__).resolve().parent
 LOCK_NAME = ".pipeline.lock"
-HANDLERS = {"work1": work1.run, "work2": work2.run, "work3": work3.run,
-            "work4": work4.run}
+HANDLERS = {"work1": work1.run, "work2": work2.run, "work3": work3.run, "work4": work4.run}
 
 
 def list_images(directory, extensions):
@@ -47,7 +45,9 @@ def list_images(directory, extensions):
 
 def acquire_lock(path, wait):
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle = open(path, "w", encoding="utf-8")
+    # The handle must stay open for the caller (released via flock(LOCK_UN) +
+    # close in `run`), so it cannot be wrapped in a context manager here.
+    handle = open(path, "w", encoding="utf-8")  # noqa: SIM115
     flags = fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB
     try:
         fcntl.flock(handle.fileno(), flags)
@@ -60,8 +60,7 @@ def acquire_lock(path, wait):
 
 
 def work_by_name(config, name):
-    return next((work for work in config.get("works", [])
-                 if work.get("name") == name), None)
+    return next((work for work in config.get("works", []) if work.get("name") == name), None)
 
 
 def append_result(path, result):
@@ -85,68 +84,75 @@ def run_task(source, task, work, config, worker_id):
         else:
             handler = HANDLERS.get(work.get("handler"))
             if handler is None:
-                raise RuntimeError("unknown work handler: %s" % work.get("handler"))
+                raise RuntimeError("unknown work handler: {}".format(work.get("handler")))
             result = handler(work_source, config)
-            result_path = config["env_dir"] / work.get(
-                "result_file", "%s.jsonl" % work["name"])
+            result_path = config["env_dir"] / work.get("result_file", f"{work['name']}.jsonl")
             append_result(result_path, result)
-            if isinstance(result, dict) and isinstance(result.get("output"), dict):
-                if result["output"].get("error"):
-                    raise RuntimeError(result["output"]["error"])
+            if isinstance(result, dict) and result.get("output", {}).get("error"):
+                raise RuntimeError(result["output"]["error"])
         tracker.finish_task(task, source.get("modified_at"))
         return True, time.monotonic() - started
     except Exception as exc:
         tracker.fail_task(task, error=exc)
-        print("    %s: %s" % (work["name"], exc), file=sys.stderr)
+        print("    {}: {}".format(work["name"], exc), file=sys.stderr)
         return False, time.monotonic() - started
 
 
-def print_work_progress(per_source, processed_by_work, to_process_by_work,
-                        all_tracked_by_work):
+def print_work_progress(per_source, processed_by_work, to_process_by_work, all_tracked_by_work):
     print("Per-work progress:", flush=True)
     for name in per_source:
         done = processed_by_work.get(name, 0)
         remaining = to_process_by_work.get(name, 0)
         total = all_tracked_by_work.get(name, 0)
-        print("   %s: [%d/%d] of %d"
-              % (name, done, remaining, total), flush=True)
+        print(f"   {name}: [{done}/{remaining}] of {total}", flush=True)
 
 
-def save_progress(config, sources, tasks, count_limit, total, new_count,
-                  processed, errors, status):
+def save_progress(config, sources, tasks, count_limit, total, new_count, processed, errors, status):
     runs = tracker.build_summary(
-        sources, tasks, count_limit, total, new_this_run=new_count,
-        processed_this_run=processed, errors_this_run=errors, status=status)
-    tracker.save_tracker(config["tracker_path"], {
-        "sources": sources, "tasks": tasks, "runs": runs})
+        sources,
+        tasks,
+        count_limit,
+        total,
+        new_this_run=new_count,
+        processed_this_run=processed,
+        errors_this_run=errors,
+        status=status,
+    )
+    tracker.save_tracker(config["tracker_path"], {"sources": sources, "tasks": tasks, "runs": runs})
 
 
 def run(args):
-    _env, config = config_loader.resolve_environment(
-        args.env, source_dir=args.screenshot_dir)
+    _env, config = config_loader.resolve_environment(args.env, source_dir=args.screenshot_dir)
     lock = acquire_lock(config["env_dir"] / LOCK_NAME, args.wait)
     if lock is None:
-        print("Another pipeline run is active for %s." % args.env, file=sys.stderr)
+        print(f"Another pipeline run is active for {args.env}.", file=sys.stderr)
         return 0
     try:
-        source_dir = ([os.path.expanduser(args.screenshot_dir)]
-                      if args.screenshot_dir else config["source_dir"])
+        source_dir = (
+            [os.path.expanduser(args.screenshot_dir)]
+            if args.screenshot_dir
+            else config["source_dir"]
+        )
         images = list_images(source_dir, set(config["supported_images"]))
         payload = tracker.load_registry(config["tracker_path"])
         sources, tasks = payload["sources"], payload["tasks"]
-        new_count, _total = tracker.reconcile(
-            source_dir, set(config["supported_images"]), sources)
-        per_source = [work["name"] for work in config["works"]
-                      if work.get("enabled", True) and work["scope"] == "per_source"]
+        new_count, _total = tracker.reconcile(source_dir, set(config["supported_images"]), sources)
+        per_source = [
+            work["name"]
+            for work in config["works"]
+            if work.get("enabled", True) and work["scope"] == "per_source"
+        ]
         tracker.ensure_tasks(sources, tasks, per_source)
         count_limit = config["processed_limit"] if args.count is None else args.count
-        print("Using environment: %s (pass -env ENV to select another)"
-              % (args.env or ".workspace"), flush=True)
-        save_progress(config, sources, tasks, count_limit, len(images), new_count,
-                       0, 0, "reconciled")
+        print(
+            f"Using environment: {args.env or '.workspace'} (pass -env ENV to select another)",
+            flush=True,
+        )
+        save_progress(
+            config, sources, tasks, count_limit, len(images), new_count, 0, 0, "reconciled"
+        )
         wanted = tracker.pending_tasks(sources, tasks, per_source, stale_after_s=3600)
-        wanted_keys = {tracker.task_id(task["source_key"], task["work_name"])
-                        for task in wanted}
+        wanted_keys = {tracker.task_id(task["source_key"], task["work_name"]) for task in wanted}
         processed_by_work = {name: 0 for name in per_source}
         to_process_by_work = {name: 0 for name in per_source}
         all_tracked_by_work = {name: 0 for name in per_source}
@@ -156,42 +162,62 @@ def run(args):
                 all_tracked_by_work[task["work_name"]] += 1
         for task in wanted:
             to_process_by_work[task["work_name"]] += 1
-        worker_id = "%s:%s" % (os.uname().nodename, os.getpid())
+        worker_id = f"{os.uname().nodename}:{os.getpid()}"
         processed = errors = 0
         deadline = resolve_deadline(args.until)
-        print_work_progress(per_source, processed_by_work, to_process_by_work,
-                            all_tracked_by_work)
+        print_work_progress(per_source, processed_by_work, to_process_by_work, all_tracked_by_work)
         for source_key in images:
             if count_limit and processed >= count_limit:
                 break
             if deadline and datetime.now() >= deadline:
                 break
-            source_tasks = [task for task in tasks.values()
-                            if task["source_key"] == source_key
-                            and tracker.task_id(source_key, task["work_name"]) in wanted_keys]
+            source_tasks = [
+                task
+                for task in tasks.values()
+                if task["source_key"] == source_key
+                and tracker.task_id(source_key, task["work_name"]) in wanted_keys
+            ]
             for task in source_tasks:
                 work = work_by_name(config, task["work_name"])
                 filename = sources[source_key].get("filename", source_key)
                 retry_count = task.get("retry_count", 0)
-                retry_label = " (retry #%d)" % retry_count if retry_count else ""
-                print("[%d/%d] %s: %s%s"
-                      % (processed + 1, len(wanted), task["work_name"], filename, retry_label), flush=True)
+                retry_label = f" (retry #{retry_count})" if retry_count else ""
+                print(
+                    f"[{processed + 1}/{len(wanted)}] {task['work_name']}: {filename}{retry_label}",
+                    flush=True,
+                )
                 ok, elapsed = run_task(sources[source_key], task, work, config, worker_id)
                 processed += 1
                 errors += int(not ok)
-                save_progress(config, sources, tasks, count_limit, len(images), new_count,
-                              processed, errors, "running")
+                save_progress(
+                    config,
+                    sources,
+                    tasks,
+                    count_limit,
+                    len(images),
+                    new_count,
+                    processed,
+                    errors,
+                    "running",
+                )
                 processed_by_work[task["work_name"]] += 1
-                print_work_progress(per_source, processed_by_work, to_process_by_work,
-                                    all_tracked_by_work)
-                print("      %s (%.3fs)"
-                       % ("error" if not ok else "ok", elapsed), flush=True)
-        save_progress(config, sources, tasks, count_limit, len(images), new_count,
-                       processed, errors,
-                        "deadline-reached" if deadline and datetime.now() >= deadline else "completed")
-        print_work_progress(per_source, processed_by_work, to_process_by_work,
-                            all_tracked_by_work)
-        print("Done. %d task(s), %d error(s)." % (processed, errors))
+                print_work_progress(
+                    per_source, processed_by_work, to_process_by_work, all_tracked_by_work
+                )
+                print("      {} ({:.3f}s)".format("error" if not ok else "ok", elapsed), flush=True)
+        save_progress(
+            config,
+            sources,
+            tasks,
+            count_limit,
+            len(images),
+            new_count,
+            processed,
+            errors,
+            "deadline-reached" if deadline and datetime.now() >= deadline else "completed",
+        )
+        print_work_progress(per_source, processed_by_work, to_process_by_work, all_tracked_by_work)
+        print(f"Done. {processed} task(s), {errors} error(s).")
         return 0
     finally:
         fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
@@ -203,8 +229,8 @@ def resolve_deadline(value):
         return None
     try:
         hour, minute = (int(part) for part in value.split(":", 1))
-    except (ValueError, TypeError):
-        raise ValueError("--until must use HH:MM")
+    except (ValueError, TypeError) as exc:
+        raise ValueError("--until must use HH:MM") from exc
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError("--until must use a valid 24-hour time")
     now = datetime.now()
@@ -216,9 +242,12 @@ def resolve_deadline(value):
 
 def main():
     parser = argparse.ArgumentParser(description="Generic picture work queue")
-    parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
-                        help="environment name; omit for the default (.workspace/). "
-                             "An unknown name is auto-created on first run.")
+    parser.add_argument(
+        "-env",
+        default=config_loader.DEFAULT_ENV,
+        help="environment name; omit for the default (.workspace/). "
+        "An unknown name is auto-created on first run.",
+    )
     parser.add_argument("--count", type=int, default=None)
     parser.add_argument("--screenshot-dir", default=None)
     parser.add_argument("--until", metavar="HH:MM")

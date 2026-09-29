@@ -33,8 +33,7 @@ DEFAULT_CANDIDATES = "work6_tag_candidates.jsonl"
 def fold(text):
     """NFD fold case + diacritics so macos/MacOS / Tamas/Tamás collapse."""
     decomposed = unicodedata.normalize("NFD", text)
-    base = "".join(ch for ch in decomposed
-                   if unicodedata.category(ch) != "Mn")
+    base = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
     return base.lower()
 
 
@@ -74,6 +73,7 @@ def top_per_n(rows, per_n):
 # build
 # ---------------------------------------------------------------------------
 
+
 def build_html(data):
     return HTML.replace("__DATA__", json.dumps(data, ensure_ascii=False))
 
@@ -81,8 +81,10 @@ def build_html(data):
 def cmd_build(args):
     rows = load_candidates(args.candidates)
     pruned = top_per_n(rows, args.per_n)
-    data = [{"id": i, "ngram": r["ngram"], "count": r["count"], "n": r["n"]}
-             for i, r in enumerate(pruned)]
+    data = [
+        {"id": i, "ngram": r["ngram"], "count": r["count"], "n": r["n"]}
+        for i, r in enumerate(pruned)
+    ]
     out_html = args.html or "tag_review.html"
     out_json = out_html + ".candidates.jsonl"
     with open(out_html, "w", encoding="utf-8") as fh:
@@ -91,18 +93,16 @@ def cmd_build(args):
         for i, r in enumerate(pruned):
             fh.write(json.dumps({"id": i, **r}, ensure_ascii=False) + "\n")
     per_n = Counter(r["n"] for r in pruned)
-    print("build: %d rows (n1=%d n2=%d n3=%d) -> %s"
-          % (len(pruned), per_n[1], per_n[2], per_n[3], out_html))
-    print("  open %s, flip keep/drop, Export -> tag_review.decisions.json"
-          % out_html)
-    print("  then apply: python3 tag_review.py apply --decisions "
-          "tag_review.decisions.json")
+    print(f"build: {len(pruned)} rows (n1={per_n[1]} n2={per_n[2]} n3={per_n[3]}) -> {out_html}")
+    print(f"  open {out_html}, flip keep/drop, Export -> tag_review.decisions.json")
+    print("  then apply: python3 tag_review.py apply --decisions tag_review.decisions.json")
     return 0
 
 
 # ---------------------------------------------------------------------------
 # apply
 # ---------------------------------------------------------------------------
+
 
 def cmd_apply(args):
     with open(args.decisions, encoding="utf-8") as fh:
@@ -122,13 +122,12 @@ def cmd_apply(args):
         seen.add(key)
         tags.append(tag)
 
-    sys.stderr.write("apply: %d keep, %d drop, %d unique tags\n"
-                      % (len(keep), len(drop), len(tags)))
+    sys.stderr.write(f"apply: {len(keep)} keep, {len(drop)} drop, {len(tags)} unique tags\n")
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             for tag in tags:
                 fh.write(tag + "\n")
-        sys.stderr.write("wrote %d tags to %s\n" % (len(tags), args.out))
+        sys.stderr.write(f"wrote {len(tags)} tags to {args.out}\n")
     else:
         print(" ".join(tags))
     return 0
@@ -472,40 +471,42 @@ render();
 def cmd_entities(args):
     path = args.registry
     if not os.path.isdir(path) and not os.path.isfile(path):
-        print("registry not found: %s" % path, file=sys.stderr)
+        print(f"registry not found: {path}", file=sys.stderr)
         return 1
     with open(path, encoding="utf-8") as fh:
         registry = json.load(fh)
     proposals = []
     for e in registry:
         for q in e.get("proposed_aka", []):
-            proposals.append({
-                 "entity_id": e.get("id"),
-                 "canonical": e.get("canonical"),
-                 "type": e.get("type", "Other"),
-                 "alias": q.get("form"),
-                 "relation": q.get("relation", "aka"),
-                 "count": q.get("count", 0),
-                 "evidence": q.get("evidence", ""),
-            })
-    proposals.sort(key=lambda p: (-p["count"], p["entity_id"] or "",
-                                  p["alias"].lower()))
-    pruned = proposals[:args.limit]
+            proposals.append(
+                {
+                    "entity_id": e.get("id"),
+                    "canonical": e.get("canonical"),
+                    "type": e.get("type", "Other"),
+                    "alias": q.get("form"),
+                    "relation": q.get("relation", "aka"),
+                    "count": q.get("count", 0),
+                    "evidence": q.get("evidence", ""),
+                }
+            )
+    proposals.sort(key=lambda p: (-p["count"], p["entity_id"] or "", p["alias"].lower()))
+    pruned = proposals[: args.limit]
     data = [{"id": i, **r} for i, r in enumerate(pruned)]
     out_html = args.html or "tag_review_entities.html"
     out_json = out_html + ".entities.jsonl"
     with open(out_html, "w", encoding="utf-8") as fh:
-        fh.write(ENT_HTML.replace("__DATA__",
-                                  json.dumps(data, ensure_ascii=False)))
+        fh.write(ENT_HTML.replace("__DATA__", json.dumps(data, ensure_ascii=False)))
     with open(out_json, "w", encoding="utf-8") as fh:
         for i, r in enumerate(pruned):
             fh.write(json.dumps({"id": i, **r}, ensure_ascii=False) + "\n")
-    print("entities: %d proposals (%d total) -> %s"
-           % (len(pruned), len(proposals), out_html))
-    print("  open %s, confirm/drop the AKA queue, Export -> "
-            "tag_review.entity.decisions.json" % out_html)
-    print("  then apply: python3 work7.py apply --registry %s "
-            "--decisions tag_review.entity.decisions.json" % path)
+    print(f"entities: {len(pruned)} proposals ({len(proposals)} total) -> {out_html}")
+    print(
+        f"  open {out_html}, confirm/drop the AKA queue, Export -> tag_review.entity.decisions.json"
+    )
+    print(
+        f"  then apply: python3 work7.py apply --registry {path} "
+        "--decisions tag_review.entity.decisions.json"
+    )
     return 0
 
 
@@ -515,36 +516,50 @@ def main():
 
     b = sub.add_parser("build", help="emit review HTML + candidates JSON")
     b.add_argument("candidates", nargs="?", default=DEFAULT_CANDIDATES)
-    b.add_argument("--per-n", type=int, default=150,
-                   help="top-N candidates kept per n-gram width (default 150)")
-    b.add_argument("--html", default=None,
-                   help="output HTML path (default tag_review.html)")
+    b.add_argument(
+        "--per-n",
+        type=int,
+        default=150,
+        help="top-N candidates kept per n-gram width (default 150)",
+    )
+    b.add_argument("--html", default=None, help="output HTML path (default tag_review.html)")
     b.set_defaults(func=cmd_build)
 
     a = sub.add_parser("apply", help="turn a decisions export into a TAG_LIST")
-    a.add_argument("--decisions", required=True,
-                   help="the decisions JSON downloaded from the HTML review")
-    a.add_argument("--out", default=None,
-                   help="write the TAG_LIST to this file "
-                         "(one tag per line); default prints to stdout "
-                         "(space-joined)")
+    a.add_argument(
+        "--decisions", required=True, help="the decisions JSON downloaded from the HTML review"
+    )
+    a.add_argument(
+        "--out",
+        default=None,
+        help="write the TAG_LIST to this file "
+        "(one tag per line); default prints to stdout "
+        "(space-joined)",
+    )
     a.set_defaults(func=cmd_apply)
 
-    e = sub.add_parser("entities",
-                        help="review work7 AKA proposals + type overrides")
-    e.add_argument("registry", nargs="?", default=None,
-                    help="canonical_tags.json (work7 output); "
-                           "default the env's canonical_tags.json.")
-    e.add_argument("--limit", type=int, default=400,
-                    help="top-N proposals to surface for review (default 400).")
-    e.add_argument("--html", default=None,
-                    help="output HTML path "
-                           "(default tag_review_entities.html).")
+    e = sub.add_parser("entities", help="review work7 AKA proposals + type overrides")
+    e.add_argument(
+        "registry",
+        nargs="?",
+        default=None,
+        help="canonical_tags.json (work7 output); default the env's canonical_tags.json.",
+    )
+    e.add_argument(
+        "--limit",
+        type=int,
+        default=400,
+        help="top-N proposals to surface for review (default 400).",
+    )
+    e.add_argument(
+        "--html", default=None, help="output HTML path (default tag_review_entities.html)."
+    )
     e.set_defaults(func=cmd_entities)
 
     args = ap.parse_args()
     if args.cmd == "entities" and not args.registry:
         import config_loader
+
         _env, cfg = config_loader.resolve_environment()
         args.registry = str(cfg["env_dir"] / "canonical_tags.json")
     return args.func(args)

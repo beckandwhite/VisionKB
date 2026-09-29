@@ -15,11 +15,10 @@ Consumers:
 Stdlib-only and Python 3.11-safe.
 """
 
+import hashlib
 import json
 import os
-import hashlib
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 SCHEMA_VERSION = 3
 
@@ -48,8 +47,9 @@ def is_temp_artifact(name):
 # Source and task schema
 # ---------------------------------------------------------------------------
 
+
 def _iso_from_timestamp(timestamp):
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(timestamp, tz=UTC).isoformat()
 
 
 def source_metadata(path, discovered_at=None):
@@ -77,7 +77,7 @@ def new_source(path, discovered_at=None, metadata=None):
 
 def task_id(source_key, work_name):
     """Return a stable task key for one source and configured work."""
-    raw = "%s\0%s" % (file_key(source_key), str(work_name))
+    raw = f"{file_key(source_key)}\0{str(work_name)}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -96,7 +96,7 @@ def new_task(source_key, work_name, input_modified_at=None):
 
 
 def _now_iso():
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()
 
 
 def file_key(path):
@@ -108,13 +108,13 @@ def file_key(path):
 # Load / save (atomic)
 # ---------------------------------------------------------------------------
 
+
 def load_registry(path):
     """Load the versioned generic tracker payload.
 
     Invalid, missing, or legacy payloads return an empty schema-3 registry.
     """
-    payload = {"schema_version": SCHEMA_VERSION, "sources": {},
-               "tasks": {}, "runs": {}}
+    payload = {"schema_version": SCHEMA_VERSION, "sources": {}, "tasks": {}, "runs": {}}
     if not os.path.exists(path):
         return payload
     try:
@@ -126,9 +126,12 @@ def load_registry(path):
         sources = data.get("sources")
         tasks = data.get("tasks")
         if isinstance(sources, dict) and isinstance(tasks, dict):
-            return {"schema_version": SCHEMA_VERSION, "sources": sources,
-                    "tasks": tasks,
-                    "runs": data.get("runs") if isinstance(data.get("runs"), dict) else {}}
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "sources": sources,
+                "tasks": tasks,
+                "runs": data.get("runs") if isinstance(data.get("runs"), dict) else {},
+            }
     return payload
 
 
@@ -140,10 +143,12 @@ def save_tracker(path, payload):
     if not isinstance(payload, dict):
         return
     path = os.fspath(path)
-    out = {"schema_version": SCHEMA_VERSION,
-           "sources": payload.get("sources", {}),
-           "tasks": payload.get("tasks", {}),
-           "runs": payload.get("runs", {})}
+    out = {
+        "schema_version": SCHEMA_VERSION,
+        "sources": payload.get("sources", {}),
+        "tasks": payload.get("tasks", {}),
+        "runs": payload.get("runs", {}),
+    }
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=2)
@@ -154,13 +159,13 @@ def save_tracker(path, payload):
 # Generic task lifecycle
 # ---------------------------------------------------------------------------
 
+
 def ensure_tasks(sources, tasks, work_names):
     """Ensure one task exists for each source and per-source work."""
     for source_key, source in sources.items():
         for work_name in work_names:
             key = task_id(source_key, work_name)
-            task = tasks.setdefault(key, new_task(
-                source_key, work_name, source.get("modified_at")))
+            task = tasks.setdefault(key, new_task(source_key, work_name, source.get("modified_at")))
             if task.get("input_modified_at") != source.get("modified_at"):
                 task["input_modified_at"] = source.get("modified_at")
                 task["status"] = "pending"
@@ -173,7 +178,7 @@ def ensure_tasks(sources, tasks, work_names):
 
 def pending_tasks(sources, tasks, work_names=None, stale_after_s=None, now=None):
     """Return current-version tasks that are unclaimed or stale."""
-    now = now or datetime.now(tz=timezone.utc)
+    now = now or datetime.now(tz=UTC)
     wanted = set(work_names) if work_names is not None else None
     result = []
     for task in tasks.values():
@@ -238,6 +243,7 @@ def fail_task(task, error=None, when=None):
 # Source reconciliation
 # ---------------------------------------------------------------------------
 
+
 def reconcile(directory, img_exts, files):
     """Upsert every image in ``directory`` into the source map.
 
@@ -282,35 +288,49 @@ def reconcile(directory, img_exts, files):
 # Summary + telemetry reconstruction
 # ---------------------------------------------------------------------------
 
+
 def tally(sources, tasks):
     """Count generic task lifecycle states for the run summary."""
-    finished = sum(1 for task in tasks.values()
-                   if task.get("status") == "finished")
+    finished = sum(1 for task in tasks.values() if task.get("status") == "finished")
     pending = len(tasks) - finished
     by_work = {}
     for task in tasks.values():
         work = task.get("work_name", "unknown")
         counts = by_work.setdefault(work, {"finished": 0, "pending": 0})
         counts["finished" if task.get("status") == "finished" else "pending"] += 1
-    return {"sources": len(sources), "tasks": len(tasks), "finished": finished,
-            "pending": pending, "by_work": by_work}
+    return {
+        "sources": len(sources),
+        "tasks": len(tasks),
+        "finished": finished,
+        "pending": pending,
+        "by_work": by_work,
+    }
 
 
-def build_summary(sources, tasks, count_param, total, *, new_this_run=0,
-                  processed_this_run=0, errors_this_run=0, status=""):
+def build_summary(
+    sources,
+    tasks,
+    count_param,
+    total,
+    *,
+    new_this_run=0,
+    processed_this_run=0,
+    errors_this_run=0,
+    status="",
+):
     """Build the per-run `runs` summary block, enriched with a status tally."""
     counts = tally(sources, tasks)
     return {
-        "last_run_at":        _now_iso(),
-        "last_count_param":   count_param,
-        "total_files":        total,
-        "processed":          counts["finished"],
-        "unprocessed":        counts["pending"],
-        "new_this_run":       new_this_run,
+        "last_run_at": _now_iso(),
+        "last_count_param": count_param,
+        "total_files": total,
+        "processed": counts["finished"],
+        "unprocessed": counts["pending"],
+        "new_this_run": new_this_run,
         "processed_this_run": processed_this_run,
-        "errors_this_run":    errors_this_run,
-        "status":             status,
-        "task_counts":        counts["by_work"],
+        "errors_this_run": errors_this_run,
+        "status": status,
+        "task_counts": counts["by_work"],
     }
 
 
@@ -325,13 +345,14 @@ def telemetry_from_tracker(tasks, sources=None):
         if not finished:
             continue
         source = sources.get(task.get("source_key"), {})
-        rows.append({
-            "timestamp":        finished,
-            "filename":         source.get("filename"),
-            "source_key":       task.get("source_key"),
-            "work_name":        task.get("work_name"),
-            "worker_id":        task.get("worker_id"),
-        })
+        rows.append(
+            {
+                "timestamp": finished,
+                "filename": source.get("filename"),
+                "source_key": task.get("source_key"),
+                "work_name": task.get("work_name"),
+                "worker_id": task.get("worker_id"),
+            }
+        )
     rows.sort(key=lambda r: r.get("timestamp") or "")
     return rows
-

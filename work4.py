@@ -1,7 +1,8 @@
 """Work 4: generate a 320px JPEG thumbnail for each picture."""
 
+import contextlib
 import os
-import subprocess
+import subprocess  # nosec B404 - only invokes the fixed local binary /usr/bin/sips
 from pathlib import Path
 
 
@@ -18,14 +19,14 @@ def run(source, config):
         command += ["-s", "format", "jpeg"]
     command += [source["source_key"], "--out", temporary]
     try:
-        completed = subprocess.run(command, capture_output=True, timeout=30)
+        # Fixed argv (/usr/bin/sips + literal flags), no shell; source paths come
+        # from the local scan. Accepted SAST finding recorded in DECISIONS.md (#30).
+        completed = subprocess.run(command, capture_output=True, timeout=30)  # nosec B603
         if completed.returncode == 0 and os.path.isfile(temporary):
             os.replace(temporary, destination)
             return True
     except (OSError, subprocess.SubprocessError):
         pass
-    try:
+    with contextlib.suppress(OSError):
         os.unlink(temporary)
-    except OSError:
-        pass
     return False

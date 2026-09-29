@@ -4,13 +4,12 @@ import base64
 import io
 import json
 import os
-import time
 import urllib.error
 import urllib.request
 
 try:
-    from PIL import Image
     import pillow_heif
+    from PIL import Image
 
     pillow_heif.register_heif_opener()
     _PIL_AVAILABLE = True
@@ -33,7 +32,8 @@ def _load_image_bytes(source_path):
     """
     if os.path.getsize(source_path) == 0:
         raise RuntimeError(
-            "source file is empty (0 bytes) -- likely a failed iCloud/export download")
+            "source file is empty (0 bytes) -- likely a failed iCloud/export download"
+        )
 
     ext = os.path.splitext(source_path)[1].lower()
     if ext in _REENCODE_EXTS:
@@ -45,7 +45,7 @@ def _load_image_bytes(source_path):
             image.save(buffer, format="JPEG", quality=92)
             return buffer.getvalue()
         except Exception as exc:
-            raise RuntimeError("HEIC conversion failed: %s" % exc) from exc
+            raise RuntimeError(f"HEIC conversion failed: {exc}") from exc
 
     with open(source_path, "rb") as source:
         return source.read()
@@ -54,27 +54,33 @@ def _load_image_bytes(source_path):
 def ollama_post_json(base_url, endpoint, payload, timeout=180):
     """POST JSON to Ollama and return its decoded response."""
     request = urllib.request.Request(
-        "%s%s" % (base_url, endpoint),
+        f"{base_url}{endpoint}",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        # Ollama runs on a trusted LAN and the URL scheme is operator-configured;
+        # this is the accepted plain-HTTP finding recorded in DECISIONS.md (#30).
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, ConnectionError, OSError) as exc:
-        raise RuntimeError("Ollama %s failed: %s" % (endpoint, exc)) from exc
+        raise RuntimeError(f"Ollama {endpoint} failed: {exc}") from exc
 
 
 def vision_request(source_path, prompt, config):
     """Send one image to Ollama's vision endpoint."""
     encoded = base64.b64encode(_load_image_bytes(source_path)).decode("ascii")
-    response = ollama_post_json(config["ollama_base"], "/api/generate", {
-        "model": config["vision_model"],
-        "prompt": prompt,
-        "stream": False,
-        "images": [encoded],
-    })
+    response = ollama_post_json(
+        config["ollama_base"],
+        "/api/generate",
+        {
+            "model": config["vision_model"],
+            "prompt": prompt,
+            "stream": False,
+            "images": [encoded],
+        },
+    )
     result = response.get("response", "")
     if not result:
         raise RuntimeError("vision returned no response")

@@ -1,5 +1,7 @@
 # Screenshot Knowledgebase
 
+[![CI](https://github.com/beckandwhite/VisionKB/actions/workflows/ci.yml/badge.svg)](https://github.com/beckandwhite/VisionKB/actions/workflows/ci.yml)
+
 Turn a folder of screenshots (or other pictures later) into a local, searchable, **LLM-written wiki**.
 Raw per-image metadata is extracted with a local vision model, then synthesized
 into clustered topic pages + a timeline.

@@ -7,12 +7,13 @@ selected environment's ``duplicatefinder.jsonl`` without changing the tracker.
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import config_loader
@@ -56,12 +57,13 @@ def similarity_groups(paths):
             digest = hash_file(path)
         except OSError:
             continue
-        by_hash.setdefault(digest, []).append({
-            "source_key": path,
-            "size_bytes": stat_result.st_size,
-        })
-    return {digest: members for digest, members in by_hash.items()
-            if len(members) > 1}
+        by_hash.setdefault(digest, []).append(
+            {
+                "source_key": path,
+                "size_bytes": stat_result.st_size,
+            }
+        )
+    return {digest: members for digest, members in by_hash.items() if len(members) > 1}
 
 
 def write_result(path, groups, source_count):
@@ -69,49 +71,60 @@ def write_result(path, groups, source_count):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     run_id = uuid.uuid4().hex
-    now = datetime.now(tz=timezone.utc).isoformat()
+    now = datetime.now(tz=UTC).isoformat()
     fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as output:
             for digest, members in sorted(groups.items()):
-                output.write(json.dumps({
-                    "run_id": run_id,
-                    "generated_at": now,
-                    "algorithm": "sha256",
-                    "sha256": digest,
-                    "source_count": source_count,
-                    "duplicate_count": len(members),
-                    "sources": members,
-                }, ensure_ascii=False) + "\n")
+                output.write(
+                    json.dumps(
+                        {
+                            "run_id": run_id,
+                            "generated_at": now,
+                            "algorithm": "sha256",
+                            "sha256": digest,
+                            "source_count": source_count,
+                            "duplicate_count": len(members),
+                            "sources": members,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
         os.replace(temporary, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(temporary)
-        except OSError:
-            pass
         raise
     return run_id
 
 
 def main():
     parser = argparse.ArgumentParser(description="Work 5: find similar pictures")
-    parser.add_argument("-env", default=config_loader.DEFAULT_ENV,
-                        help="environment name; omit for the default (.workspace/). "
-                              "An unknown name is auto-created on first run.")
+    parser.add_argument(
+        "-env",
+        default=config_loader.DEFAULT_ENV,
+        help="environment name; omit for the default (.workspace/). "
+        "An unknown name is auto-created on first run.",
+    )
     parser.add_argument("--screenshot-dir", default=None)
-    parser.add_argument("--output", default=None,
-                        help="override the work5 duplicatefinder.jsonl path")
+    parser.add_argument(
+        "--output", default=None, help="override the work5 duplicatefinder.jsonl path"
+    )
     args = parser.parse_args()
 
     _env, config = config_loader.resolve_environment(args.env)
-    source_dir = ([os.path.expanduser(args.screenshot_dir)]
-                  if args.screenshot_dir else config["source_dir"])
+    source_dir = (
+        [os.path.expanduser(args.screenshot_dir)] if args.screenshot_dir else config["source_dir"]
+    )
     output = args.output or str(config["env_dir"] / "duplicatefinder.jsonl")
     paths = list_images(source_dir, set(config["supported_images"]))
     groups = similarity_groups(paths)
     run_id = write_result(output, groups, len(paths))
-    print("Duplicate scan %s: %d picture(s), %d duplicate group(s), %s" %
-          (run_id, len(paths), len(groups), output))
+    print(
+        f"Duplicate scan {run_id}: {len(paths)} picture(s), "
+        f"{len(groups)} duplicate group(s), {output}"
+    )
 
 
 if __name__ == "__main__":

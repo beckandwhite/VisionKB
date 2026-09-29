@@ -1,0 +1,43 @@
+name: CodeQL
+
+# Quoted so this parses under YAML 1.1 (bare `on:` would become boolean true).
+"on":
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: "17 7 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - python
+          - javascript
+    steps:
+      - name: checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: init codeql
+        uses: github/codeql-action/init@85c0c095cb90e3f44221efe532e63883af987457 # v3
+        with:
+          languages: ${{ matrix.language }}
+      - name: autobuild
+        uses: github/codeql-action/autobuild@85c0c095cb90e3f44221efe532e63883af987457 # v3
+      - name: analyze
+        uses: github/codeql-action/analyze@85c0c095cb90e3f44221efe532e63883af987457 # v3
+        with:
+          category: "/language:${{ matrix.language }}"

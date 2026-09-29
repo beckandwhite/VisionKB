@@ -33,6 +33,7 @@ and *human-confirmed* via ``tag_review.py entities`` + ``work7 apply``.
 """
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -55,39 +56,141 @@ TYPES = ("Person", "Place", "Group", "Product", "Scene", "Concept", "Other")
 
 # Diacritic-aware word shape, copied from ner._NAME_TOKENS so folding stays
 # consistent with the NER pass.
-_WORD = re.compile(
-    r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['\u2019\-][A-Za-zÀ-ÖØ-öø-Ÿ]+)*"
-)
+_WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['\u2019\-][A-Za-zÀ-ÖØ-öø-Ÿ]+)*")
 
 # --- heuristics: small knowledge lists. Additive + overridable, never deleted ---
 
 _PLACE_WORDS = {
-    "hungary", "budapest", "frankfurt", "bratislava", "israel", "europe",
-    "potsdam", "north sea", "united kingdom", "united states", "columbus",
-    "benzinkut", "weu",
+    "hungary",
+    "budapest",
+    "frankfurt",
+    "bratislava",
+    "israel",
+    "europe",
+    "potsdam",
+    "north sea",
+    "united kingdom",
+    "united states",
+    "columbus",
+    "benzinkut",
+    "weu",
 }
 _GROUP_SUFFIX = ("squad", "team", "daily", "crew", "pod", "chapter")
 _GROUP_PREFIX = ("team ",)
 _PRODUCT_WORDS = {
-    "sap", "microsoft", "azure", "aws", "git", "github", "gitlab", "google",
-    "apple", "datadog", "kyma", "grafana", "jira", "confluence", "terraform",
-    "argocd", "jenkins", "kafka", "kubernetes", "kube", "kibana", "mssql",
-    "sqlserver", "sql server", "ssms", "powershell", "onenote", "slack",
-    "teams", "microsoft teams", "facetime", "youtube", "facebook", "share",
-    "sharepoint", "chrome", "safari", "firefox", "edge", "vscode",
-    "visual studio code", "btp", "gigya", "hermes", "claude", "opencode",
-    "mactop", "mcp", "llm", "cdc", "cpro", "onedrive", "icloud", "moldeco",
+    "sap",
+    "microsoft",
+    "azure",
+    "aws",
+    "git",
+    "github",
+    "gitlab",
+    "google",
+    "apple",
+    "datadog",
+    "kyma",
+    "grafana",
+    "jira",
+    "confluence",
+    "terraform",
+    "argocd",
+    "jenkins",
+    "kafka",
+    "kubernetes",
+    "kube",
+    "kibana",
+    "mssql",
+    "sqlserver",
+    "sql server",
+    "ssms",
+    "powershell",
+    "onenote",
+    "slack",
+    "teams",
+    "microsoft teams",
+    "facetime",
+    "youtube",
+    "facebook",
+    "share",
+    "sharepoint",
+    "chrome",
+    "safari",
+    "firefox",
+    "edge",
+    "vscode",
+    "visual studio code",
+    "btp",
+    "gigya",
+    "hermes",
+    "claude",
+    "opencode",
+    "mactop",
+    "mcp",
+    "llm",
+    "cdc",
+    "cpro",
+    "onedrive",
+    "icloud",
+    "moldeco",
 }
 _UI_WORDS = {
-    "launchpad", "ide", "server", "chrome", "tab", "window", "panel", "dock",
-    "menu", "bar", "app", "studio", "console", "terminal", "client",
+    "launchpad",
+    "ide",
+    "server",
+    "chrome",
+    "tab",
+    "window",
+    "panel",
+    "dock",
+    "menu",
+    "bar",
+    "app",
+    "studio",
+    "console",
+    "terminal",
+    "client",
 }
 _CONCEPT_WORDS = {
-    "devops", "cdc", "cpro", "btp", "gitops", "ci", "cd", "kpi", "ocr", "dns",
-    "ram", "gpu", "cpu", "soc", "iops", "utc", "mcp", "llm", "kyma", "ion",
+    "devops",
+    "cdc",
+    "cpro",
+    "btp",
+    "gitops",
+    "ci",
+    "cd",
+    "kpi",
+    "ocr",
+    "dns",
+    "ram",
+    "gpu",
+    "cpu",
+    "soc",
+    "iops",
+    "utc",
+    "mcp",
+    "llm",
+    "kyma",
+    "ion",
 }
-_STOP = {"the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "or",
-         "with", "from", "by", "as", "is", "are"}
+_STOP = {
+    "the",
+    "a",
+    "an",
+    "of",
+    "to",
+    "in",
+    "on",
+    "at",
+    "for",
+    "and",
+    "or",
+    "with",
+    "from",
+    "by",
+    "as",
+    "is",
+    "are",
+}
 
 
 # ----------------------------------------------------------------------------
@@ -95,11 +198,11 @@ _STOP = {"the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "or",
 # top, so work7 (stdlib/3.11) cannot import it; the ortho-merge logic is copied.
 # ----------------------------------------------------------------------------
 
+
 def fold(text):
     """NFD-fold case + diacritics: macos/MacOS / Tamas/Tamas collapse."""
     decomposed = unicodedata.normalize("NFD", text)
-    base = "".join(ch for ch in decomposed
-                   if unicodedata.category(ch) != "Mn")
+    base = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
     return base.lower()
 
 
@@ -128,9 +231,7 @@ def pick_display(variants):
     counts = Counter(variants)
 
     def score(v):
-        return (1 if _has_diacritic(v) else 0,
-                0 if v.isupper() else 1,
-                counts[v])
+        return (1 if _has_diacritic(v) else 0, 0 if v.isupper() else 1, counts[v])
 
     return max(variants, key=score)
 
@@ -152,6 +253,7 @@ def slug(canonical):
 # 7-type engine
 # ----------------------------------------------------------------------------
 
+
 def recommend_type(display, count):
     """Heuristic type recommendation -> (type, confidence 0..1).
 
@@ -167,7 +269,7 @@ def recommend_type(display, count):
     scores = defaultdict(float)
     concrete = False
 
-     # Group: Team X / X Squad / X daily / bare "team" shape.
+    # Group: Team X / X Squad / X daily / bare "team" shape.
     for suffix in _GROUP_SUFFIX:
         if joined.endswith(suffix) or joined.endswith(suffix + "s"):
             scores["Group"] += 1.2
@@ -179,34 +281,39 @@ def recommend_type(display, count):
             concrete = True
             break
 
-     # Place: wordlist hit (concrete, dominates the generic person fallback).
-    if joined in _PLACE_WORDS or any(l in _PLACE_WORDS for l in lowered):
+    # Place: wordlist hit (concrete, dominates the generic person fallback).
+    if joined in _PLACE_WORDS or any(word in _PLACE_WORDS for word in lowered):
         scores["Place"] += 1.2
         concrete = True
 
-     # Product: software wordlist hit OR adjacency to a UI word.
-    if any(l in _PRODUCT_WORDS for l in lowered):
+    # Product: software wordlist hit OR adjacency to a UI word.
+    if any(word in _PRODUCT_WORDS for word in lowered):
         scores["Product"] += 1.2
         concrete = True
-    for l in lowered:
-        if l in _UI_WORDS:
+    for word in lowered:
+        if word in _UI_WORDS:
             scores["Product"] += 0.4
             break
 
-     # Concept: abbreviation/topic wordlist hit.
-    if any(l in _CONCEPT_WORDS for l in lowered):
+    # Concept: abbreviation/topic wordlist hit.
+    if any(word in _CONCEPT_WORDS for word in lowered):
         scores["Concept"] += 1.0
         concrete = True
 
-     # Scene: a hyphenated/compound phrase (from work6 candidates).
+    # Scene: a hyphenated/compound phrase (from work6 candidates).
     if "-" in display and n >= 2:
         scores["Scene"] += 1.2
         concrete = True
 
-     # Person: only as a fallback — a capitalised 1-2 token name with no
-     # concrete Place/Product/Group/Concept/Scene evidence.
-    if not concrete and display and any(t[:1].isupper() for t in toks) \
-            and n <= 2 and not any(l in _PRODUCT_WORDS for l in lowered):
+    # Person: only as a fallback — a capitalised 1-2 token name with no
+    # concrete Place/Product/Group/Concept/Scene evidence.
+    if (
+        not concrete
+        and display
+        and any(t[:1].isupper() for t in toks)
+        and n <= 2
+        and not any(word in _PRODUCT_WORDS for word in lowered)
+    ):
         scores["Person"] += 1.0 if n <= 1 else 0.8
 
     total = sum(scores.values())
@@ -220,24 +327,28 @@ def recommend_type(display, count):
 # Ingestion: ortho-merge
 # ----------------------------------------------------------------------------
 
+
 def load_entities(path):
     """Yield {display, variants, count} records; the source `type` is ignored
     (it is unreliable) and re-derived by recommend_type."""
-    for line in open(path, encoding="utf-8"):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        display = rec.get("display")
-        if not display:
-            continue
-        variants = rec.get("variants") or [display]
-        yield {"display": display,
-               "variants": [v for v in variants if v],
-               "count": int(rec.get("count", 0) or 0)}
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            display = rec.get("display")
+            if not display:
+                continue
+            variants = rec.get("variants") or [display]
+            yield {
+                "display": display,
+                "variants": [v for v in variants if v],
+                "count": int(rec.get("count", 0) or 0),
+            }
 
 
 def ortho_merge(entities):
@@ -258,26 +369,27 @@ def ortho_merge(entities):
         b["variants"].add(e["display"])
 
     canon = []
-    for key, b in buckets.items():
+    for b in buckets.values():
         variants = sorted(b["variants"])
         canonical = pick_display(variants)
         typ, conf = recommend_type(canonical, b["count"])
-        canon.append({
-            "id": slug(canonical),
-            "type": typ,
-            "confidence": conf,
-            "canonical": canonical,
-            "aliases": [
-                {"form": v, "kind": "orthographic", "relation": "identity"}
-                for v in variants
-                if v != canonical and fold(v) != fold(canonical)
-            ],
-            "count": b["count"],
-            "status": "active",
-            "proposed_aka": [],
-        })
-    canon.sort(key=lambda x: (-x["count"], x["type"].lower(),
-                              x["canonical"].lower()))
+        canon.append(
+            {
+                "id": slug(canonical),
+                "type": typ,
+                "confidence": conf,
+                "canonical": canonical,
+                "aliases": [
+                    {"form": v, "kind": "orthographic", "relation": "identity"}
+                    for v in variants
+                    if v != canonical and fold(v) != fold(canonical)
+                ],
+                "count": b["count"],
+                "status": "active",
+                "proposed_aka": [],
+            }
+        )
+    canon.sort(key=lambda x: (-x["count"], x["type"].lower(), x["canonical"].lower()))
     return canon
 
 
@@ -285,21 +397,23 @@ def ortho_merge(entities):
 # AKA proposers (auto-propose; human confirms).  All read the free-text answers.
 # ----------------------------------------------------------------------------
 
+
 def load_answers(path):
     """Yield answer strings from a work1_generic.jsonl (or a .answers.jsonl)."""
-    for line in open(path, encoding="utf-8"):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        out = rec.get("output")
-        if isinstance(out, dict) and out.get("answer"):
-            yield out["answer"]
-        elif isinstance(out, str) and out:
-            yield out
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            out = rec.get("output")
+            if isinstance(out, dict) and out.get("answer"):
+                yield out["answer"]
+            elif isinstance(out, str) and out:
+                yield out
 
 
 # "X - Y" (dash) and "X -> Y" (arrow): the clearest "X is also Y / maps to Y"
@@ -312,15 +426,12 @@ _STRUCT_QUOTED_DASH = re.compile(
     r"\s*[\u2013\u2014\-]\s*"
     r"(" + _NAME + _REST + r")"
 )
-_STRUCT_ARROW = re.compile(
-    r"(" + _NAME + _REST + r")\s*\u2192\s*(" + _NAME + _REST + r")"
-)
+_STRUCT_ARROW = re.compile(r"(" + _NAME + _REST + r")\s*\u2192\s*(" + _NAME + _REST + r")")
 
 
 def _clean(form):
     form = form.strip().strip("'\"*`-–—")
-    toks = [t for t in form.split()
-            if fold(t) not in _STOP and (len(t) > 1 or _has_diacritic(t))]
+    toks = [t for t in form.split() if fold(t) not in _STOP and (len(t) > 1 or _has_diacritic(t))]
     return " ".join(toks) if toks else form.strip()
 
 
@@ -335,21 +446,19 @@ def propose_structural(texts, canon):
         for m in _STRUCT_QUOTED_DASH.finditer(text):
             x, y = _clean(m.group(2)), _clean(m.group(4))
             if x and y and fold(x) != fold(y):
-                proposals.append(_mk_aka(x, y, "member",
-                                         "structural:%s" % text[:40]))
+                proposals.append(_mk_aka(x, y, "member", f"structural:{text[:40]}"))
         for m in _STRUCT_ARROW.finditer(text):
             x, y = _clean(m.group(1)), _clean(m.group(2))
             if x and y and fold(x) != fold(y) and " " in y:
                 # require a multi-token target: "Bravo -> Barkuni" (a Jira
-                 # project-code assignment) is dropped, while "X -> Adam Wittek"
-                 # (a real name) survives.
+                # project-code assignment) is dropped, while "X -> Adam Wittek"
+                # (a real name) survives.
                 proposals.append(_mk_aka(x, y, "aka", "structural-arrow"))
     return _dedup_proposals(proposals)
 
 
 def _mk_aka(x, y, relation, evidence):
-    return {"alias": x, "target_alias": y, "relation": relation,
-            "evidence": evidence}
+    return {"alias": x, "target_alias": y, "relation": relation, "evidence": evidence}
 
 
 def _dedup_proposals(proposals):
@@ -358,16 +467,28 @@ def _dedup_proposals(proposals):
         key = (fold(p["alias"]), fold(p["target_alias"]))
         if key[0] == key[1]:
             continue
-        by_key.setdefault(key, {"alias": p["alias"],
-                                "target_alias": p["target_alias"],
-                                "relation": p["relation"],
-                                "evidence": p["evidence"], "count": 0})
+        by_key.setdefault(
+            key,
+            {
+                "alias": p["alias"],
+                "target_alias": p["target_alias"],
+                "relation": p["relation"],
+                "evidence": p["evidence"],
+                "count": 0,
+            },
+        )
         by_key[key]["count"] += 1
     out = []
     for p in by_key.values():
-        out.append({"alias": p["alias"], "target_alias": p["target_alias"],
-                    "relation": p["relation"], "count": p["count"],
-                    "evidence": p["evidence"]})
+        out.append(
+            {
+                "alias": p["alias"],
+                "target_alias": p["target_alias"],
+                "relation": p["relation"],
+                "count": p["count"],
+                "evidence": p["evidence"],
+            }
+        )
     return out
 
 
@@ -382,7 +503,7 @@ def propose_fuzzy(canon, threshold=0.6, max_forms=5000):
     forms = [(fold(e["canonical"]), e) for e in canon]
     forms = sorted(forms, key=lambda f: -len(f[0]))[:max_forms]
     tok_to_ids = defaultdict(list)
-    for i, (fi, e) in enumerate(forms):
+    for i, (fi, _e) in enumerate(forms):
         for tok in set(_tokens(fi)):
             tok_to_ids[_primary_stem(tok)].append(i)
     seen_pairs = set()
@@ -407,11 +528,15 @@ def propose_fuzzy(canon, threshold=0.6, max_forms=5000):
                 if sim >= threshold:
                     target = ej if ej["count"] >= ei["count"] else ei
                     source = ei if target is ej else ej
-                    proposals.append({"alias": source["canonical"],
-                                      "target": target["id"],
-                                      "relation": "aka",
-                                      "count": source["count"],
-                                      "evidence": "fuzzy=%.2f" % sim})
+                    proposals.append(
+                        {
+                            "alias": source["canonical"],
+                            "target": target["id"],
+                            "relation": "aka",
+                            "count": source["count"],
+                            "evidence": f"fuzzy={sim:.2f}",
+                        }
+                    )
     return proposals
 
 
@@ -452,8 +577,7 @@ def _eq(x, y):
     return bool(sx & sy) and min(len(x), len(y)) >= 3
 
 
-def propose_cooccur(texts, canon, min_cooc=3, max_distinct=400,
-                    max_answers=4000):
+def propose_cooccur(texts, canon, min_cooc=3, max_distinct=400, max_answers=4000):
     """Co-occurrence: two canons that recur together get an aka proposal.
 
     Needed-not-sufficient (unrelated surfaces can recur together), so this only
@@ -462,8 +586,7 @@ def propose_cooccur(texts, canon, min_cooc=3, max_distinct=400,
     top = canon[:max_distinct]
     surfaces = []
     for e in top:
-        forms = [fold(e["canonical"])] + [fold(a["form"])
-                                          for a in e.get("aliases", [])]
+        forms = [fold(e["canonical"])] + [fold(a["form"]) for a in e.get("aliases", [])]
         surfaces.append((e["id"], [f for f in forms if len(f) >= 3]))
 
     cooc = Counter()
@@ -488,15 +611,22 @@ def propose_cooccur(texts, canon, min_cooc=3, max_distinct=400,
             continue
         target = eb if eb["count"] >= ea["count"] else ea
         source = ea if target is eb else eb
-        proposals.append({"alias": source["canonical"],
-                          "target": target["id"], "relation": "aka",
-                          "count": c, "evidence": "cooccur=%d answers" % c})
+        proposals.append(
+            {
+                "alias": source["canonical"],
+                "target": target["id"],
+                "relation": "aka",
+                "count": c,
+                "evidence": f"cooccur={c} answers",
+            }
+        )
     return proposals
 
 
 # ----------------------------------------------------------------------------
 # build
 # ----------------------------------------------------------------------------
+
 
 def add_scene_entities(candidates_path, canon, min_count, per_n=200):
     """Promote frequent multiword n-grams from work6 into Scene canonicals.
@@ -506,16 +636,17 @@ def add_scene_entities(candidates_path, canon, min_count, per_n=200):
     if not candidates_path or not os.path.isfile(candidates_path):
         return canon
     by_n = defaultdict(list)
-    for line in open(candidates_path, encoding="utf-8"):
-        line = line.strip()
-        if not line:
-            continue
-        rec = json.loads(line)
-        if rec.get("n", 1) < 2 or rec.get("count", 0) < min_count:
-            continue
-        by_n[rec.get("n", 1)].append((rec["count"], rec["ngram"]))
+    with open(candidates_path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            if rec.get("n", 1) < 2 or rec.get("count", 0) < min_count:
+                continue
+            by_n[rec.get("n", 1)].append((rec["count"], rec["ngram"]))
     scene_tokens = set()
-    for n, items in by_n.items():
+    for _n, items in by_n.items():
         items.sort(key=lambda it: (-it[0], it[1].lower()))
         for _, ngram in items[:per_n]:
             scene_tokens.add(ngram)
@@ -528,17 +659,18 @@ def add_scene_entities(candidates_path, canon, min_count, per_n=200):
         if key in have:
             continue
         typ, conf = recommend_type(ngram, 0)
-        canon.append({
-            "id": slug(ngram),
-            "type": typ,
-            "confidence": conf,
-            "canonical": re.sub(r"\s+", "-", ngram.strip()).lower(),
-            "aliases": [{"form": ngram, "kind": "orthographic",
-                         "relation": "identity"}],
-            "count": 0,
-            "status": "active",
-            "proposed_aka": [],
-        })
+        canon.append(
+            {
+                "id": slug(ngram),
+                "type": typ,
+                "confidence": conf,
+                "canonical": re.sub(r"\s+", "-", ngram.strip()).lower(),
+                "aliases": [{"form": ngram, "kind": "orthographic", "relation": "identity"}],
+                "count": 0,
+                "status": "active",
+                "proposed_aka": [],
+            }
+        )
         have.add(key)
     return canon
 
@@ -578,8 +710,7 @@ def attach_proposals(canon, proposals):
         alias_form = p["alias"]
         if any(fold(a["form"]) == fold(alias_form) for a in target["aliases"]):
             continue
-        if any(fold(x["form"]) == fold(alias_form)
-               for x in target.get("proposed_aka", [])):
+        if any(fold(x["form"]) == fold(alias_form) for x in target.get("proposed_aka", [])):
             continue
         new_prop = {
             "form": alias_form,
@@ -587,7 +718,7 @@ def attach_proposals(canon, proposals):
             "relation": p.get("relation", "aka"),
             "count": p.get("count", 0),
             "evidence": p.get("evidence", ""),
-         }
+        }
         target.setdefault("proposed_aka", []).append(new_prop)
         attached += 1
     return canon, attached
@@ -606,13 +737,13 @@ def _best_target(canon, p):
     qf = [fold(t) for t in qtoks]
     if not qf or all(f in _STOP for f in qf):
         return None
-    best, best_score = None, 0
+    best, _best_score = None, 0
     for e in canon:
         etoks = [fold(t) for t in _tokens(e["canonical"])]
         for qt in qf:
             for et in etoks:
                 if qt == et or _eq(qt, et):
-                    best, best_score = e, 1
+                    best, _best_score = e, 1
                     break
             if best:
                 break
@@ -622,26 +753,27 @@ def _best_target(canon, p):
 def finalize(canon, backup, repo_root):
     """Drop empty canons, sort.  Optionally back up aka knowledge to git root."""
     canon = [e for e in canon if e["count"] > 0 or e.get("aliases")]
-    canon.sort(key=lambda x: (-x["count"], x["type"].lower(),
-                              x["canonical"].lower()))
+    canon.sort(key=lambda x: (-x["count"], x["type"].lower(), x["canonical"].lower()))
     if backup:
         aka = [
-            {"canonical": e["canonical"], "type": e["type"],
-             "aliases": [a for a in e.get("aliases", [])
-                         if a.get("kind") == "aka"]}
+            {
+                "canonical": e["canonical"],
+                "type": e["type"],
+                "aliases": [a for a in e.get("aliases", []) if a.get("kind") == "aka"],
+            }
             for e in canon
             if any(a.get("kind") == "aka" for a in e.get("aliases", []))
         ]
         backup_path = Path(repo_root) / "aliases.curated.json"
         atomic_write_json(backup_path, aka)
-        print("  backed up %d aka-bearing entities to %s"
-              % (len(aka), backup_path), file=sys.stderr)
+        print(f"  backed up {len(aka)} aka-bearing entities to {backup_path}", file=sys.stderr)
     return canon
 
 
 # ----------------------------------------------------------------------------
 # resolve
 # ----------------------------------------------------------------------------
+
 
 def load_registry(path):
     with open(path, encoding="utf-8") as fh:
@@ -665,8 +797,9 @@ def build_alias_index(registry):
             continue
         forms = [e["canonical"]]
         for a in e.get("aliases", []):
-            if a.get("status", "active") != "deprecated" \
-                    and (a.get("kind") != "aka" or a.get("by") == "human"):
+            if a.get("status", "active") != "deprecated" and (
+                a.get("kind") != "aka" or a.get("by") == "human"
+            ):
                 forms.append(a["form"])
         for form in forms:
             f = fold(form)
@@ -717,44 +850,52 @@ def cmd_resolve(args):
 
     out_records = []
     unresolved_counter = Counter()
-    for line in open(args.input, encoding="utf-8"):
-        line = line.strip()
-        if not line:
-            continue
-        rec = json.loads(line)
-        out = rec.get("output")
-        text = (out.get("answer", "") if isinstance(out, dict)
-                else out if isinstance(out, str) else "")
-        cids, unresolved = resolve_image(text, single, multi)
-        out_records.append({
-             "source_key": rec.get("source_key", ""),
-             "filename": rec.get("filename", ""),
-             "tags": [by_id[c] for c in cids if c in by_id],
-             "unresolved": unresolved,
-         })
-        unresolved_counter.update(unresolved)
+    with open(args.input, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            out = rec.get("output")
+            text = (
+                out.get("answer", "")
+                if isinstance(out, dict)
+                else (out if isinstance(out, str) else "")
+            )
+            cids, unresolved = resolve_image(text, single, multi)
+            out_records.append(
+                {
+                    "source_key": rec.get("source_key", ""),
+                    "filename": rec.get("filename", ""),
+                    "tags": [by_id[c] for c in cids if c in by_id],
+                    "unresolved": unresolved,
+                }
+            )
+            unresolved_counter.update(unresolved)
 
     if args.out:
         atomic_write_jsonl(args.out, out_records)
     if args.unresolved_log:
         with open(args.unresolved_log, "w", encoding="utf-8") as fh:
             for form, c in unresolved_counter.most_common():
-                fh.write(json.dumps({"form": form, "count": c},
-                                    ensure_ascii=False) + "\n")
+                fh.write(json.dumps({"form": form, "count": c}, ensure_ascii=False) + "\n")
     total_tags = sum(len(r["tags"]) for r in out_records)
-    top = ", ".join("%s=%d" % (by_id.get(k, k), v)
-                    for k, v in Counter(
-                        t for r in out_records for t in r["tags"])
-                    .most_common(10))
-    print("resolve: %d image(s), index=%d single + %d multi forms, "
-            "%d tag-hits; top tags: %s"
-            % (len(out_records), len(single), len(multi), total_tags, top))
+    top = ", ".join(
+        f"{by_id.get(k, k)}={v}"
+        for k, v in Counter(t for r in out_records for t in r["tags"]).most_common(10)
+    )
+    print(
+        f"resolve: {len(out_records)} image(s), "
+        f"index={len(single)} single + {len(multi)} multi forms, "
+        f"{total_tags} tag-hits; top tags: {top}"
+    )
     return 0
 
 
 # ----------------------------------------------------------------------------
 # apply
 # ----------------------------------------------------------------------------
+
 
 def cmd_apply(args):
     registry = load_registry(args.registry)
@@ -778,18 +919,16 @@ def cmd_apply(args):
             if promote_alias(ent, alias):
                 approved += 1
                 ent["status"] = "active"
-        elif decision == "drop":
-            if demote_alias(ent, alias):
-                denied += 1
+        elif decision == "drop" and demote_alias(ent, alias):
+            denied += 1
     atomic_write_json(args.registry, registry)
-    print("apply: %d approved, %d denied in %s"
-          % (approved, denied, args.registry))
+    print(f"apply: {approved} approved, {denied} denied in {args.registry}")
     return 0
 
 
 def promote_alias(ent, alias_form):
     """Confirm an aka: promote a queued proposal to a confirmed human AKA, or
-    create a new one (the human supplying knowledge no proposer found).""",
+    create a new one (the human supplying knowledge no proposer found)."""
     key = fold(alias_form)
     for x in ent.get("proposed_aka", []):
         if fold(x["form"]) == key:
@@ -802,8 +941,7 @@ def promote_alias(ent, alias_form):
                 "conf_at": x.get("evidence", ""),
             }
             ent.setdefault("aliases", []).append(new_alias)
-            ent["proposed_aka"] = [y for y in ent["proposed_aka"]
-                                   if fold(y["form"]) != key]
+            ent["proposed_aka"] = [y for y in ent["proposed_aka"] if fold(y["form"]) != key]
             return True
     # no proposal: accept a human-supplied new AKA (knowledge over time)
     for a in ent.get("aliases", []):
@@ -812,14 +950,16 @@ def promote_alias(ent, alias_form):
             a["kind"] = "aka"
             a.pop("evidence", None)
             return True
-    ent.setdefault("aliases", []).append({
-        "form": alias_form,
-        "kind": "aka",
-        "relation": "aka",
-        "count": 0,
-        "by": "human",
-        "conf_at": "human",
-    })
+    ent.setdefault("aliases", []).append(
+        {
+            "form": alias_form,
+            "kind": "aka",
+            "relation": "aka",
+            "count": 0,
+            "by": "human",
+            "conf_at": "human",
+        }
+    )
     if ent.get("status") != "active":
         ent["status"] = "active"
     return True
@@ -843,6 +983,7 @@ def demote_alias(ent, alias_form):
 # io helpers
 # ----------------------------------------------------------------------------
 
+
 def atomic_write_jsonl(path, records):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -853,10 +994,8 @@ def atomic_write_jsonl(path, records):
                 out.write(json.dumps(rec, ensure_ascii=False) + "\n")
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
@@ -870,42 +1009,42 @@ def atomic_write_json(path, obj):
             out.write("\n")
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
 # ----------------------------------------------------------------------------
 
+
 def cmd_build(args):
     env, config = config_loader.resolve_environment(args.env)
     env_dir = config["env_dir"]
     entities_path = args.input or str(env_dir / "named_entities.jsonl")
-    candidates_path = (args.candidates
-                       if args.candidates is not None
-                       else str(env_dir / "work6_tag_candidates.jsonl"))
+    candidates_path = (
+        args.candidates
+        if args.candidates is not None
+        else str(env_dir / "work6_tag_candidates.jsonl")
+    )
     registry_path = args.out or str(env_dir / "canonical_tags.json")
     answers_path = args.answers or str(env_dir / "work1_generic.jsonl")
 
     if not os.path.isfile(entities_path):
-        raise SystemExit("named entities input not found: %s" % entities_path)
+        raise SystemExit(f"named entities input not found: {entities_path}")
 
-    print("build: loading %s" % entities_path, flush=True)
+    print(f"build: loading {entities_path}", flush=True)
     entities = list(load_entities(entities_path))
-    print("  %d raw entities" % len(entities), file=sys.stderr)
+    print(f"  {len(entities)} raw entities", file=sys.stderr)
 
     answers = []
     want_answers = args.cooc or args.structural
     if os.path.isfile(answers_path) and want_answers:
         answers = list(load_answers(answers_path))
-        print("  %d answers for proposers" % len(answers), file=sys.stderr)
+        print(f"  {len(answers)} answers for proposers", file=sys.stderr)
 
     canon = ortho_merge(entities)
     n_entities = len(canon)
-    canon = add_scene_entities(candidates_path, canon, args.min_count,
-                               args.per_n)
+    canon = add_scene_entities(candidates_path, canon, args.min_count, args.per_n)
     canonical_before = len(canon)
     n_scene = canonical_before - n_entities
 
@@ -923,75 +1062,101 @@ def cmd_build(args):
     canon = finalize(canon, args.backup, REPO_ROOT)
     atomic_write_json(registry_path, canon)
 
-    n_ortho = sum(len([a for a in e["aliases"]
-                       if a["kind"] == "orthographic"]) for e in canon)
-    n_aka = sum(len([a for a in e["aliases"] if a["kind"] == "aka"])
-                for e in canon)
+    n_ortho = sum(len([a for a in e["aliases"] if a["kind"] == "orthographic"]) for e in canon)
+    n_aka = sum(len([a for a in e["aliases"] if a["kind"] == "aka"]) for e in canon)
     n_proposed = sum(len(e.get("proposed_aka", [])) for e in canon)
     by_type = Counter(e["type"] for e in canon)
     run_id = uuid.uuid4().hex[:8]
-    print("build %s: %d canons (%d from entities + %d scenes), "
-           "%d ortho + %d aka aliases, %d proposals attached -> %s"
-          % (run_id, len(canon), n_entities, n_scene, n_ortho,
-             n_aka, n_proposed, registry_path))
-    print("  by type: " + ", ".join("%s=%d" % (t, by_type[t])
-                                    for t in TYPES if by_type[t]),
-          file=sys.stderr)
+    print(
+        f"build {run_id}: {len(canon)} canons "
+        f"({n_entities} from entities + {n_scene} scenes), "
+        f"{n_ortho} ortho + {n_aka} aka aliases, "
+        f"{n_proposed} proposals attached -> {registry_path}"
+    )
+    print(
+        "  by type: " + ", ".join(f"{t}={by_type[t]}" for t in TYPES if by_type[t]),
+        file=sys.stderr,
+    )
     return 0
 
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Work 7: growing, typed canonical tag registry with AKA.")
+        description="Work 7: growing, typed canonical tag registry with AKA."
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     b = sub.add_parser("build", help="build canonical_tags.json (+ AKA proposals)")
-    b.add_argument("-env", default=config_loader.DEFAULT_ENV,
-                   help="environment (omit for the default .workspace/).")
-    b.add_argument("--input", default=None,
-                   help="named_entities.jsonl "
-                        "(default env_dir/named_entities.jsonl).")
-    b.add_argument("--candidates", default=None,
-                   help="work6_tag_candidates.jsonl for Scene entities "
-                        "(pass '' to skip).")
-    b.add_argument("--answers", default=None,
-                   help="work1_generic.jsonl answer corpus for proposers.")
-    b.add_argument("--out", default=None,
-                   help="output registry (default env_dir/canonical_tags.json).")
-    b.add_argument("--min-count", type=int, default=2,
-                   help="min count for scene entities / cooccur threshold.")
-    b.add_argument("--per-n", type=int, default=200,
-                   help="top-N scene n-grams kept per n width (default 200).")
-    b.add_argument("--fuzzy", action="store_true", default=True,
-                   help="run the fuzzy AKA proposer (default on).")
+    b.add_argument(
+        "-env",
+        default=config_loader.DEFAULT_ENV,
+        help="environment (omit for the default .workspace/).",
+    )
+    b.add_argument(
+        "--input", default=None, help="named_entities.jsonl (default env_dir/named_entities.jsonl)."
+    )
+    b.add_argument(
+        "--candidates",
+        default=None,
+        help="work6_tag_candidates.jsonl for Scene entities (pass '' to skip).",
+    )
+    b.add_argument(
+        "--answers", default=None, help="work1_generic.jsonl answer corpus for proposers."
+    )
+    b.add_argument(
+        "--out", default=None, help="output registry (default env_dir/canonical_tags.json)."
+    )
+    b.add_argument(
+        "--min-count", type=int, default=2, help="min count for scene entities / cooccur threshold."
+    )
+    b.add_argument(
+        "--per-n", type=int, default=200, help="top-N scene n-grams kept per n width (default 200)."
+    )
+    b.add_argument(
+        "--fuzzy",
+        action="store_true",
+        default=True,
+        help="run the fuzzy AKA proposer (default on).",
+    )
     b.add_argument("--no-fuzzy", dest="fuzzy", action="store_false")
-    b.add_argument("--structural", action="store_true", default=True,
-                   help="run the structural (quoted-dash / arrow) proposer.")
+    b.add_argument(
+        "--structural",
+        action="store_true",
+        default=True,
+        help="run the structural (quoted-dash / arrow) proposer.",
+    )
     b.add_argument("--no-structural", dest="structural", action="store_false")
-    b.add_argument("--cooc", action="store_true",
-                   help="run the co-occurrence proposer (slower; opt-in).")
+    b.add_argument(
+        "--cooc", action="store_true", help="run the co-occurrence proposer (slower; opt-in)."
+    )
     b.add_argument("--no-cooc", dest="cooc", action="store_false")
-    b.add_argument("--backup", action="store_true",
-                   help="copy aka knowledge to git-tracked aliases.curated.json.")
+    b.add_argument(
+        "--backup",
+        action="store_true",
+        help="copy aka knowledge to git-tracked aliases.curated.json.",
+    )
     b.set_defaults(func=cmd_build)
 
     r = sub.add_parser("resolve", help="tag each screenshot against the registry")
-    r.add_argument("--registry", default="canonical_tags.json",
-                   help="canonical registry JSON (default canonical_tags.json).")
-    r.add_argument("--input", required=True,
-                   help="work1_generic.jsonl (or similar) to tag.")
-    r.add_argument("--out", default=None,
-                   help="write per-image {source_key, tags, unresolved}.")
-    r.add_argument("--unresolved-log", default=None,
-                   help="write the unmatched-mentions growth feed.")
+    r.add_argument(
+        "--registry",
+        default="canonical_tags.json",
+        help="canonical registry JSON (default canonical_tags.json).",
+    )
+    r.add_argument("--input", required=True, help="work1_generic.jsonl (or similar) to tag.")
+    r.add_argument("--out", default=None, help="write per-image {source_key, tags, unresolved}.")
+    r.add_argument(
+        "--unresolved-log", default=None, help="write the unmatched-mentions growth feed."
+    )
     r.set_defaults(func=cmd_resolve)
 
-    a = sub.add_parser("apply",
-                       help="fold a decisions JSON back into the registry")
-    a.add_argument("--registry", default="canonical_tags.json",
-                   help="registry JSON to update (default canonical_tags.json).")
-    a.add_argument("--decisions", required=True,
-                   help="tag_review entities decisions.json export.")
+    a = sub.add_parser("apply", help="fold a decisions JSON back into the registry")
+    a.add_argument(
+        "--registry",
+        default="canonical_tags.json",
+        help="registry JSON to update (default canonical_tags.json).",
+    )
+    a.add_argument("--decisions", required=True, help="tag_review entities decisions.json export.")
     a.set_defaults(func=cmd_apply)
 
     args = ap.parse_args()
