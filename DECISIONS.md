@@ -335,6 +335,9 @@ autonomous run makes; routine unambiguous steps need no entry. Group under a
 - **2026-09-29** · executor: size:M · `security.yml`: the SARIF upload step carries `if: always()` and the gitleaks checkout uses `fetch-depth: 0`.
   **Why:** `if: always()` still publishes findings to the Security tab even if `bandit` exits non-zero on a future finding; `fetch-depth: 0` gives gitleaks full history for commit traversal (`GITLEAKS_ENABLE_COMMIT_TRAVERSAL`).
 
+- **2026-09-29** · executor: size:M · **Post-push fix:** the first `Security` run failed — bandit 1.7.10's `-f sarif` is not built in (it errored with exit 2, "invalid choice: 'sarif'", so no SARIF was produced and the upload step failed). Switched the install to `bandit[sarif]` (the `sarif` extra) in both `security.yml` and `requirements-dev.txt`. Also collapsed `work4.py`'s `# nosec B404` to the bare id: bandit parses every token after `# nosec` as a test id, so the inline reason ("… /usr/bin/sips") produced "not a test name" warnings — the reason now sits in a leading comment above the import block (kept out of the sorted import lines to satisfy ruff I001).
+  **Why:** The grooming spec assumed native SARIF; the `[sarif]` extra is the minimal, pinned fix and CI (the PR/`push` round-trip the spec requires) is what surfaced it. Verified locally with the exact CI command: exit 0, SARIF written, no parse warnings.
+
 ## #32 — Vision-model eval harness (LLM-as-judge)
 
 - **2026-09-29** · executor: size:M (Claude Opus 4.8) · Imported the candidate prompts as the module-level `work{1,2,3}.DEFAULT_PROMPT` constants and drive the vision call with `work_common.vision_request` directly, rather than calling each work's `run()`.
