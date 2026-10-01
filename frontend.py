@@ -86,6 +86,17 @@ def _work2_lines(result):
     return 0
 
 
+def _work2_ocr_text(result):
+    """Extract OCR lines from a work2 result as a list of strings."""
+    output = (result or {}).get("output") or {}
+    text = output.get("text")
+    if isinstance(text, list):
+        return [str(line) for line in text]
+    if isinstance(text, str):
+        return [ln for ln in text.splitlines() if ln.strip()]
+    return []
+
+
 WORK_METRIC_REGISTRY = {
     "work2": {
         "chart_value": _work2_lines,
@@ -536,6 +547,7 @@ def build_timeline(
     sources, tasks, _ = load_tracker()
     results = load_work_results()
     work1_results = results.get("work1") or {}
+    work2_results = results.get("work2") or {}
     wiki = load_wiki()
     task_by_source = {
         task.get("source_key"): task for task in tasks.values() if task.get("work_name") == "work1"
@@ -554,7 +566,7 @@ def build_timeline(
         status = _display_status(task)
         duration = _task_duration_seconds(task)
         tags = legacy.get("tags") or []
-        ocr = legacy.get("OCR_text") or []
+        ocr = _work2_ocr_text(work2_results.get(source_key, {})) or legacy.get("OCR_text") or []
         mtime_iso = entry.get("modified_at") or legacy.get("mtime_iso") or ""
         ocr_trunc, truncated = _truncate_ocr(ocr)
         rows.append(
@@ -631,9 +643,15 @@ def load_record(filename, source_key=None):
         {},
     )
     legacy = load_annotations().get(source.get("filename"), {})
-    result = _work_result(load_work_results(), "work1", source_key)
+    all_results = load_work_results()
+    result = _work_result(all_results, "work1", source_key)
     output = result.get("output") or {}
     answer = output.get("answer") or legacy.get("caption") or ""
+    ocr = (
+        _work2_ocr_text(_work_result(all_results, "work2", source_key))
+        or legacy.get("OCR_text")
+        or []
+    )
     return {
         "source_key": source_key,
         "filename": source.get("filename") or filename,
@@ -644,7 +662,7 @@ def load_record(filename, source_key=None):
         "caption": answer,
         "tags": legacy.get("tags") or [],
         "entities": legacy.get("entities") or [],
-        "ocr_text": legacy.get("OCR_text") or [],
+        "ocr_text": ocr,
         "ocr_truncated": False,
         "status": _display_status(task),
         "telem_status": task.get("status"),
@@ -656,6 +674,19 @@ def load_record(filename, source_key=None):
 # ---------------------------------------------------------------------------
 # HTTP layer
 # ---------------------------------------------------------------------------
+
+_JS = "application/javascript; charset=utf-8"
+# Whitelist of static assets index.html loads, mapped to their content type.
+# Every <script>/<link> referenced by index.html must appear here or the tab
+# that depends on it renders empty.
+STATIC_ASSETS = {
+    "/style.css": "text/css; charset=utf-8",
+    "/app.js": _JS,
+    "/tagforge.js": _JS,
+    "/telemetry.js": _JS,
+    "/setup.js": _JS,
+    "/feedback.js": _JS,
+}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -750,13 +781,8 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             self._send_file(os.path.join(SCRIPT_DIR, "index.html"), "text/html; charset=utf-8")
             return
-        if path == "/app.js":
-            self._send_file(
-                os.path.join(SCRIPT_DIR, "app.js"), "application/javascript; charset=utf-8"
-            )
-            return
-        if path == "/style.css":
-            self._send_file(os.path.join(SCRIPT_DIR, "style.css"), "text/css; charset=utf-8")
+        if path in STATIC_ASSETS:
+            self._send_file(os.path.join(SCRIPT_DIR, path.lstrip("/")), STATIC_ASSETS[path])
             return
 
         if path == "/api/overview":
