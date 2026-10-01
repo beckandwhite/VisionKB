@@ -1,8 +1,9 @@
 """Work 4: generate a 320px JPEG thumbnail for each picture."""
 
+# subprocess is used only for the fixed local /usr/bin/sips call in run(), below.
 import contextlib
 import os
-import subprocess  # nosec B404 - only invokes the fixed local binary /usr/bin/sips
+import subprocess  # nosec B404
 from pathlib import Path
 
 
