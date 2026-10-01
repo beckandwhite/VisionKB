@@ -647,9 +647,11 @@ def load_record(filename, source_key=None):
     result = _work_result(all_results, "work1", source_key)
     output = result.get("output") or {}
     answer = output.get("answer") or legacy.get("caption") or ""
-    ocr = _work2_ocr_text(_work_result(all_results, "work2", source_key)) or legacy.get(
-        "OCR_text"
-    ) or []
+    ocr = (
+        _work2_ocr_text(_work_result(all_results, "work2", source_key))
+        or legacy.get("OCR_text")
+        or []
+    )
     return {
         "source_key": source_key,
         "filename": source.get("filename") or filename,
