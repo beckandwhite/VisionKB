@@ -18,7 +18,9 @@ Stdlib-only and Python 3.11-safe.
 import hashlib
 import json
 import os
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 
 SCHEMA_VERSION = 3
 
