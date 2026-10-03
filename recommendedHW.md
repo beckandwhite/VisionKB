@@ -15,11 +15,16 @@ Hardware FLOPS and bandwidth are manufacturer specs where available; estimates a
 | GTX 1050 Ti | 2.1 TFLOPS | 112 GB/s | Bandwidth-limited above ~2 B params |
 | Mac mini M4 (10-core GPU) | ~4.0 TFLOPS † | 120 GB/s | Similar bandwidth to 1050 Ti but better compute efficiency + Neural Engine (38 TOPS) |
 | MacBook Pro M5 Pro (15-core GPU, 48 GB) | ~22 TFLOPS † | ~273 GB/s † | Bandwidth-rich; 30 B models fit fully in-memory with room to spare |
+| HP Pavilion x360 14-ek2xxx (Core 5 120U, Intel Graphics) | Not published | Up to 51.2 GB/s † shared RAM | Integrated GPU; Ollama used CPU only in the local test; 16 GB system RAM |
 
 > † M4 GPU FP32 and M5 Pro figures are estimates. Apple does not publish exact FP32
 > TFLOPS for GPU or Neural Engine separately; the real-world inference speed advantage
 > of Apple Silicon comes primarily from the Neural Engine (INT8/FP16) and unified
 > memory bandwidth, not raw FP32.
+>
+> † The HP's bandwidth is a theoretical dual-channel DDR4-3200 system-memory peak
+> (2 × 64-bit channels); it is shared with the integrated GPU, not dedicated VRAM.
+> No FP32 figure is listed for this integrated GPU.
 
 ---
 
@@ -63,6 +68,32 @@ under ~2.5 GB on-GPU.
 > **CUDA support note:** GTX 1050 Ti is Pascal (compute capability 6.1).
 > Ollama supports it, but recent CUDA builds may drop Pascal. If the GPU is
 > not detected, pin Ollama to an older release or run CPU-only.
+
+---
+
+## HP Pavilion x360 14-ek2xxx — Core 5 120U, Intel Graphics, 16 GB RAM
+
+This Windows 11 laptop has a 10-core/12-thread Intel Core 5 120U, Intel integrated
+graphics, and 16 GB DDR4-3200 RAM. It has no dedicated GPU memory. Although the
+Intel GPU is visible through Vulkan, Ollama 0.30.7 ran the test below on 100% CPU;
+the GPU was not used for inference.
+
+| Local Ollama test | Result |
+|---|---|
+| Model | `gemma4:e4b` — 8 B parameters, Q4_K_M, vision-capable, ~9.5 GB |
+| Cold model load | ~72.3 s |
+| Prompt evaluation | 25 tokens in ~1.47 s |
+| Text generation | 14 tokens in ~3.22 s — **~4.34 tok/s** |
+| Runtime context | 2,048 tokens as reported by `ollama ps` |
+
+This was one short text-only spot check; it did **not** measure image encoding or
+vision-response latency. The tok/s result is for generated text only and is not a
+direct comparison with the different models and hardware in the estimates above.
+It indicates that this laptop can run a quantized 8 B model, but its measured rate
+is below the GPU-backed estimates elsewhere in this guide; because those use
+different models, this is only a directional comparison. A ~9.5 GB model also
+leaves limited room in 16 GB of shared system memory. Prefer a smaller quantized
+vision model for regular use unless a supported GPU backend is enabled.
 
 ---
 
