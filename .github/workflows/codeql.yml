@@ -32,7 +32,7 @@ jobs:
         with:
           persist-credentials: false
       - name: init codeql
-        uses: github/codeql-action/init@85c0c095cb90e3f44221efe532e63883af987457 # v3
+        uses: github/codeql-action/init@1767808e1164b88b6d037184ffb3ed13697e8966 # v3
         with:
           languages: ${{ matrix.language }}
       - name: autobuild
