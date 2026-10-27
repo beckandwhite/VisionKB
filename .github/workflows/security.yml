@@ -34,7 +34,7 @@ jobs:
         run: bandit -r . -x ./.venv,./tests,./__pycache__ -f sarif -o bandit.sarif
       - name: upload findings
         if: always()
-        uses: github/codeql-action/upload-sarif@85c0c095cb90e3f44221efe532e63883af987457 # v3
+        uses: github/codeql-action/upload-sarif@3306ba4df796b6b5059316f3af8bdea1e2138c9b # v3
         with:
           sarif_file: bandit.sarif
 
