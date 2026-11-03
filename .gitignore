@@ -24,3 +24,4 @@ tag_review.entity.decisions.json
 eval/dataset/
 eval/report.html
 eval/results.jsonl
+.playwright-mcp/
