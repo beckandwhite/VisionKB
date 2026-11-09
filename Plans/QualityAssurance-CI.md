@@ -63,6 +63,10 @@ run locally *or* on B's runner.
 
 ## Track B — runner topology options (decide later)
 
+Operational setup, maintenance, and decommissioning instructions now live in
+the [homelab runner guide](https://github.com/beckandwhite/homelab/blob/main/github-actions/runners/visionkb-macos.md);
+this section retains the original topology rationale.
+
 All reach the same Ollama; they differ in isolation, security exposure, and
 whether `sips` survives. Ranked by fit for *this* repo.
 

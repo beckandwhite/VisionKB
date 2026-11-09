@@ -1,6 +1,8 @@
 # Self-hosted QA runner smoke check (Issue #34; companion to the manual
 # provisioning in #31). Gated so it NEVER runs fork PRs: it triggers only on
-# a manual dispatch and on push to main (see SECURITY.md "Self-hosted runner policy").
+# it triggers only on manual dispatch (see SECURITY.md "Self-hosted runner
+# policy"). Runner provisioning and operations are documented in homelab:
+# https://github.com/beckandwhite/homelab/blob/main/github-actions/runners/visionkb-macos.md
 #
 # This proves the runner itself works and can reach the local Ollama endpoint
 # on the private LAN: `which sips` (the macOS binary the pipeline needs) and a

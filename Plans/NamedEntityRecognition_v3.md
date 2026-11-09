@@ -3,7 +3,7 @@
 **Date:** 2026-08-30
 **Repository:** screenshot_annotation
 **Follows:** `NamedEntityRecognition.md` (NER v1, `ner.py`),
-`NER_v2.md` (tag miner `work6.py` + `tag_review.py`).
+`NamedEntityRecognition_v2.md` (tag miner `work6.py` + `tag_review.py`).
 
 ## Goal
 

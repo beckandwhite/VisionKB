@@ -21,9 +21,9 @@ personal-scale project, there is no formal SLA.
 The QA / model-eval jobs run on a **self-hosted macOS runner** on a private LAN.
 Because the repo is public, untrusted code must never execute on that runner:
 
-- Self-hosted jobs trigger **only** on `workflow_dispatch` and `push` to trusted
-  branches (`main`). They never run on fork `pull_request`, and never use
-  `pull_request_target`.
+- Self-hosted jobs currently trigger **only** on `workflow_dispatch`. They never
+  run on fork `pull_request`, and never use `pull_request_target`. Any future
+  push trigger must be limited to trusted branches (`main`).
 - **"Require approval for all external contributors"** is enabled for Actions
   (Settings → Actions → Fork pull request workflows).
 - PR-time lint / SAST / secret-scanning run on **GitHub-hosted** runners only.

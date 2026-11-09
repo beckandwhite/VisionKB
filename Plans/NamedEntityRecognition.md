@@ -26,7 +26,7 @@ descriptions), so downstream tagging can reference proper nouns.
    Model load is guarded: if a model is missing, the run continues with the
    regex layer only and warns.
 4. **Fold-dedup.** Keys fold case **and** diacritics, so `Zrak, Janos`,
-    `Zrak, János`, `János Zrak`, `ADAM WITTEK` collapse to one entry; the
+    `Zrak, János`, `János Zrak` collapse to one entry; the
     most-frequent spelling is the canonical display, and all raw spellings are
     kept in `variants`. Two-token names also key on the **sorted** token pair,
     so `Tamás Beck` / `Beck Tamás` merge.
