@@ -87,6 +87,31 @@ def vision_request(source_path, prompt, config):
     return result.strip()
 
 
+def vision_request_with_stats(source_path, prompt, config):
+    """Like vision_request but also returns throughput stats dict."""
+    encoded = base64.b64encode(_load_image_bytes(source_path)).decode("ascii")
+    response = ollama_post_json(
+        config["ollama_base"],
+        "/api/generate",
+        {
+            "model": config["vision_model"],
+            "prompt": prompt,
+            "stream": False,
+            "images": [encoded],
+        },
+    )
+    result = response.get("response", "")
+    if not result:
+        raise RuntimeError("vision returned no response")
+    eval_count = response.get("eval_count") or 0
+    eval_duration_ns = response.get("eval_duration") or 0
+    tok_per_s = (
+        round(eval_count / max(eval_duration_ns / 1e9, 0.001), 1)
+        if eval_count else None
+    )
+    return result.strip(), {"tok_per_s": tok_per_s, "output_tokens": eval_count}
+
+
 def parse_json_response(text):
     """Parse a JSON object even when a model adds a markdown fence."""
     cleaned = text.strip()

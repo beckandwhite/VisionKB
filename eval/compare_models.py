@@ -76,6 +76,21 @@ def discover_images(dataset_dir):
     ]
 
 
+def load_manifest(manifest_path):
+    """Read absolute image paths from a text file (one per line; # lines ignored)."""
+    if not os.path.isfile(manifest_path):
+        return []
+    paths = []
+    with open(manifest_path, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if os.path.splitext(line)[1].lower() in _IMAGE_EXTS:
+                paths.append(line)
+    return paths
+
+
 def load_expected_notes(dataset_dir):
     """Optional operator ground-truth notes: dataset/expected_notes.json.
 
@@ -113,15 +128,18 @@ def run_cell(image_path, work_name, model, cfg, dry_run):
     try:
         if dry_run:
             output = _dry_output(work_name, model, image_name)
+            tok_per_s, output_tokens = None, None
         else:
             model_cfg = {"ollama_base": cfg["ollama_base"], "vision_model": model}
-            output = work_common.vision_request(image_path, prompt, model_cfg)
+            output, stats = work_common.vision_request_with_stats(image_path, prompt, model_cfg)
+            tok_per_s, output_tokens = stats["tok_per_s"], stats["output_tokens"]
         latency = time.perf_counter() - start
         error = None
     except Exception as exc:  # noqa: BLE001 -- resilience: never abort the run
         output = None
         latency = time.perf_counter() - start
         error = str(exc)
+        tok_per_s, output_tokens = None, None
     return {
         "image": image_name,
         "image_path": image_path,
@@ -130,6 +148,8 @@ def run_cell(image_path, work_name, model, cfg, dry_run):
         "prompt": prompt,
         "output": output,
         "latency_s": round(latency, 4),
+        "tok_per_s": tok_per_s,
+        "output_tokens": output_tokens,
         "error": error,
     }
 
@@ -194,11 +214,17 @@ def aggregate(cells, models, works):
     latency = {}
     for model in models:
         lats = [c["latency_s"] for c in cells if c["model"] == model and c["error"] is None]
+        toks = [c["tok_per_s"] for c in cells if c["model"] == model and c.get("tok_per_s") is not None]
+        all_for_model = [c for c in cells if c["model"] == model]
+        err_for_model = [c for c in all_for_model if c["error"] is not None]
         latency[model] = {
             "p50": _percentile(lats, 50),
             "p90": _percentile(lats, 90),
             "p95": _percentile(lats, 95),
             "n": len(lats),
+            "tok_per_s_median": _percentile(toks, 50),
+            "error_count": len(err_for_model),
+            "error_rate": round(len(err_for_model) / len(all_for_model), 3) if all_for_model else None,
         }
 
     ranking = []
@@ -206,6 +232,19 @@ def aggregate(cells, models, works):
         scores = [c["score"] for c in cells if c["model"] == model and c["score"] is not None]
         ranking.append({"model": model, "mean": _mean(scores), "scored": len(scores)})
     ranking.sort(key=lambda row: (row["mean"] is not None, row["mean"] or 0), reverse=True)
+
+    # Normalize to 0–10 for display: quality, speed (relative to fastest), efficiency
+    p50s = [latency[m]["p50"] for m in models if latency[m]["p50"] is not None]
+    min_p50 = min(p50s) if p50s else None
+    for row in ranking:
+        mean = row["mean"]
+        p50 = latency[row["model"]]["p50"]
+        q10 = round((mean - 1) / 4 * 10, 1) if mean is not None else None
+        s10 = round(min_p50 / p50 * 10, 1) if (min_p50 and p50) else None
+        e10 = round((q10 + s10) / 2, 1) if (q10 is not None and s10 is not None) else None
+        row["quality_0_10"] = q10
+        row["speed_0_10"] = s10
+        row["efficiency_0_10"] = e10
 
     return {
         "per_model_work": per_model_work,
@@ -283,13 +322,16 @@ def build_report(cells, agg, models, works, meta):
     ]
 
     # Ranking
-    parts.append("<h2>Ranking (overall mean judge score)</h2>")
-    parts.append("<table><thead><tr><th>#</th><th>model</th><th>mean</th>")
+    parts.append("<h2>Ranking</h2>")
+    parts.append("<table><thead><tr><th>#</th><th>model</th>")
+    parts.append("<th>quality (0–10)</th><th>speed (0–10)</th><th>efficiency (0–10)</th>")
     parts.append("<th>cells scored</th></tr></thead><tbody>")
     for idx, row in enumerate(agg["ranking"], 1):
         parts.append(
             f"<tr><td>{idx}</td><td>{_e(row['model'])}</td>"
-            f"<td class='num'>{_fmt(row['mean'])}</td>"
+            f"<td class='num'>{_fmt(row.get('quality_0_10'))}</td>"
+            f"<td class='num'>{_fmt(row.get('speed_0_10'))}</td>"
+            f"<td class='num'>{_fmt(row.get('efficiency_0_10'))}</td>"
             f"<td class='num'>{row['scored']}</td></tr>"
         )
     parts.append("</tbody></table>")
@@ -300,9 +342,14 @@ def build_report(cells, agg, models, works, meta):
     parts.extend(f"<th>{_e(w)}</th>" for w in works)
     parts.append("</tr></thead><tbody>")
     for model in models:
-        cells_html = "".join(
-            f"<td class='num'>{_fmt(agg['per_model_work'][model][w])}</td>" for w in works
-        )
+        cells_html = ""
+        for w in works:
+            raw = agg['per_model_work'][model][w]
+            norm = round((raw - 1) / 4 * 10, 1) if raw is not None else None
+            cells_html += (
+                f"<td class='num'>{_fmt(raw)}"
+                f"<br><span style='color:#57606a;font-size:11px'>{_fmt(norm)}/10</span></td>"
+            )
         parts.append(f"<tr><td>{_e(model)}</td>{cells_html}</tr>")
     parts.append("</tbody></table>")
 
@@ -323,14 +370,19 @@ def build_report(cells, agg, models, works, meta):
     # Latency percentiles
     parts.append("<h2>Latency percentiles (s, successful cells)</h2>")
     parts.append("<table><thead><tr><th>model</th><th>p50</th><th>p90</th>")
-    parts.append("<th>p95</th><th>n</th></tr></thead><tbody>")
+    parts.append("<th>p95</th><th>tok/s (med)</th><th>n</th><th>errors</th><th>err %</th></tr></thead><tbody>")
     for model in models:
         lat = agg["latency"][model]
+        err_rate = lat.get("error_rate")
+        err_pct = f"{err_rate * 100:.1f}" if err_rate is not None else "—"
         parts.append(
             f"<tr><td>{_e(model)}</td><td class='num'>{_fmt(lat['p50'])}</td>"
             f"<td class='num'>{_fmt(lat['p90'])}</td>"
             f"<td class='num'>{_fmt(lat['p95'])}</td>"
-            f"<td class='num'>{lat['n']}</td></tr>"
+            f"<td class='num'>{_fmt(lat.get('tok_per_s_median'))}</td>"
+            f"<td class='num'>{lat['n']}</td>"
+            f"<td class='num'>{lat.get('error_count', 0)}</td>"
+            f"<td class='num'>{err_pct}%</td></tr>"
         )
     parts.append("</tbody></table>")
 
@@ -405,7 +457,11 @@ def main(argv=None):
     report_path = _resolve(cfg["report_path"])
 
     sample = args.sample if args.sample is not None else cfg.get("sample")
-    images = discover_images(dataset_dir)
+    manifest_path = cfg.get("image_manifest")
+    if manifest_path:
+        images = load_manifest(_resolve(manifest_path))
+    else:
+        images = discover_images(dataset_dir)
     if args.dry_run and not images:
         count = sample if sample else 2
         images = [os.path.join(dataset_dir, f"dry-image-{i}.png") for i in range(1, count + 1)]

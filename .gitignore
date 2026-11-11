@@ -25,3 +25,4 @@ eval/dataset/
 eval/report.html
 eval/results.jsonl
 .playwright-mcp/
+.vscode/settings.json
