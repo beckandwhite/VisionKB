@@ -214,7 +214,10 @@ def aggregate(cells, models, works):
     latency = {}
     for model in models:
         lats = [c["latency_s"] for c in cells if c["model"] == model and c["error"] is None]
-        toks = [c["tok_per_s"] for c in cells if c["model"] == model and c.get("tok_per_s") is not None]
+        toks = [
+            c["tok_per_s"] for c in cells
+            if c["model"] == model and c.get("tok_per_s") is not None
+        ]
         all_for_model = [c for c in cells if c["model"] == model]
         err_for_model = [c for c in all_for_model if c["error"] is not None]
         latency[model] = {
@@ -224,7 +227,10 @@ def aggregate(cells, models, works):
             "n": len(lats),
             "tok_per_s_median": _percentile(toks, 50),
             "error_count": len(err_for_model),
-            "error_rate": round(len(err_for_model) / len(all_for_model), 3) if all_for_model else None,
+            "error_rate": (
+                round(len(err_for_model) / len(all_for_model), 3)
+                if all_for_model else None
+            ),
         }
 
     ranking = []
@@ -370,7 +376,10 @@ def build_report(cells, agg, models, works, meta):
     # Latency percentiles
     parts.append("<h2>Latency percentiles (s, successful cells)</h2>")
     parts.append("<table><thead><tr><th>model</th><th>p50</th><th>p90</th>")
-    parts.append("<th>p95</th><th>tok/s (med)</th><th>n</th><th>errors</th><th>err %</th></tr></thead><tbody>")
+    parts.append(
+        "<th>p95</th><th>tok/s (med)</th><th>n</th>"
+        "<th>errors</th><th>err %</th></tr></thead><tbody>"
+    )
     for model in models:
         lat = agg["latency"][model]
         err_rate = lat.get("error_rate")

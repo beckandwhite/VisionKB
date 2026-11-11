@@ -32,6 +32,7 @@ Usage:
 """
 
 import argparse
+import contextlib
 import json
 import math
 import mimetypes
@@ -39,18 +40,17 @@ import os
 import sys
 import webbrowser
 from datetime import datetime, timedelta, timezone
-
-UTC = timezone.utc
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+UTC = timezone.utc
+
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-import contextlib
 
-import config_loader
-import tracker
+import config_loader  # noqa: E402
+import tracker  # noqa: E402
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = SCRIPT_DIR
