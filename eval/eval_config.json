@@ -1,7 +1,7 @@
 {
   "_comment": "Eval harness config. See eval/README.md.",
 
-  "ollama_base": "http://D72nq7w67l.local:11434",
+  "ollama_base": "http://localhost:11434",
 
   "candidate_models": [
     "muse-glimmer:30b-mlx",
