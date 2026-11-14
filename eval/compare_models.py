@@ -14,7 +14,11 @@ percentiles and an overall ranking, and writes ``results.jsonl`` (one JSON
 object per cell) plus an HTML ``report.html`` styled after ``tag_review.html``.
 
 Stdlib-only. Reuses ``work_common`` and the ``work*`` modules (imported, not
-copied). Use ``--sample N`` / ``--dry-run`` for a fast, network-free smoke.
+copied). Re-runs RESUME by default: ``--sample N`` processes the next N
+not-yet-recorded images and appends to ``results.jsonl`` (so progress
+accumulates instead of re-doing the first N). ``--fresh`` starts over,
+``--offset N`` starts at a fixed position, and ``--dry-run`` gives a fast,
+network-free smoke.
 """
 
 import argparse
@@ -64,6 +68,16 @@ def load_config(config_path):
 def _resolve(path):
     """Resolve a config path relative to the repo root unless already absolute."""
     return path if os.path.isabs(path) else os.path.join(_REPO_ROOT, path)
+
+
+def _with_suffix(path, suffix):
+    """Insert ``suffix`` before the final extension.
+
+    e.g. ``results.jsonl`` -> ``results.dryrun.jsonl`` so a --dry-run smoke test
+    never clobbers a real ledger/report.
+    """
+    root, ext = os.path.splitext(path)
+    return root + suffix + ext
 
 
 def discover_images(dataset_dir):
@@ -268,6 +282,31 @@ def write_results(cells, results_path):
             handle.write(json.dumps(cell, ensure_ascii=False) + "\n")
 
 
+def load_prior_results(results_path):
+    """Read previously recorded cells from ``results.jsonl`` (resume ledger).
+
+    Returns the cell dicts in file order. Blank lines and any corrupt/JSON
+    error line are skipped, so a file that was cut off mid-write never aborts a
+    resume. A missing file yields ``[]``.
+    """
+    if not os.path.isfile(results_path):
+        return []
+    cells = []
+    try:
+        with open(results_path, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    cells.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return cells
+
+
 def _fmt(value):
     return "—" if value is None else f"{value:.2f}"
 
@@ -443,7 +482,23 @@ def parse_args(argv=None):
         "--sample",
         type=int,
         default=None,
-        help="run only the first N images (overrides config 'sample')",
+        help="how many images to process THIS run (default: config 'sample' or all). "
+        "In resume mode (the default) these are the next N not-yet-recorded images "
+        "and are appended to results.jsonl; with --fresh they are the first N.",
+    )
+    parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="skip this many images from the start of the image list before "
+        "selecting (start at a fixed position; pairs with --fresh --sample).",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="ignore any existing results.jsonl and start over (the old overwrite "
+        "behavior). Default is to RESUME: skip already-recorded images and append "
+        "the new ones, so progress accumulates across runs.",
     )
     parser.add_argument(
         "--dry-run",
@@ -462,8 +517,14 @@ def main(argv=None):
     dataset_dir = _resolve(cfg["dataset_dir"])
     results_path = _resolve(cfg["results_path"])
     report_path = _resolve(cfg["report_path"])
+    # A dry-run is a smoke test; redirect its outputs to a parallel .dryrun.* path
+    # so it never clobbers a real ledger or report.
+    if args.dry_run:
+        results_path = _with_suffix(results_path, ".dryrun")
+        report_path = _with_suffix(report_path, ".dryrun")
 
     sample = args.sample if args.sample is not None else cfg.get("sample")
+    offset = args.offset or 0
     manifest_path = cfg.get("image_manifest")
     if manifest_path:
         images = load_manifest(_resolve(manifest_path))
@@ -472,10 +533,21 @@ def main(argv=None):
     if args.dry_run and not images:
         count = sample if sample else 2
         images = [os.path.join(dataset_dir, f"dry-image-{i}.png") for i in range(1, count + 1)]
-    if sample:
-        images = images[:sample]
 
     expected_notes = load_expected_notes(dataset_dir)
+
+    # Resume (the default): treat results.jsonl as the ledger of what's already
+    # done and skip those images, so a re-run processes NEW images and appends
+    # instead of re-doing the first N. --fresh / --dry-run start from scratch.
+    prior_cells = [] if (args.fresh or args.dry_run) else load_prior_results(results_path)
+    done = {c.get("image") for c in prior_cells if c.get("image") is not None}
+
+    window = images[offset:] if offset else images
+    if args.fresh or args.dry_run:
+        batch = window[:sample] if sample else list(window)
+    else:
+        undone = [p for p in window if os.path.basename(p) not in done]
+        batch = undone[:sample] if sample else list(undone)
 
     if not models:
         print("No candidate_models configured; nothing to do.", file=sys.stderr)
@@ -494,27 +566,60 @@ def main(argv=None):
     except Exception as exc:  # noqa: BLE001 -- record, still emit model outputs
         judge_build_error = f"judge unavailable: {exc}"
 
-    cells = []
-    for image_path in images:
+    if not batch:
+        if prior_cells:
+            print(
+                f"All {len(images)} images already recorded in {results_path}; "
+                "nothing new to do (use --fresh to re-run, or widen --sample)."
+            )
+            agg = aggregate(prior_cells, models, works)
+            summary = f"{len(prior_cells)} cells across {len(done)} images already recorded"
+            with open(report_path, "w", encoding="utf-8") as handle:
+                handle.write(build_report(prior_cells, agg, models, works, {"summary": summary}))
+            print(summary)
+            print(f"Refreshed {report_path}")
+            return 0
+        print("No images to process this run.", file=sys.stderr)
+        return 1
+
+    new_cells = []
+    total_batches = len(batch)
+    for n, image_path in enumerate(batch, 1):
         note = expected_notes.get(os.path.basename(image_path))
         for work in works:
             for model in models:
                 cell = run_cell(image_path, work, model, cfg, args.dry_run)
-                cells.append(judge_cell(cell, judge, judge_build_error, note))
+                new_cells.append(judge_cell(cell, judge, judge_build_error, note))
+        print(
+            f"  [{n}/{total_batches}] {os.path.basename(image_path)}",
+            file=sys.stderr,
+            flush=True,
+        )
 
-    agg = aggregate(cells, models, works)
+    # Append this run's cells to the prior ledger; aggregate + report over the
+    # whole accumulated set so the report reflects everything, not just the batch.
+    all_cells = prior_cells + new_cells
+    agg = aggregate(all_cells, models, works)
+
     summary = (
-        f"{len(images)} images · {len(works)} works · {len(models)} models · "
-        f"{len(cells)} cells{' · DRY RUN' if args.dry_run else ''}"
+        f"{len(batch)} new images · {len(works)} works · {len(models)} models · "
+        f"{len(new_cells)} new cells"
     )
+    if args.fresh or args.dry_run:
+        summary += f" · {len(all_cells)} cells total"
+    else:
+        distinct = len({c["image"] for c in all_cells})
+        summary += f" · {len(all_cells)} total cells across {distinct} images"
+    if args.dry_run:
+        summary += " · DRY RUN"
     meta = {"summary": summary}
 
-    write_results(cells, results_path)
+    write_results(all_cells, results_path)
     with open(report_path, "w", encoding="utf-8") as handle:
-        handle.write(build_report(cells, agg, models, works, meta))
+        handle.write(build_report(all_cells, agg, models, works, meta))
 
     print(summary)
-    print(f"Wrote {results_path}")
+    print(f"Wrote {results_path} ({len(all_cells)} cells total)")
     print(f"Wrote {report_path}")
     return 0
 
