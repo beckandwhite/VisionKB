@@ -35,7 +35,8 @@ machine-readable JSONL. Built in [#32](https://github.com/beckandwhite/VisionKB/
 python3 eval/compare_models.py --dry-run
 ```
 
-Expected: `300 images · 3 works · 2 models · 1800 cells · DRY RUN`
+Expected: `300 new images · 3 works · 2 models · 1800 new cells · 1800 cells total · DRY RUN`
+(writes to `results.dryrun.jsonl` / `report.dryrun.html`, not the real outputs)
 
 ### 3. Run a small sample first
 
@@ -43,17 +44,32 @@ Expected: `300 images · 3 works · 2 models · 1800 cells · DRY RUN`
 python3 eval/compare_models.py --sample 5
 ```
 
-Runs 5 images × 3 works × 2 models = 30 cells. Takes a few minutes.
-Check `eval/report.html` before committing to the full set.
+Runs the **next 5** not-yet-recorded images × 3 works × 2 models = 15 new cells
+(appended to `results.jsonl`), then refreshes `eval/report.html` over **all**
+cells recorded so far. Takes a few minutes. Check `eval/report.html` before
+committing to the full set.
 
-### 4. Full run
+Re-running `--sample 5` processes the *next* 5 (it does not redo the first 5) —
+the harness resumes from `results.jsonl` by default.
+
+### 4. Run the rest
 
 ```bash
 python3 eval/compare_models.py
 ```
 
-300 images × 3 works × 2 models = 1800 cells. Wall-clock time depends on
-model speed — expect 30–90 min for the 30B model, less for 12B.
+Resumes: processes every remaining not-yet-recorded image to completion
+(starting from a blank run that's 300 × 3 × 2 = 1800 cells). Wall-clock time
+depends on model speed — expect 30–90 min for the 30B model, less for 12B.
+
+### Flags
+
+| Flag | Meaning |
+|---|---|
+| `--sample N` | Process the next N not-yet-recorded images (resume), or the first N with `--fresh`. |
+| `--offset N` | Skip the first N images of the list before selecting (pair with `--fresh --sample`). |
+| `--fresh` | Ignore `results.jsonl` and start over (the old overwrite behavior). |
+| `--dry-run` | Smoke test, no network. Writes to `results.dryrun.jsonl` / `report.dryrun.html` so it never clobbers real data. |
 
 ## Dataset
 
