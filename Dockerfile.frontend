@@ -1,0 +1,17 @@
+# Frontend WebUI container (issue #14). Stdlib-only Python — no pip install.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# The server module plus the stdlib deps it imports (config_loader resolves the
+# active environment; tracker reconstructs telemetry) and the config template.
+COPY frontend.py config_loader.py tracker.py ./
+COPY config.template.json ./
+# Every static asset index.html loads; a missing one renders that tab empty.
+COPY index.html app.js style.css tagforge.js telemetry.js feedback.js setup.js ./
+
+EXPOSE 8000
+
+# --host 0.0.0.0 so the port mapping in docker-compose is reachable from the host
+# (the module's default 127.0.0.1 would not be).
+CMD ["python", "frontend.py", "--host", "0.0.0.0", "--port", "8000"]

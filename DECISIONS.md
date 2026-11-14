@@ -24,6 +24,14 @@ date the doc entered git. `→` names the source doc.
 
 ## Platform & runtime
 
+- **2026-11-11 · Containerised via Docker Compose (issue #14).** Two containers
+  (`backend` pipeline, `frontend` WebUI) share only a `./workspace` bind-mount;
+  Ollama stays external, reached via `OLLAMA_BASE_URL`, which overrides the
+  per-environment `config.json`. `sips` is replaced by Pillow in `work4` so the
+  pipeline builds and runs on Linux too. `en_core_web_sm` is baked into the backend
+  image at build time (NER is experimental; upgrade to `en_core_web_lg` when NER
+  matures). Source images bind-mounted read-only at `/data/images`; workspace at
+  `./workspace`.
 - **2026-09-28 · Python 3.11, stdlib-only for pipeline/stage/scripts.** Target moved
   from 3.9 → 3.11 (board #35); the "no `match` / no PEP 604 `X | Y` / no runtime
   `list[...]`/`dict[...]` generics" 3.9-era constraints are dropped. Runtime remains

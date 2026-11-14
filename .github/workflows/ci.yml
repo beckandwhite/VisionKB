@@ -34,3 +34,29 @@ jobs:
         run: ruff format --check .
       - name: smoke test
         run: python -m unittest discover -s tests
+
+  # End-to-end pipeline test on the self-hosted macOS+Ollama runner (issue #14).
+  # It builds the backend image (proving the Dockerfile) and runs one image
+  # through the real pipeline. `needs: lint` so a broken build never reaches it.
+  integration:
+    runs-on: [self-hosted, self-hosted-macos-ollama]
+    needs: lint
+    env:
+      # The test reaches Ollama via this; the config loader's OLLAMA_BASE_URL
+      # override (issue #14) feeds it to the pipeline.
+      OLLAMA_BASE_URL: http://localhost:11434
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: "create a clean venv for the in-process test"
+        run: python3 -m venv /tmp/visionkb-itest
+      - name: "install deps needed by the pipeline test"
+        # work4 thumbnails need pillow/pillow-heif; pytest drives the test. spacy
+        # is intentionally omitted -- the per-source works under test don't use it.
+        run: /tmp/visionkb-itest/bin/pip install pytest pillow pillow-heif
+      - name: "build the backend image"
+        run: docker compose build backend
+      - name: "run pipeline integration test"
+        run: /tmp/visionkb-itest/bin/python -m pytest tests/test_integration.py -v

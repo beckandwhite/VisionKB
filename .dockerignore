@@ -1,0 +1,11 @@
+# Keep the build context small and never leak runtime data or secrets (issue #14).
+.git
+.github
+.workspace
+.venv
+__pycache__
+*.pyc
+.DS_Store
+tests/
+eval/dataset/
+*.jsonl

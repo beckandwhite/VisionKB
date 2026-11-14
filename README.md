@@ -26,6 +26,52 @@ python3 frontend.py --port 8000 --open  # http://127.0.0.1:8000
 
 ---
 
+## Running with Docker
+
+The whole app runs as two containers -- `backend` (the pipeline) and `frontend`
+(the WebUI) -- sharing only a `./workspace` bind-mount. Ollama stays external.
+
+**Prerequisites**
+
+- [Docker](https://www.docker.com) with the Compose plugin.
+- [Ollama](https://ollama.com) plus the two models below, running on the host or
+  on the LAN. The containers reach it over HTTP via `OLLAMA_BASE_URL`.
+
+```bash
+ollama pull muse-glimmer:30b-mlx     # vision model
+ollama pull nomic-embed-text         # embedding model
+```
+
+**Run it** -- no host `pip` install is needed:
+
+```bash
+# Optional overrides (sensible defaults are built in):
+#   SOURCE_IMAGES_DIR -> ./images         (bind-mounted read-only into the backend)
+#   OLLAMA_BASE_URL   -> http://host.docker.internal:11434
+export SOURCE_IMAGES_DIR=/absolute/path/to/your/screenshots
+# export OLLAMA_BASE_URL=http://192.168.0.10:11434   # only if Ollama is on another host
+
+docker compose up
+# Open the WebUI at http://localhost:8000
+```
+
+On first start the `backend` materialises `./workspace/config.json` from
+`config.template.json` (so there is nothing to `cp` by hand); edit that file for
+per-environment settings, or point `SOURCE_IMAGES_DIR` at your images. Thumbnails
+and JSONL results appear live under `./workspace/` on the host (the shared mount).
+
+**Stop it**
+
+```bash
+docker compose down
+```
+
+> The `backend` image bakes the small `en_core_web_sm` spaCy model at build time
+> and replaces the macOS-only `sips` call with Pillow, so the pipeline now builds
+> and runs on Linux as well as macOS.
+
+---
+
 ## What it does, How it is working
 
 
@@ -68,7 +114,7 @@ On macOS, no `pip` install required — the scripts are **stdlib-only**.
 | Requirement | Where | Needed for |
 |---|---|---|
 | **Python 3.11+** (3.11 verified) | `/usr/bin/python3` | everything |
-| **sips** | `/usr/bin/sips` (preinstalled) | HEIC→JPEG, thumbnails — the only binary the code calls |
+| **sips** | `/usr/bin/sips` | **no longer a prerequisite** — `work4` does HEIC→JPEG + thumbnails with Pillow now (issue #14); the binary is not called |
 | **Ollama** + models below | homebrew | vision + embeddings |
 ### Ollama models (must be pulled)
 
@@ -85,7 +131,8 @@ curl -s localhost:11434/api/tags | jq   # list models; expect the two above
 ```
 
 > **Windows (read-only frontend only):** see [`windows-dev-setup.md`](windows-dev-setup.md).
-> The backend pipeline is macOS-only (`fcntl`/`os.uname`/`sips`); do not run it on Windows.
+> The backend pipeline is not Windows-compatible (`fcntl`/`os.uname`); it no longer
+> calls the macOS-only `sips` (Pillow replaced it, issue #14) and runs in Docker on Linux.
 ---
 
 ## Layout
@@ -169,7 +216,7 @@ python3 backend.py                    # configured limit; --count 0 = all remain
 - Checkpointed atomically (`tmp` + `os.replace`) after task progress and at end of run.
  - `--screenshot-dir` overrides the active environment's configured source folder;
    generated outputs stay inside `.workspace/<env>/`, not in the scanned folder.
- - HEIC files are auto-converted via `sips`; oversized images are downscaled.
+ - HEIC files are auto-converted via Pillow; oversized images are downscaled.
 - Worker lifecycle fields are limited to `input_modified_at`,
   `status`, `worker_started_at`, `worker_id`, and `worker_finished_at`.
 
@@ -433,8 +480,8 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
    dedup + cheaper-model strategy in see [implementation.md](Plans/implementation.md).
   - **python3 is 3.11**: scripts remain stdlib-only.
  - **OCR is the vision model's, English-leaning:** non-English text won't be read
-   well (there is no separate tesseract/ffmpeg in the pipeline — `sips` is the
-   only external binary, used for HEIC→JPEG + thumbnails).
+   well (there is no separate tesseract/ffmpeg in the pipeline; image ops use
+   Pillow for HEIC→JPEG + thumbnails, not an external binary — issue #14).
 
  ---
 

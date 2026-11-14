@@ -1,0 +1,27 @@
+# Two containers, communicating only through a shared workspace bind-mount
+# (issue #14). Ollama stays external; each container reaches it via
+# OLLAMA_BASE_URL. Override OLLAMA_BASE_URL / SOURCE_IMAGES_DIR in a .env file or
+# on the command line (e.g. `docker compose up OLLAMA_BASE_URL=http://host:11434`).
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    volumes:
+      - ./workspace:/app/.workspace
+      - ${SOURCE_IMAGES_DIR:-./images}:/data/images:ro
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    volumes:
+      - ./workspace:/app/.workspace:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      - backend
+    restart: unless-stopped

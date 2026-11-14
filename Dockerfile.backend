@@ -1,0 +1,23 @@
+# Backend pipeline container (issue #14). Ollama stays external; the pipeline
+# reaches it via OLLAMA_BASE_URL (see docker-compose.yml).
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Runtime deps first for better layer caching: pillow / pillow-heif (HEIC->JPEG
+# thumbnails, work4) and spacy (experimental NER). The frontend image is
+# stdlib-only and lives in Dockerfile.frontend.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Bake the small spacy model into the image. NER is experimental; upgrade to
+# en_core_web_lg when NER matures (issue #14, out of scope for now).
+RUN python -m spacy download en_core_web_sm
+
+# Pipeline source + the canonical config template the loader reads.
+COPY *.py ./
+COPY config.template.json ./
+
+# Source images are bind-mounted read-only at /data/images by docker-compose;
+# outputs (tracker, JSONL, thumbnails) land in the bind-mounted workspace.
+CMD ["python", "backend.py", "--screenshot-dir", "/data/images"]

@@ -90,6 +90,13 @@ def load_config(
             f"Available: {available}"
         )
     config["works"] = normalize_works(config.get("works"))
+    # Container override: an external Ollama (e.g. http://host.docker.internal:11434
+    # on the host, or a LAN endpoint) is reached via OLLAMA_BASE_URL, which wins
+    # over the ollama_base stored in config.json. This lets the pipeline point at a
+    # host/LAN Ollama without editing a per-environment config (issue #14).
+    ollama_url = os.environ.get("OLLAMA_BASE_URL")
+    if ollama_url:
+        config["ollama_base"] = ollama_url
     return config, env
 
 
