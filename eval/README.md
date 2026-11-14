@@ -66,12 +66,14 @@ To resample or expand:
 
 ```python
 import os, random
+
 SCREENSHOTS = os.path.expanduser("~/Library/Mobile Documents/com~apple~CloudDocs/Screenshots/")
 SUPPORTED = {".png", ".jpg", ".jpeg", ".heic"}
-all_images = sorted(p for p in os.listdir(SCREENSHOTS)
-                    if os.path.splitext(p)[1].lower() in SUPPORTED)
+all_images = sorted(
+    p for p in os.listdir(SCREENSHOTS) if os.path.splitext(p)[1].lower() in SUPPORTED
+)
 random.seed(42)
-selected = random.sample(all_images, 300)   # change N here
+selected = random.sample(all_images, 300)  # change N here
 with open("eval/dataset/manifest.txt", "w") as fh:
     for name in sorted(selected):
         fh.write(os.path.join(SCREENSHOTS, name) + "\n")

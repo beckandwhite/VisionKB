@@ -215,8 +215,7 @@ def aggregate(cells, models, works):
     for model in models:
         lats = [c["latency_s"] for c in cells if c["model"] == model and c["error"] is None]
         toks = [
-            c["tok_per_s"] for c in cells
-            if c["model"] == model and c.get("tok_per_s") is not None
+            c["tok_per_s"] for c in cells if c["model"] == model and c.get("tok_per_s") is not None
         ]
         all_for_model = [c for c in cells if c["model"] == model]
         err_for_model = [c for c in all_for_model if c["error"] is not None]
@@ -228,8 +227,7 @@ def aggregate(cells, models, works):
             "tok_per_s_median": _percentile(toks, 50),
             "error_count": len(err_for_model),
             "error_rate": (
-                round(len(err_for_model) / len(all_for_model), 3)
-                if all_for_model else None
+                round(len(err_for_model) / len(all_for_model), 3) if all_for_model else None
             ),
         }
 
@@ -350,7 +348,7 @@ def build_report(cells, agg, models, works, meta):
     for model in models:
         cells_html = ""
         for w in works:
-            raw = agg['per_model_work'][model][w]
+            raw = agg["per_model_work"][model][w]
             norm = round((raw - 1) / 4 * 10, 1) if raw is not None else None
             cells_html += (
                 f"<td class='num'>{_fmt(raw)}"

@@ -105,10 +105,7 @@ def vision_request_with_stats(source_path, prompt, config):
         raise RuntimeError("vision returned no response")
     eval_count = response.get("eval_count") or 0
     eval_duration_ns = response.get("eval_duration") or 0
-    tok_per_s = (
-        round(eval_count / max(eval_duration_ns / 1e9, 0.001), 1)
-        if eval_count else None
-    )
+    tok_per_s = round(eval_count / max(eval_duration_ns / 1e9, 0.001), 1) if eval_count else None
     return result.strip(), {"tok_per_s": tok_per_s, "output_tokens": eval_count}
 
 
