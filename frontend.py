@@ -34,10 +34,12 @@ Usage:
 import argparse
 import contextlib
 import json
+import logging
 import math
 import mimetypes
 import os
 import sys
+import time
 import webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -68,6 +70,19 @@ TIMELINE_DEFAULT_LIMIT = 150
 TIMELINE_WINDOW_DEFAULT = 50
 TIMELINE_WINDOWS = (50, 100, 150, 200)
 MAX_POST_BODY = 65536  # 64 KB — ample for a config JSON
+
+# Operational logger for the service itself. The stdlib http.server request log is
+# muted by default (see Handler.log_message below); we un-mute it here and route the
+# startup banner through it so a long-running service leaves a levelled, time-stamped
+# trail an operator can grep. `logging` is in the stdlib, so this adds no dependency
+# (DECISIONS.md #35: the runtime stays stdlib-only).
+log = logging.getLogger("frontend")
+
+# Health/liveness probes are polled in a tight loop by orchestrators; logging them
+# at INFO would flood the operational trail, so route them to DEBUG instead.
+QUIET_REQUEST_PATHS = frozenset(
+    {"/health", "/healthz", "/_health", "/health-check", "/ready", "/readyz"}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -692,8 +707,27 @@ STATIC_ASSETS = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
+    def handle_one_request(self):
+        # Stamp the request start so the single per-request log line can report
+        # latency; the stdlib handle() loop calls this once per request.
+        self._req_start = time.monotonic()
+        return super().handle_one_request()
+
+    def log_message(self, fmt, *args):
+        # The stdlib http.server request log is muted here (issue #91); route every
+        # request through the module logger instead so the service leaves a levelled,
+        # time-stamped trail. One bounded line per request: client + request line
+        # (method + path) + status + size + elapsed. Health/liveness probes are polled
+        # in a tight loop, so they go to DEBUG to avoid flooding the operational log.
+        line = fmt % args
+        path = urlparse(getattr(self, "path", "")).path
+        start = getattr(self, "_req_start", None)
+        elapsed = "" if start is None else f" {time.monotonic() - start:.2f}s"
+        message = f"{self.address_string()} - {line}{elapsed}"
+        if path in QUIET_REQUEST_PATHS:
+            log.debug(message)
+        else:
+            log.info(message)
 
     def _send_json(self, obj, code=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -911,6 +945,9 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--open", action="store_true", help="open the UI in the default browser")
     args = parser.parse_args()
+    # Configure the service's operational logger first, so the startup banner and
+    # every request below are levelled and time-stamped. `logging` is stdlib.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
         CURRENT_ENV, config = config_loader.resolve_environment(args.env, auto_bootstrap=False)
         ENV_CONFIG = config
@@ -925,21 +962,23 @@ def main():
 
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     url = f"http://{args.host}:{args.port}/"
-    print(f"WebUI running at {url}", flush=True)
-    print(f"Serving from {ROOT}", flush=True)
-    print("Sources:", flush=True)
-    print(f"  tracker={TRACKER_PATH}", flush=True)
-    print(f"  annotations={ANNOT_PATH}", flush=True)
-    print(f"  wiki={WIKI_PATH}", flush=True)
-    print(f"  tags={TAGS_PATH}", flush=True)
-    print(f"  thumbs={THUMB_DIR}", flush=True)
+    log.info("WebUI running at %s", url)
+    log.info("Serving from %s", ROOT)
+    log.info(
+        "Sources: tracker=%s annotations=%s wiki=%s tags=%s thumbs=%s",
+        TRACKER_PATH,
+        ANNOT_PATH,
+        WIKI_PATH,
+        TAGS_PATH,
+        THUMB_DIR,
+    )
     if args.open:
         with contextlib.suppress(Exception):
             webbrowser.open(url)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down.", flush=True)
+        log.info("Shutting down")
         httpd.shutdown()
 
 
