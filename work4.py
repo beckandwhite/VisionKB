@@ -46,8 +46,19 @@ def run(source, config):
         if os.path.isfile(temporary):
             os.replace(temporary, destination)
             return True
-    except (OSError, ValueError):
-        pass
+    except (OSError, ValueError) as exc:
+        # A decode or I/O failure (corrupt/unsupported image, a missing codec, a
+        # permission error, a full disk) must not be swallowed here: drop the
+        # partial .part file, then re-raise carrying the real cause so it
+        # survives to backend.run_task (tracker.fail_task + the stderr print)
+        # instead of collapsing into a generic "thumbnail generation failed".
+        with contextlib.suppress(OSError):
+            os.unlink(temporary)
+        raise RuntimeError(
+            "thumbnail generation failed for {}: {}: {}".format(
+                source.get("filename", source["source_key"]), type(exc).__name__, exc
+            )
+        ) from exc
     with contextlib.suppress(OSError):
         os.unlink(temporary)
     return False
