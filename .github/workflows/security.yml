@@ -52,3 +52,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMIT_TRAVERSAL: "true"
+
+  # Dependency-CVE scan (issue #84): closes the #30 deferral. The runtime now
+  # takes third-party deps (pillow, pillow-heif, spacy), so a vulnerable
+  # declared or transitive dependency would otherwise ship undetected.
+  # pip-audit resolves the pinned requirements against the PyPI advisory DB;
+  # it has no severity filter, so it fails the build on ANY known vuln
+  # (LOW..CRITICAL), which is a safe superset of the "fail on HIGH/CRITICAL"
+  # intent. Runs on a GitHub-hosted runner per the self-hosted-runner policy
+  # (SECURITY.md): no untrusted/PR code executes on the private LAN runner.
+  pip-audit:
+    name: pip-audit dependency-CVE scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: set up python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+      - name: install pip-audit
+        run: pip install 'pip-audit==2.10.1'
+      - name: audit dependencies
+        run: pip-audit -r requirements.txt -r requirements-dev.txt
