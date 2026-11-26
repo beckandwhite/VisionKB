@@ -13,16 +13,14 @@ so a "word pair next to each other" means adjacent after stop-removal.
 """
 
 import argparse
-import contextlib
+import io_util
 import json
 import os
 import re
 import sys
-import tempfile
 import uuid
 from collections import Counter
 from datetime import UTC, datetime
-from pathlib import Path
 
 import config_loader
 
@@ -213,8 +211,6 @@ def flatten(counters, min_count):
 
 
 def write_result(path, rows, counters, min_count):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     run_id = uuid.uuid4().hex
     now = datetime.now(tz=UTC).isoformat()
     meta = {
@@ -223,16 +219,7 @@ def write_result(path, rows, counters, min_count):
         "min_count": min_count,
         "per_n": {n: len(c) for n, c in sorted(counters.items())},
     }
-    fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as output:
-            for row in rows:
-                output.write(json.dumps(row, ensure_ascii=False) + "\n")
-        os.replace(temporary, path)
-    except Exception:
-        with contextlib.suppress(OSError):
-            os.unlink(temporary)
-        raise
+    io_util.atomic_write_jsonl(path, rows)
     return run_id, meta
 
 

@@ -7,14 +7,11 @@ selected environment's ``duplicatefinder.jsonl`` without changing the tracker.
 """
 
 import argparse
-import contextlib
 import hashlib
-import json
+import io_util
 import os
-import tempfile
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 
 import config_loader
 import tracker
@@ -68,34 +65,21 @@ def similarity_groups(paths):
 
 def write_result(path, groups, source_count):
     """Atomically replace the duplicate report with one record per group."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     run_id = uuid.uuid4().hex
     now = datetime.now(tz=UTC).isoformat()
-    fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as output:
-            for digest, members in sorted(groups.items()):
-                output.write(
-                    json.dumps(
-                        {
-                            "run_id": run_id,
-                            "generated_at": now,
-                            "algorithm": "sha256",
-                            "sha256": digest,
-                            "source_count": source_count,
-                            "duplicate_count": len(members),
-                            "sources": members,
-                        },
-                        ensure_ascii=False,
-                    )
-                    + "\n"
-                )
-        os.replace(temporary, path)
-    except Exception:
-        with contextlib.suppress(OSError):
-            os.unlink(temporary)
-        raise
+    records = [
+        {
+            "run_id": run_id,
+            "generated_at": now,
+            "algorithm": "sha256",
+            "sha256": digest,
+            "source_count": source_count,
+            "duplicate_count": len(members),
+            "sources": members,
+        }
+        for digest, members in sorted(groups.items())
+    ]
+    io_util.atomic_write_jsonl(path, records)
     return run_id
 
 

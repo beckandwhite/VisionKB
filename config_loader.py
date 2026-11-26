@@ -1,3 +1,4 @@
+import io_util
 import json
 import os
 import sys
@@ -118,13 +119,8 @@ def _root_source_dir() -> str:
 
 
 def _write_config(path, config: dict[str, Any]) -> None:
-    """Atomically write a config object to disk (temp file + os.replace)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(str(path) + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(config, fh, indent=2, ensure_ascii=False)
-        fh.write("\n")
-    os.replace(tmp, path)
+    """Atomically write a config object to disk (unique temp file + os.replace)."""
+    io_util.atomic_write_json(path, config)
 
 
 def bootstrap_root_config(source_dir: str = None, interactive=None) -> dict[str, Any]:
