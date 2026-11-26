@@ -33,18 +33,17 @@ and *human-confirmed* via ``tag_review.py entities`` + ``work7 apply``.
 """
 
 import argparse
-import contextlib
 import json
 import os
 import re
 import sys
-import tempfile
 import unicodedata
 import uuid
 from collections import Counter, defaultdict
 from pathlib import Path
 
 import config_loader
+from io_util import atomic_write_json, atomic_write_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent
 
@@ -977,41 +976,6 @@ def demote_alias(ent, alias_form):
             a["status"] = "deprecated"
             return True
     return False
-
-
-# ----------------------------------------------------------------------------
-# io helpers
-# ----------------------------------------------------------------------------
-
-
-def atomic_write_jsonl(path, records):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as out:
-            for rec in records:
-                out.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        os.replace(tmp, path)
-    except Exception:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
-
-
-def atomic_write_json(path, obj):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as out:
-            json.dump(obj, out, ensure_ascii=False, indent=2)
-            out.write("\n")
-        os.replace(tmp, path)
-    except Exception:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
 
 
 # ----------------------------------------------------------------------------

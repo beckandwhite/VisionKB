@@ -16,6 +16,7 @@ Stdlib-only and Python 3.11-safe.
 """
 
 import hashlib
+import io_util
 import json
 import os
 from datetime import datetime, timezone
@@ -138,23 +139,19 @@ def load_registry(path):
 
 
 def save_tracker(path, payload):
-    """Atomically write the generic tracker (write .tmp, then os.replace).
+    """Atomically write the generic tracker (unique temp file + os.replace).
 
     `path` may be a str or a pathlib.Path.
     """
     if not isinstance(payload, dict):
         return
-    path = os.fspath(path)
     out = {
         "schema_version": SCHEMA_VERSION,
         "sources": payload.get("sources", {}),
         "tasks": payload.get("tasks", {}),
         "runs": payload.get("runs", {}),
     }
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(out, fh, indent=2)
-    os.replace(tmp, path)
+    io_util.atomic_write_json(path, out)
 
 
 # ---------------------------------------------------------------------------
