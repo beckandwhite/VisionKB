@@ -13,34 +13,18 @@ so a "word pair next to each other" means adjacent after stop-removal.
 """
 
 import argparse
-import io_util
 import json
 import os
-import re
 import sys
 import uuid
 from collections import Counter
 from datetime import UTC, datetime
 
 import config_loader
+import io_util
+from text_fold import NAME_TOKENS, fold
 
 NAME = "work6"
-
-# Diacritic-aware word shape, mirroring ner._NAME_TOKENS so folding is
-# consistent with the NER pass.
-_WORD = re.compile(
-    r"[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F]+"
-    r"(?:['\u2019\u002D\u2013\u2014-][A-Za-z\u00C0-\u017F]+)*"
-)
-
-
-def _strip_accents(token):
-    """Fold case + diacritics: NFD, drop combining marks, lowercase."""
-    import unicodedata
-
-    decomposed = unicodedata.normalize("NFD", token)
-    base = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
-    return base.lower()
 
 
 # English function words plus a few Hungarian ones (the answers carry HU locale).
@@ -165,8 +149,8 @@ def load_answers(path):
 
 def tokenize(text, stopwords):
     tokens = []
-    for match in _WORD.findall(text):
-        folded = _strip_accents(match)
+    for match in NAME_TOKENS.findall(text):
+        folded = fold(match)
         if not folded or folded in stopwords:
             continue
         if len(folded) < 2 or folded.isdigit():

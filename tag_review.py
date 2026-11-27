@@ -24,17 +24,11 @@ import json
 import os
 import re
 import sys
-import unicodedata
 from collections import Counter
 
+from text_fold import fold
+
 DEFAULT_CANDIDATES = "work6_tag_candidates.jsonl"
-
-
-def fold(text):
-    """NFD fold case + diacritics so macos/MacOS / Tamas/Tamás collapse."""
-    decomposed = unicodedata.normalize("NFD", text)
-    base = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
-    return base.lower()
 
 
 def to_tag(ngram):
