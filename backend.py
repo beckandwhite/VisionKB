@@ -28,19 +28,8 @@ HANDLERS = {"work1": work1.run, "work2": work2.run, "work3": work3.run, "work4":
 
 
 def list_images(directory, extensions):
-    dirs = [directory] if isinstance(directory, str) else list(directory)
-    paths = []
-    for d in dirs:
-        for root, _dirs, names in os.walk(d):
-            for name in names:
-                path = os.path.join(root, name)
-                if not os.path.isfile(path) or name.startswith("."):
-                    continue
-                if tracker.is_temp_artifact(name):
-                    continue
-                if "." in name and name.lower().rsplit(".", 1)[-1] in extensions:
-                    paths.append(tracker.file_key(path))
-    return sorted(paths, key=lambda path: os.path.getmtime(path), reverse=True)
+    """Return supported source paths, newest ``mtime`` first."""
+    return tracker.list_source_paths(directory, extensions, newest_first=True)
 
 
 def acquire_lock(path, wait):

@@ -239,8 +239,39 @@ def fail_task(task, error=None, when=None):
 
 
 # ---------------------------------------------------------------------------
-# Source reconciliation
+# Source discovery + reconciliation
 # ---------------------------------------------------------------------------
+
+
+def list_source_paths(directory, extensions, newest_first=False):
+    """Return the supported source-image paths under ``directory``.
+
+    This is the single implementation of the source-image discovery walk shared
+    by ``backend.list_images`` (``newest_first=True``), ``work5.list_images``
+    (``newest_first=False``) and :func:`reconcile` (``newest_first=True``): it
+    walks the configured folder(s), skips dotfiles and :func:`is_temp_artifact`
+    debris, keeps files whose lower-cased extension is in ``extensions``, and
+    keys each result by its absolute path (:func:`file_key`).
+
+    ``directory`` may be a single path string or a list of path strings. When
+    ``newest_first`` is true the paths are ordered by ``mtime`` (descending);
+    otherwise they are returned in stable lexical order.
+    """
+    dirs = [directory] if isinstance(directory, str) else list(directory)
+    paths = []
+    for d in dirs:
+        for root, _dirs, names in os.walk(d):
+            for name in names:
+                path = os.path.join(root, name)
+                if not os.path.isfile(path) or name.startswith("."):
+                    continue
+                if is_temp_artifact(name):
+                    continue
+                if "." in name and name.lower().rsplit(".", 1)[-1] in extensions:
+                    paths.append(file_key(path))
+    if newest_first:
+        return sorted(paths, key=lambda p: os.path.getmtime(p), reverse=True)
+    return sorted(paths)
 
 
 def reconcile(directory, img_exts, files):
@@ -249,33 +280,16 @@ def reconcile(directory, img_exts, files):
     Returns ``(new_count, source_count)``. Existing source records retain their
     identity and discovery time while filesystem timestamps are refreshed.
     ``directory`` may be a single path string or a list of path strings.
-    """
-    dirs = [directory] if isinstance(directory, str) else list(directory)
-    all_files = []
-    for d in dirs:
-        for root, _dirs, names in os.walk(d):
-            for name in names:
-                path = os.path.join(root, name)
-                if not os.path.isfile(path):
-                    continue
-                name_lower = name.lower()
-                if name_lower.startswith("."):
-                    continue
-                if is_temp_artifact(name):
-                    continue
-                if "." in name_lower:
-                    ext = name_lower.rsplit(".", 1)[-1]
-                    if ext in img_exts:
-                        all_files.append(path)
-    all_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
 
+    The discovery walk is delegated to :func:`list_source_paths`; only the
+    upsert loop (and the ``(new_count, source_count)`` return) lives here.
+    """
     new_count = 0
-    for path in all_files:
-        key = file_key(path)
+    for path in list_source_paths(directory, img_exts, newest_first=True):
         metadata = source_metadata(path)
-        rec = files.get(key)
+        rec = files.get(path)
         if rec is None:
-            files[key] = new_source(key, metadata=metadata)
+            files[path] = new_source(path, metadata=metadata)
             new_count += 1
         else:
             discovered_at = rec.get("discovered_at") or metadata["discovered_at"]
