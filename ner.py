@@ -9,8 +9,9 @@ import argparse
 import json
 import re
 import sys
-import unicodedata
-from collections import Counter, defaultdict
+from collections import defaultdict
+
+from text_fold import NAME_TOKENS, fold, has_diacritic, pick_display
 
 try:
     import spacy
@@ -192,8 +193,6 @@ NON_NAME = {
     "gigya",
 }
 
-_NAME_TOKENS = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['\u2019-][A-Za-zÀ-ÖØ-öø-Ÿ]+)*")
-
 _SUFF = re.compile(r"\s*[–—-]\s+[A-Za-z].*|\s*\(.*$")
 _PUNCT = re.compile(r"""[\u201c\u201d\u201e\u2018\u2019'\"\*\[\]():;`\u2026]+""")
 _TRAILING = re.compile(r"\s+e\.g\.$|\s+\.+|^\s*e\.g\.")
@@ -201,25 +200,6 @@ _TIME = re.compile(
     r"\s+(?:\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}\.\d{1,2}\.\d{1,4}|"
     r"\d{4}\.\d{2}\.\d{2}|\d{4})"
 )
-
-
-def has_diacritic(s):
-    return any("À" <= ch <= "ſ" for ch in s)
-
-
-def pick_display(variants):
-    counts = Counter(variants)
-
-    def score(v):
-        return (1 if has_diacritic(v) else 0, 0 if v.isupper() else 1, counts[v])
-
-    return max(variants, key=score)
-
-
-def fold(text):
-    decomposed = unicodedata.normalize("NFD", text)
-    base = "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
-    return base.lower()
 
 
 def norm_key(tokens):
@@ -370,7 +350,7 @@ def merge_people(groups):
     for e in groups:
         if e["type"] != "Person":
             continue
-        toks = _NAME_TOKENS.findall(e["display"])
+        toks = NAME_TOKENS.findall(e["display"])
         key = norm_key(toks)
         if not key:
             continue
@@ -589,10 +569,10 @@ def main():
     locs = [e for e in locs if keep_orgloc(e)]
     people = [e for e in people if keep_person(e)]
 
-    person_keys = {norm_key(_NAME_TOKENS.findall(e["display"])) for e in people}
+    person_keys = {norm_key(NAME_TOKENS.findall(e["display"])) for e in people}
 
     def is_person(e):
-        toks = _NAME_TOKENS.findall(e["display"])
+        toks = NAME_TOKENS.findall(e["display"])
         return bool(toks) and norm_key(toks) in person_keys
 
     demoted = [e for e in orgs + locs if is_person(e)]

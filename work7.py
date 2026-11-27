@@ -37,13 +37,13 @@ import json
 import os
 import re
 import sys
-import unicodedata
 import uuid
 from collections import Counter, defaultdict
 from pathlib import Path
 
 import config_loader
 from io_util import atomic_write_json, atomic_write_jsonl
+from text_fold import NAME_TOKENS, fold, has_diacritic, pick_display
 
 REPO_ROOT = Path(__file__).resolve().parent
 
@@ -53,9 +53,6 @@ NAME = "work7"
 # Concept | Other.   "Other" is the universal catch-all ("unclassified").
 TYPES = ("Person", "Place", "Group", "Product", "Scene", "Concept", "Other")
 
-# Diacritic-aware word shape, copied from ner._NAME_TOKENS so folding stays
-# consistent with the NER pass.
-_WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['\u2019\-][A-Za-zÀ-ÖØ-öø-Ÿ]+)*")
 
 # --- heuristics: small knowledge lists. Additive + overridable, never deleted ---
 
@@ -192,23 +189,6 @@ _STOP = {
 }
 
 
-# ----------------------------------------------------------------------------
-# Folding / canonical keys (copied from ner.py). ner.py imports spacy at module
-# top, so work7 (stdlib/3.11) cannot import it; the ortho-merge logic is copied.
-# ----------------------------------------------------------------------------
-
-
-def fold(text):
-    """NFD-fold case + diacritics: macos/MacOS / Tamas/Tamas collapse."""
-    decomposed = unicodedata.normalize("NFD", text)
-    base = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
-    return base.lower()
-
-
-def _has_diacritic(s):
-    return any("À" <= ch <= "ſ" for ch in s)
-
-
 def norm_key(tokens):
     """Canonical token-set key. 2 tokens are order-ambiguous (HU Family,Given vs
     Western Given,Family), so key on the sorted pair; 3+ keep order. Deduped."""
@@ -225,18 +205,8 @@ def norm_key(tokens):
     return tuple(kept)
 
 
-def pick_display(variants):
-    """Most-frequent, diacritic-preferring, non-ALLCAPS spelling wins."""
-    counts = Counter(variants)
-
-    def score(v):
-        return (1 if _has_diacritic(v) else 0, 0 if v.isupper() else 1, counts[v])
-
-    return max(variants, key=score)
-
-
 def _tokens(text):
-    return _WORD.findall(text)
+    return NAME_TOKENS.findall(text)
 
 
 def slug(canonical):
@@ -430,7 +400,7 @@ _STRUCT_ARROW = re.compile(r"(" + _NAME + _REST + r")\s*\u2192\s*(" + _NAME + _R
 
 def _clean(form):
     form = form.strip().strip("'\"*`-–—")
-    toks = [t for t in form.split() if fold(t) not in _STOP and (len(t) > 1 or _has_diacritic(t))]
+    toks = [t for t in form.split() if fold(t) not in _STOP and (len(t) > 1 or has_diacritic(t))]
     return " ".join(toks) if toks else form.strip()
 
 
@@ -829,7 +799,7 @@ def resolve_image(text, single, multi):
         if phrase in low:
             found.add(cid)
             seen.add(phrase)
-    for tok in _WORD.findall(text):
+    for tok in NAME_TOKENS.findall(text):
         f = fold(tok)
         if len(f) < 3:
             continue
@@ -837,7 +807,7 @@ def resolve_image(text, single, multi):
         if cid:
             found.add(cid)
             continue
-        if tok[0].isupper() or _has_diacritic(tok):
+        if tok[0].isupper() or has_diacritic(tok):
             unresolved.add(tok)
     return sorted(found), sorted(unresolved)
 
