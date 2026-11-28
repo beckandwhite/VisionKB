@@ -85,7 +85,9 @@ to `.workspace/<env>/thumbnails/` and records task completion in the tracker.
 
 Every run **also** writes a 320px JPEG thumbnail per annotated image into
 `.workspace/<env>/thumbnails/`, refreshed after each image so the WebUI shows
-live previews. Pass `--no-thumbs` to skip it. See "Backend options" below.
+live previews. To skip it, disable `work4` in the environment config by setting
+`"enabled": false`. See [“Extending the worker set”](#3-extending-the-worker-set)
+for details.
 
 The read-only **frontend** then serves those same artifacts to a browser:
 
@@ -343,9 +345,8 @@ All options are passed on its command line:
 | Flag | Meaning |
 |---|---|
 | `-env NAME` | Named environment under `.workspace/<NAME>/` (e.g. `QA`, `DEV`, `PRD-iCloud-Screenshots`, `PRD-OneDrive-Pictures`). Omit it to use the default — the `.workspace/` directory itself. An unknown name is auto-created on first run. `frontend.py` instead refuses unknown names and lists the available ones. |
-| `--count N` | Process up to **N** unprocessed files this run (newest `mtime` first). Omit it to use the environment's `processed_limit` (DEV = 5, PRD = 0); `0` = all remaining. |
 | `--screenshot-dir PATH` | Scan a folder other than the environment's configured `source_dir`. Generated outputs still land in `.workspace/<env>/`, not the scanned folder. |
-| `--count N` | Process up to N pending work tasks. |
+| `--count N` | Process up to **N** pending work tasks (a picture with **N** enabled works consumes **N** slots). Omit it to use the environment's `processed_limit` (DEV = 5, PRD = 0); `0` = all remaining. |
 | `--until HH:MM` | Stop before starting the next image once the local wall-clock deadline passes (for a bounded nightly/cron run). |
 | `--wait` | Wait for the environment lock instead of exiting cleanly when another run holds it. |
 
@@ -416,9 +417,9 @@ python3 frontend.py -env PRD-iCloud-Screenshots --port 8000 --open
  - **Tags** — `top_tags` bars + `edges` co-occurrence list from
   `tags_index.json`; clicking a tag filters the timeline.
 
- Thumbnails render live once `thumbnails/` is populated
-(`python3 backend.py` without `--no-thumbs`); until then rows show a
- placeholder. See [WebUI-1.0-plan.md](Plans/WebUI-1.0-plan.md) for the design.
+ Thumbnails render live once work4 has populated `.workspace/<env>/thumbnails/`
+ (it runs by default); until then rows show a placeholder. See
+ [WebUI-1.0-plan.md](Plans/WebUI-1.0-plan.md) for the design.
 
  ---
 

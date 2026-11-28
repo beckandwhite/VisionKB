@@ -4,10 +4,9 @@ Native Windows 10/11 + PowerShell workflow for **running the read-only WebUI
 frontend** (`frontend.py`), editing the project, and starting a local server.
 
 > **Scope: frontend only.** This is *not* Windows backend support. The backend
-> pipeline (`backend.py`), file locking, and thumbnail/image ingestion rely on
-> `fcntl`, `os.uname`, and the macOS `sips` binary, so they do **not** run on
-> native Windows. Do not try to run the backend or configure Ollama here — see
-> the "What is unsupported on Windows" section below.
+> pipeline (`backend.py`) and file locking rely on `fcntl` and `os.uname`, so
+> they do **not** run on native Windows. Do not try to run the backend or
+> configure Ollama here — see the "What is unsupported on Windows" section below.
 
 ## Prerequisites
 
@@ -99,18 +98,15 @@ native Windows.
 
 ## What is unsupported on Windows
 
-The backend and image pipeline are **not** Windows-compatible because they depend
-on:
+The backend is **not** Windows-compatible because it depends on:
 
 - **`fcntl`** — POSIX-only file locking used by the pipeline (`.pipeline.lock`).
 - **`os.uname`** — not available on Windows.
-- **`sips`** — the macOS image binary used for HEIC→JPEG conversion and
-   thumbnails.
 
-Because of these, on native Windows you **cannot**: run the backend (`backend.py`,
-the per-source `work*` runners), run image ingestion / generate thumbnails, or
-populate the workspace. The frontend above is read-only and does none of that,
-which is why it works.
+Image operations use cross-platform Pillow rather than `sips`. Because of the
+remaining blockers, on native Windows you **cannot** run the backend
+(`backend.py`, the per-source `work*` runners) or populate the workspace. The
+frontend above is read-only and does none of that, which is why it works.
 
 **No Ollama setup is needed for the frontend workflow.** Ollama is only required
 by the backend vision/embedding steps on a supported (macOS) machine.
